@@ -47,10 +47,12 @@ td input,td select{width:100%}
   <div v-if="!authed" class="login">
     <h2>HomeNet Panel 登录</h2>
     <div v-if="loginErr" class="banner">{{loginErr}}</div>
-    <input v-model="loginUser" placeholder="用户名" @keyup.enter="doLogin"/>
-    <input v-model="loginPass" type="password" placeholder="密码" @keyup.enter="doLogin"/>
-    <label class="remember"><input type="checkbox" v-model="loginRemember"/> <span>记住我（30 天内免登录）</span></label>
-    <button class="primary" @click="doLogin">登录</button>
+    <form name="hnp-login" method="post" @submit.prevent="doLogin">
+      <input id="hnp-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" v-model="loginUser" placeholder="用户名"/>
+      <input id="hnp-password" name="password" type="password" autocomplete="current-password" v-model="loginPass" placeholder="密码"/>
+      <label class="remember"><input type="checkbox" v-model="loginRemember"/> <span>记住我（30 天内免登录）</span></label>
+      <button class="primary" type="submit">登录</button>
+    </form>
     <div class="tlsHint">
       提示「不安全」是因为用了自签证书。内网使用不影响加密强度，装一次证书即可消除警告：
       <a href="/panel.crt" target="_blank">下载证书</a>
@@ -60,10 +62,12 @@ td input,td select{width:100%}
     <h2>请先修改初始密码</h2>
     <div class="info">这是首次登录（或管理员设置的初始密码）。改完后才能进入控制台，之后不再提示。</div>
     <div v-if="passErr" class="banner">{{passErr}}</div>
-    <input v-model="oldPass" type="password" placeholder="当前密码（初始密码）"/>
-    <input v-model="newPass" type="password" placeholder="新密码（至少 8 位，含字母与数字）"/>
-    <input v-model="newPass2" type="password" placeholder="再输一次新密码" @keyup.enter="changePass"/>
-    <button class="primary" @click="changePass">保存并进入</button>
+    <form name="hnp-passwd" method="post" @submit.prevent="changePass">
+      <input id="hnp-old-pass" name="current-password" type="password" autocomplete="current-password" v-model="oldPass" placeholder="当前密码（初始密码）"/>
+      <input id="hnp-new-pass" name="new-password" type="password" autocomplete="new-password" v-model="newPass" placeholder="新密码（至少 8 位，含字母与数字）"/>
+      <input id="hnp-new-pass2" name="confirm-password" type="password" autocomplete="new-password" v-model="newPass2" placeholder="再输一次新密码"/>
+      <button class="primary" type="submit">保存并进入</button>
+    </form>
     <div class="tlsHint">改完密码后，本浏览器仍保持登录（勾了「记住我」则 30 天免登录）。</div>
   </div>
   <div v-else>

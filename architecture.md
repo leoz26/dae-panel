@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.24  
+> **文档版本：** v0.25  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -27,6 +27,7 @@
 > **修订（v0.22）：** 接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败回滚 + 幂等 + 指纹校验），并在 192.168.1.85 完成段1「本机事务测试」：发现并修掉 4 个真 bug（inet 表需 `dnat ip to`、重复 apply 会叠加规则、`ip_forward` 被 dae 置 1 后回滚不还原、回滚把「表不存在」当失败）；段2「B2 端到端测试」写成 `homenet-panel/docs/access-test-b2.md`。详见 §14.18。
 > **修订（v0.23）：** 登录体验与 HTTPS：会话持久化（重启不掉登录）+ 「记住我 30 天」+ cookie `Secure` 按请求协议判定 + `/panel.crt` 证书下载 + 同端口协议分流（明文 `http://ip:8787` 自动 301 跳到 https，不再报 400）。详见 §14.19。  
 > **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
+> **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1394,10 +1395,22 @@ routing {
 | `POST /api/passwd` 正常口令 | 200，之后 `/api/status` 200 |
 | headless Chrome + 会话 cookie 渲染 | DOM 19,184B、`{{` 泄漏 0、"请先修改初始密码"出现、主控台标题不出现 |
 
+**浏览器「保存密码 / 自动填充」为什么之前不弹（v0.25）**
+
+原登录区是三个裸 `<input>` + `@click` 按钮，没有 `<form>`、没有 `name`、没有 `autocomplete` —— Chrome/Safari 的密码管理器只在**表单提交**（submit 事件）时才会提示保存，且靠 `autocomplete="username"` / `"current-password"` 判定字段语义，所以既不弹保存框也不会自动填充。改法：
+
+- 登录卡包一层 `<form name="hnp-login" @submit.prevent="doLogin">`，账号 `name="username" autocomplete="username"`、密码 `name="password" autocomplete="current-password"`，按钮 `type="submit"`；
+- 改密卡同样包 `<form @submit.prevent="changePass">`，当前密码 `autocomplete="current-password"`、两个新密码 `autocomplete="new-password"`（避免被旧密码自动填）；
+- 回车提交由表单原生完成，去掉原来的 `@keyup.enter`。
+
+前端技术栈本身：**Vue 3（内嵌 `vue.global.prod.js`，无构建步骤）+ 手写 CSS**，未使用 Element Plus / Ant Design 等 UI 库——所以表单语义属性必须自己写。浏览器是否真的弹「保存密码」还取决于证书：https + 自签证书时，Safari 对不受信任的站点会禁用自动填充，把 `/panel.crt` 装成受信任根证书即可。
+
+**注意**：`setpass` 走命令行，不做强度校验（便于设 `10086` 这种临时初始密码）；强度规则只作用于 `POST /api/passwd` 的改密环节。
+
 **坑**：通过 `/api/passwd` 改密成功会清除 `MustChange`，做回归测试把密码改回原值时也会顺手清掉标记——验证完要重新跑一次 `setpass --must-change`。
 
 
-## 15. 本版（v0.24）变更清单
+## 15. 本版（v0.25）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1415,3 +1428,4 @@ routing {
 14. **新增 §14.18（v0.22）**：接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败整体回滚 + 幂等清理 + 指纹校验 + 内核参数还原），段1 本机事务测试 6 个用例全通过（干跑/指纹拒绝/apply/幂等/回滚/自检），修掉 4 个真 bug（`dnat ip to`、规则叠加、`ip_forward` 不还原、表不存在误判失败），段2 B2 端到端测试手册落地为 `homenet-panel/docs/access-test-b2.md`。
 15. **新增 §14.19（v0.23）**：登录体验与 HTTPS——会话落盘（`/var/lib/homenet-panel/sessions.json`，只存 token 摘要）、「记住我 30 天」、cookie `Secure` 按请求协议判定、公共端点 `GET /panel.crt` 下载证书、同端口协议分流（明文请求 301 跳 https，`--allow-plain-http` 可放开）；顺带给出「消除不安全提示」的三个可选做法。
 16. **首次登录强制改密**：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` + 口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均已验证（§14.20）。
+17. 登录与改密表单语义化（form + name + autocomplete=username/current-password/new-password），恢复浏览器「保存密码/自动填充」；初始密码可设为 10086（setpass 不做强度校验）。
