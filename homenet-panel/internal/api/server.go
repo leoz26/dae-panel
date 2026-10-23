@@ -193,6 +193,9 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 
 // mustChangeAllowed 是「必须先改密码」状态下仍允许访问的端点。
 func mustChangeAllowed(path string) bool {
+	if path == "/passwd" {
+		return true
+	}
 	switch path {
 	case "/api/me", "/api/passwd", "/api/logout", "/api/health":
 		return true
@@ -260,6 +263,86 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 	_ = audit.Append(s.AuditPath, audit.Entry{Actor: req.Username, IP: clientIP(r), Action: "login", OK: true})
 	writeJSON(w, 200, map[string]any{"ok": true, "user": req.Username})
+}
+
+// handleLoginForm 处理真实的 <form method="post" action="/login"> 提交。
+// 为什么不用 fetch：Chrome/Safari 的密码管理器只在表单提交导致导航时才可靠地弹「保存密码」。
+func (s *Server) handleLoginForm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	_ = r.ParseForm()
+	user := strings.TrimSpace(r.PostFormValue("username"))
+	pass := r.PostFormValue("password")
+	remember := r.PostFormValue("remember") != ""
+	ok, err := auth.Verify(s.AuthPath, user, pass)
+	if err != nil {
+		http.Redirect(w, r, "/?e=cred", http.StatusSeeOther)
+		return
+	}
+	if !ok {
+		_ = audit.Append(s.AuditPath, audit.Entry{Actor: user, IP: clientIP(r), Action: "login", OK: false, Detail: "用户名或密码错误"})
+		http.Redirect(w, r, "/?e=bad", http.StatusSeeOther)
+		return
+	}
+	ttl := s.Sessions.TTL()
+	if remember {
+		ttl = auth.RememberSessionTTL
+	}
+	tok := s.Sessions.CreateTTL(user, ttl)
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieName,
+		Value:    tok,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(ttl.Seconds()),
+	})
+	_ = audit.Append(s.AuditPath, audit.Entry{Actor: user, IP: clientIP(r), Action: "login", OK: true, Detail: "表单登录"})
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// handlePasswdForm 处理 <form method="post" action="/passwd">，结果用 ?pe=<code> 回到首页展示。
+func (s *Server) handlePasswdForm(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	_ = r.ParseForm()
+	u := s.currentUser(r)
+	if u == "" {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	oldPw := r.PostFormValue("oldPassword")
+	newPw := r.PostFormValue("newPassword")
+	newPw2 := r.PostFormValue("newPassword2")
+	if newPw2 != "" && newPw2 != newPw {
+		http.Redirect(w, r, "/?pe=mismatch", http.StatusSeeOther)
+		return
+	}
+	ok, err := auth.Verify(s.AuthPath, u, oldPw)
+	if err != nil || !ok {
+		s.audit(r, "passwd", u, false, "旧密码错误")
+		http.Redirect(w, r, "/?pe=old", http.StatusSeeOther)
+		return
+	}
+	if passwordWeakness(newPw) != "" {
+		http.Redirect(w, r, "/?pe=weak", http.StatusSeeOther)
+		return
+	}
+	if newPw == oldPw {
+		http.Redirect(w, r, "/?pe=same", http.StatusSeeOther)
+		return
+	}
+	if err := auth.Set(s.AuthPath, u, newPw); err != nil {
+		http.Redirect(w, r, "/?pe=write", http.StatusSeeOther)
+		return
+	}
+	s.audit(r, "passwd", u, true, "已修改登录密码（表单）")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -881,9 +964,11 @@ func (s *Server) handleAggregateSwitch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Register(mux *http.ServeMux) {
 	// 公共端点
 	mux.HandleFunc("/api/login", s.handleLogin)
+	mux.HandleFunc("/login", s.handleLoginForm)
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/me", s.handleMe)
 	mux.HandleFunc("/api/passwd", s.auth(s.handlePasswd))
+	mux.HandleFunc("/passwd", s.auth(s.handlePasswdForm))
 	// 服务器证书下载（公共端点）：把它装进设备/浏览器的信任库，即可消除「不安全」提示
 	mux.HandleFunc("/panel.crt", s.handleCert)
 

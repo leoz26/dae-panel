@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -352,5 +353,91 @@ func TestPasswordWeakness(t *testing.T) {
 		if got := passwordWeakness(pw) != ""; got != weak {
 			t.Fatalf("%q 期望 weak=%v 实际 %v", pw, weak, got)
 		}
+	}
+}
+
+func TestLoginFormRedirectsAndSetsCookie(t *testing.T) {
+	h := newTestServer(t, "", "admin", "pw123")
+	// 成功：303 到 /，下发会话 cookie，MaxAge 按 remember 放大
+	form := url.Values{"username": {"admin"}, "password": {"pw123"}, "remember": {"1"}}
+	req := httptest.NewRequest("POST", "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("want 303, got %d %s", rr.Code, rr.Body.String())
+	}
+	if loc := rr.Header().Get("Location"); loc != "/" {
+		t.Fatalf("want Location /, got %q", loc)
+	}
+	var ck *http.Cookie
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == cookieName {
+			ck = c
+		}
+	}
+	if ck == nil {
+		t.Fatal("登录表单应下发会话 cookie")
+	}
+	if ck.MaxAge != int(auth.RememberSessionTTL.Seconds()) {
+		t.Fatalf("remember=1 时 MaxAge 应为 30 天，实际 %d", ck.MaxAge)
+	}
+	// 密码错误：303 到 /?e=bad，且不下发 cookie
+	form.Set("password", "wrong")
+	req = httptest.NewRequest("POST", "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusSeeOther || rr.Header().Get("Location") != "/?e=bad" {
+		t.Fatalf("密码错误应 303 到 /?e=bad，实际 %d %q", rr.Code, rr.Header().Get("Location"))
+	}
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == cookieName {
+			t.Fatal("密码错误不应下发会话 cookie")
+		}
+	}
+}
+
+func TestPasswdFormRedirects(t *testing.T) {
+	dir := t.TempDir()
+	ap := filepath.Join(dir, "auth.json")
+	if err := auth.SetWithFlag(ap, "admin", "initpw12", true); err != nil {
+		t.Fatal(err)
+	}
+	s := New(Config{
+		Dae: dae.New(), BackupDir: filepath.Join(dir, "bk"), AuthPath: ap,
+		EntryPath: filepath.Join(dir, "config.dae"), CorePath: filepath.Join(dir, "config.d", "panel-core.dae"),
+		ModelPath: filepath.Join(dir, "model.json"), SessionPath: filepath.Join(dir, "sessions.json"),
+	})
+	mux := http.NewServeMux()
+	s.Register(mux)
+	ck := loginCookie(t, mux, `{"username":"admin","password":"initpw12"}`)
+
+	post := func(v url.Values) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", "/passwd", strings.NewReader(v.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(ck)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+		return rr
+	}
+	// 初始密码状态下 /passwd 必须放行（不能被 must_change 门禁拦住）
+	if rr := post(url.Values{"oldPassword": {"initpw12"}, "newPassword": {"goodpass12"}, "newPassword2": {"other1234"}}); rr.Header().Get("Location") != "/?pe=mismatch" {
+		t.Fatalf("两次不一致应 303 到 /?pe=mismatch，实际 %q %d", rr.Header().Get("Location"), rr.Code)
+	}
+	if rr := post(url.Values{"oldPassword": {"nope"}, "newPassword": {"goodpass12"}}); rr.Header().Get("Location") != "/?pe=old" {
+		t.Fatalf("旧密码错误应 303 到 /?pe=old，实际 %q", rr.Header().Get("Location"))
+	}
+	if rr := post(url.Values{"oldPassword": {"initpw12"}, "newPassword": {"abcdefgh"}}); rr.Header().Get("Location") != "/?pe=weak" {
+		t.Fatalf("弱口令应 303 到 /?pe=weak，实际 %q", rr.Header().Get("Location"))
+	}
+	if rr := post(url.Values{"oldPassword": {"initpw12"}, "newPassword": {"goodpass12"}}); rr.Header().Get("Location") != "/" {
+		t.Fatalf("成功应 303 到 /，实际 %q", rr.Header().Get("Location"))
+	}
+	if ok, _ := auth.Verify(ap, "admin", "goodpass12"); !ok {
+		t.Fatal("新密码应生效")
+	}
+	if auth.NeedsChange(ap, "admin") {
+		t.Fatal("改密后 mustChange 应被清除")
 	}
 }

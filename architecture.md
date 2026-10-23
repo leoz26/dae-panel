@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.25  
+> **文档版本：** v0.26  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -28,6 +28,7 @@
 > **修订（v0.23）：** 登录体验与 HTTPS：会话持久化（重启不掉登录）+ 「记住我 30 天」+ cookie `Secure` 按请求协议判定 + `/panel.crt` 证书下载 + 同端口协议分流（明文 `http://ip:8787` 自动 301 跳到 https，不再报 400）。详见 §14.19。  
 > **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
+> **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1405,12 +1406,29 @@ routing {
 
 前端技术栈本身：**Vue 3（内嵌 `vue.global.prod.js`，无构建步骤）+ 手写 CSS**，未使用 Element Plus / Ant Design 等 UI 库——所以表单语义属性必须自己写。浏览器是否真的弹「保存密码」还取决于证书：https + 自签证书时，Safari 对不受信任的站点会禁用自动填充，把 `/panel.crt` 装成受信任根证书即可。
 
+**改用原生表单提交（v0.26）——Chrome 保存密码的可靠性问题**
+
+即使在登录区补了 `<form>` 与 `autocomplete`，用 `@submit.prevent` + `fetch /api/login` 仍经常拿不到「保存密码」提示：Chrome/Safari 的密码管理器把「**表单提交并发生导航**」当作保存时机，纯 XHR 登录不产生导航。另一个更硬的原因：**页面证书未受信任时，Chrome 会直接禁用密码管理器**（既不提示保存也不自动填充）。
+
+改法（服务端出真表单提交）：
+
+| 端点 | 方法 | 入参 | 行为 |
+| --- | --- | --- | --- |
+| `POST /login` | form-urlencoded | `username`、`password`、`remember` | 成功 → `303 /` 并下发会话 cookie；失败 → `303 /?e=bad`；凭证文件异常 → `/?e=cred` |
+| `POST /passwd` | form-urlencoded | `oldPassword`、`newPassword`、`newPassword2` | `303 /?pe=<code>`（`mismatch/old/weak/same/write`），成功 `303 /`；`/passwd` 已加入 mustChange 白名单 |
+
+前端：登录表单 `method="post" action="/login"`、改密表单 `action="/passwd"`，去掉 `preventDefault`，`readFormMsg()` 解析 `?e=`/`?pe=` 显示中文错误后用 `history.replaceState` 清掉查询串。JSON 接口 `/api/login`、`/api/passwd` 仍保留（测试/CLI 用途）。
+
+**实测**（临时实例 `127.0.0.1:8899` + 临时 auth 文件，不动生产凭证）：`bad → 303 /?e=bad`；`good → 303 / + 会话 cookie`；`mismatch → /?pe=mismatch`、`weak → /?pe=weak`、`ok → /`；改密后 `/api/me` 的 `mustChange` 变 false。
+
+**给用户的判定顺序**（Chrome 仍不弹时）：① 打开 `chrome://password-manager/settings` 确认「提示保存密码」开启（无痕窗口一律不保存）；② 把 `/panel.crt` 装成受信任根证书——**这是自签 https 下最常见的原因**；③ 若不装证书，可临时用 `--allow-plain-http` 让内网走 http（Chrome 在 http 站也会保存密码，只是标注"不安全"）。
+
 **注意**：`setpass` 走命令行，不做强度校验（便于设 `10086` 这种临时初始密码）；强度规则只作用于 `POST /api/passwd` 的改密环节。
 
 **坑**：通过 `/api/passwd` 改密成功会清除 `MustChange`，做回归测试把密码改回原值时也会顺手清掉标记——验证完要重新跑一次 `setpass --must-change`。
 
 
-## 15. 本版（v0.25）变更清单
+## 15. 本版（v0.26）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1429,3 +1447,4 @@ routing {
 15. **新增 §14.19（v0.23）**：登录体验与 HTTPS——会话落盘（`/var/lib/homenet-panel/sessions.json`，只存 token 摘要）、「记住我 30 天」、cookie `Secure` 按请求协议判定、公共端点 `GET /panel.crt` 下载证书、同端口协议分流（明文请求 301 跳 https，`--allow-plain-http` 可放开）；顺带给出「消除不安全提示」的三个可选做法。
 16. **首次登录强制改密**：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` + 口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均已验证（§14.20）。
 17. 登录与改密表单语义化（form + name + autocomplete=username/current-password/new-password），恢复浏览器「保存密码/自动填充」；初始密码可设为 10086（setpass 不做强度校验）。
+18. 登录/改密改原生表单提交（`/login`、`/passwd` + 303），并把 `/passwd` 加入 mustChange 白名单；临时实例实测四类跳转码。

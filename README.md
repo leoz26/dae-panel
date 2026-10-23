@@ -60,6 +60,14 @@ sudo /usr/local/bin/homenet-panel serve \
 
 ## 登录与 HTTPS（常见疑问）
 
+### 浏览器不弹「保存密码 / 自动填充」怎么办
+
+登录/改密走的是**原生表单提交**（`POST /login`、`POST /passwd`），符合浏览器密码管理器的识别条件。仍不弹时按顺序排查：
+
+1. `chrome://password-manager/settings` 里确认「提示保存密码 / 自动填充」已开启；无痕窗口一律不保存。
+2. **自签证书未受信任时 Chrome 会禁用密码管理器** —— 先点登录页的「下载证书」把 `panel.crt` 装成受信任根证书（macOS：钥匙串访问 → 系统 → 始终信任）。
+3. 不想装证书就让内网走明文：启动加 `--allow-plain-http`，直接访问 `http://<ip>:8787`（Chrome 在 http 站也会保存密码，只是标注"不安全"）。
+
 ### 初始密码（首次登录必须改）
 
 首次部署执行 `homenet-panel setpass --user admin --password '你的初始密码' --must-change`。用初始密码登录后，面板会**强制要求先改密码**才能进入控制台（其余接口一律返回 403 `must_change_password`）。规则：至少 8 位、同时含字母与数字（或符号），且不能是 password/admin/12345678/homenet 之类的常见口令。忘了密码就重跑一次 `setpass`（不加 `--must-change` 就不再强制改）。
