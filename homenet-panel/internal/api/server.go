@@ -925,6 +925,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/access/recommend", s.auth(s.handleAccessRecommend))
 	mux.HandleFunc("/api/access/plan", s.auth(s.handleAccessPlan))
 	mux.HandleFunc("/api/access/verify", s.auth(s.handleAccessVerify))
+	mux.HandleFunc("/api/access/apply", s.auth(s.handleAccessApply))
+	mux.HandleFunc("/api/access/rollback", s.auth(s.handleAccessRollback))
 
 	mux.HandleFunc("/api/audit", s.auth(s.handleAudit))
 	mux.HandleFunc("/api/audit/export", s.auth(s.handleAuditExport))

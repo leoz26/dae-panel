@@ -24,7 +24,7 @@ type Runner interface {
 type execRunner struct{}
 
 func (execRunner) Run(name string, args ...string) (string, error) {
-	out, err := exec.Command(name, args...).Output()
+	out, err := exec.Command(name, args...).CombinedOutput()
 	return string(out), err
 }
 
@@ -111,6 +111,11 @@ func Collect(r Runner, rootDir, daeConfigPath string) *Probe {
 	}
 	p.MemlockKB = memlockKB(filepath.Join(rootDir, "proc/self/limits"))
 
+	// 片段存在时，自有 nft 表是「接入已生效」的产物，不算遗留。
+	accessFile := filepath.Join(filepath.Dir(daeConfigPath), "config.d", "panel-access.dae")
+	_, accessErr := os.Stat(accessFile)
+	accessEnabled := accessErr == nil
+
 	if _, err := r.Run("nft", "list", "tables"); err == nil {
 		p.Nft = true
 		if out, err := r.Run("nft", "list", "tables"); err == nil {
@@ -118,7 +123,7 @@ func Collect(r Runner, rootDir, daeConfigPath string) *Probe {
 				f := strings.Fields(ln)
 				if len(f) >= 3 && f[0] == "table" {
 					name := f[2]
-					if strings.HasPrefix(name, "panel_") {
+					if strings.HasPrefix(name, "panel_") && !accessEnabled {
 						p.StaleTables = append(p.StaleTables, ln)
 					}
 				}

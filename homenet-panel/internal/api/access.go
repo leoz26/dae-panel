@@ -117,3 +117,74 @@ func (s *Server) handleAccessVerify(w http.ResponseWriter, r *http.Request) {
 		"summary": strconv.Itoa(okCount) + " 项通过 / " + strconv.Itoa(warnCount) + " 项待确认",
 	})
 }
+
+// accessApplier 构造接入变更执行器（Runner 默认走 exec，nft 命令 argv 形式，不经 shell）。
+func (s *Server) accessApplier() *access.Applier {
+	return &access.Applier{
+		Dae:       s.Dae,
+		EntryPath: s.EntryPath,
+		BackupDir: s.BackupDir,
+	}
+}
+
+type accessApplyReq struct {
+	Opt         access.PlanOptions `json:"opt"`
+	Fingerprint string             `json:"fingerprint"`
+	Confirm     bool               `json:"confirm"`
+}
+
+// handleAccessApply：应用接入变更（confirm=false 仅 dry-run）。
+func (s *Server) handleAccessApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]any{"error": "method not allowed"})
+		return
+	}
+	var req accessApplyReq
+	if err := readJSON(r, &req); err != nil {
+		writeJSON(w, 400, map[string]any{"error": "无效的请求体"})
+		return
+	}
+	if req.Confirm {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
+	res, err := s.accessApplier().Apply(req.Opt, req.Fingerprint, req.Confirm)
+	if err != nil {
+		s.audit(r, "access.apply", string(req.Opt.Mode), false, err.Error())
+		writeJSON(w, 422, map[string]any{"error": err.Error(), "result": res})
+		return
+	}
+	if req.Confirm {
+		s.audit(r, "access.apply", string(res.Fingerprint), res.Applied, res.Message)
+	}
+	writeJSON(w, 200, res)
+}
+
+// handleAccessRollback：回滚接入变更（删自有 nft 表 + 移除片段 + reload）。
+func (s *Server) handleAccessRollback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]any{"error": "method not allowed"})
+		return
+	}
+	var req struct {
+		Confirm bool `json:"confirm"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		writeJSON(w, 400, map[string]any{"error": "无效的请求体"})
+		return
+	}
+	if req.Confirm {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+	}
+	res, err := s.accessApplier().Rollback(req.Confirm)
+	if err != nil {
+		s.audit(r, "access.rollback", "接入回滚", false, err.Error())
+		writeJSON(w, 422, map[string]any{"error": err.Error(), "result": res})
+		return
+	}
+	if req.Confirm {
+		s.audit(r, "access.rollback", "接入回滚", true, res.Message)
+	}
+	writeJSON(w, 200, res)
+}

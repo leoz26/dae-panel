@@ -396,7 +396,24 @@ td input,td select{width:100%}
             <tr><th style="width:240px">项目</th><th>怎么看</th></tr>
             <tr v-for="(c,i) in accessPlan.checks" :key="'pc'+i"><td>{{c.name}}</td><td class="muted">{{c.how}}</td></tr>
           </table>
-          <div class="info">本页不会执行任何命令：计划只是文本。真正应用接入需要你确认后再做，届时面板先备份、只写自有片段与自有 nft 表。</div>
+          <div class="row" style="margin-top:12px">
+            <button @click="applyPlan">应用（写入 + validate + reload + 建自有表）</button>
+            <button class="danger" @click="rollbackAccess">回滚接入变更</button>
+          </div>
+          <div class="muted">应用前会二次确认；失败自动回滚；只写自有片段与自有 nft 表，不碰 DHCP/PPPoE/NAT 与 /etc/config。</div>
+        </div>
+
+        <div class="card" v-if="accessApplyRes">
+          <h2>执行结果 <span class="pill" :class="accessApplyRes.applied?'ok':'err'">{{accessApplyRes.applied?'已生效':'未生效'}}</span></h2>
+          <div class="muted">{{accessApplyRes.message}}<span v-if="accessApplyRes.backupPath"> · 备份：{{accessApplyRes.backupPath}}</span></div>
+          <table class="tbl" v-if="accessApplyRes.steps && accessApplyRes.steps.length">
+            <tr><th style="width:180px">步骤</th><th style="width:70px">结果</th><th>命令/说明</th></tr>
+            <tr v-for="(s,i) in accessApplyRes.steps" :key="'as'+i">
+              <td class="mono">{{s.name}}</td>
+              <td :class="s.ok?'ok':'err'">{{s.ok?'OK':'失败'}}</td>
+              <td class="mono">{{s.command||s.detail||''}}</td>
+            </tr>
+          </table>
         </div>
 
         <div class="card" v-if="accessProbe && accessProbe.staleTables && accessProbe.staleTables.length">
@@ -695,7 +712,7 @@ createApp({
     bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
     accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
     accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""},
-    accessPlan:null, accessPlanMsg:"", accessVerify:null, accessPlanOpt:{mode:"",lanIfaces:"",tproxyPort:12345,dnsMode:"hijack53",snat:"auto",proxyIp:"",testDevice:""}
+    accessPlan:null, accessPlanMsg:"", accessApplyRes:null, accessVerify:null, accessPlanOpt:{mode:"",lanIfaces:"",tproxyPort:12345,dnsMode:"hijack53",snat:"auto",proxyIp:"",testDevice:""}
   };},
   mounted(){ this.checkAuth(); },
   methods:{
@@ -706,6 +723,24 @@ createApp({
     accessAnsPayload(){ var f=function(v){ return v==="yes"?true:(v==="no"?false:null); }; return {dhcpGateway:f(this.accessAns.dhcpGateway), dhcpDns:f(this.accessAns.dhcpDns), canDisableDhcp:f(this.accessAns.canDisableDhcp), pbr:f(this.accessAns.pbr)}; },
     async recommendAccess(){ const r=await this.api("/api/access/recommend","POST",this.accessAnsPayload()); if(r.code===200){ this.accessRec=r.data.rec; this.accessGuide=r.data.guide||[]; this.accessMsg="已按你的回答重算档位"; } else { this.accessMsg="重算失败 (HTTP "+r.code+")"; } },
     async genPlan(){ this.accessPlanMsg="生成中…"; const o=this.accessPlanOpt; const body={mode:o.mode||"", lanIfaces:(o.lanIfaces||"").split(",").map(function(s){return s.trim();}).filter(function(s){return s;}), tproxyPort:Number(o.tproxyPort)||0, dnsMode:o.dnsMode, snat:o.snat, proxyIp:o.proxyIp||"", testDevice:o.testDevice||""}; const r=await this.api("/api/access/plan","POST",body); if(r.code===200){ this.accessPlan=r.data.plan; this.accessPlanMsg="计划已生成（未执行任何命令）"; } else { this.accessPlanMsg="生成失败 (HTTP "+r.code+")"; } },
+
+    async applyPlan(){
+      if(!this.accessPlan){ this.accessPlanMsg="请先生成计划"; return; }
+      if(!window.confirm("将执行：写入自有片段 config.d/panel-access.dae → dae validate → reload → 创建自有 nft 表。任一步失败会自动回滚。确认继续？")){ this.accessPlanMsg="已取消"; return; }
+      const o=this.accessPlanOpt;
+      const body={opt:{mode:o.mode||"",lanIfaces:(o.lanIfaces||"").split(",").map(function(s){return s.trim();}).filter(function(s){return s;}),tproxyPort:Number(o.tproxyPort)||0,dnsMode:o.dnsMode,snat:o.snat,proxyIp:o.proxyIp||"",testDevice:o.testDevice||""},fingerprint:this.accessPlan.fingerprint,confirm:true};
+      this.accessPlanMsg="应用中…";
+      const r=await this.api("/api/access/apply","POST",body);
+      this.accessApplyRes=r.data;
+      if(r.code===200){ this.accessPlanMsg="已应用"; this.accessPlan=null; this.runVerify(); } else { this.accessPlanMsg="应用失败："+((r.data&&r.data.error)||("HTTP "+r.code)); }
+    },
+    async rollbackAccess(){
+      if(!window.confirm("回滚：删除自有 nft 表（panel_dns/panel_snat/panel_tproxy）→ 备份并移除 config.d/panel-access.dae → dae reload。确认继续？")){ this.accessPlanMsg="已取消"; return; }
+      this.accessPlanMsg="回滚中…";
+      const r=await this.api("/api/access/rollback","POST",{confirm:true});
+      this.accessApplyRes=r.data;
+      if(r.code===200){ this.accessPlanMsg="已回滚到接入前"; this.accessPlan=null; this.runVerify(); } else { this.accessPlanMsg="回滚失败："+((r.data&&r.data.error)||("HTTP "+r.code)); }
+    },
     async runVerify(){ const r=await this.api("/api/access/verify"); if(r.code===200){ this.accessVerify=r.data; this.accessPlanMsg="自检完成："+r.data.summary; } else { this.accessPlanMsg="自检失败 (HTTP "+r.code+")"; } },
     copyText(s){ try{ navigator.clipboard.writeText(s); this.accessPlanMsg="片段已复制"; }catch(e){ this.accessPlanMsg="复制失败，请手动选择文本"; } },
     async loadBytes(){ const r=await this.api("/api/traffic/bytes"); if(r.code===200){ this.bytesData=r.data; this.bytesMsg=(r.data&&r.data.enabled)?("更新于 "+new Date().toLocaleTimeString()):"字节统计未启用"; } else this.bytesMsg="加载失败 (HTTP "+r.code+")"; },

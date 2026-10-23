@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.21  
+> **文档版本：** v0.22  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -20,10 +20,11 @@
 > **修订（v0.17）：** §4.4 重写为「网络接入与 LAN 接管」：两类流量命运、三张流程图（网关/旁路由/旁路由+策略路由）、**五种接入档位**（gateway / bypass-manual / bypass-router-dhcp / bypass-self-dhcp / bypass-pbr）+ observe、自动选档算法（含中兴光猫与中兴路由的默认假设）、`AccessProfile`/`Plan`/`PBRSpec` 数据模型（策略路由作为保留接口，只出片段不远程执行）、"只写自有 nft 表"的边界、七项自检矩阵、P-A…P-E 实施阶段与风险红线。  
 > **修订（v0.18）：** §4.4 去厂商耦合（面向开源）：
 > **修订（v0.19）：** 实现 §4.4.7 的 P-A 阶段——新增 `internal/access`（只读能力探测 + 选档推荐）与 `/api/access/probe`、`/api/access/recommend`、前端「接入向导」tab；实机（192.168.1.85）跑通并修掉 3 个真机 bug（`dae version` 子命令不存在 / 未展开 `include` / `nft list tables` 字段数假设），详见 §14.16。
-> **修订（v0.21）：** 落地接入向导 P-B（只出计划与只读自检，不执行）：新增 §14.17，定稿"默认 B1、其余档位仅留生成入口"，并新增 README/LICENSE（MIT）用于开源。
 > **修订（v0.20）：** 补入 §4.4.3 的现场实测样本：中兴家用固件「地址管理」页提供可编辑的**「自定义网关地址」**（= DHCP Option 3），说明"家用路由普遍改不了 DHCP 网关"不成立 → B2 在部分家用固件上可行；同时记录"该值可能影响路由器自身出口、填错会整段断网"的风险与操作顺序。详见 §4.4.3。  
+> **修订（v0.21）：** 落地接入向导 P-B（只出计划与只读自检，不执行）：新增 §14.17，定稿"默认 B1、其余档位仅留生成入口"，并新增 README/LICENSE（MIT）用于开源。
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
+> **修订（v0.22）：** 接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败回滚 + 幂等 + 指纹校验），并在 192.168.1.85 完成段1「本机事务测试」：发现并修掉 4 个真 bug（inet 表需 `dnat ip to`、重复 apply 会叠加规则、`ip_forward` 被 dae 置 1 后回滚不还原、回滚把「表不存在」当失败）；段2「B2 端到端测试」写成 `homenet-panel/docs/access-test-b2.md`。详见 §14.18。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1275,7 +1276,48 @@ routing {
 - 通过模板字符串拼接写 Go 源码时，`"\n"` 可能被还原成真实换行，写完必须 `gofmt -l` + `go vet` 复核。
 - `traffic.Snapshot().Queries` 是 `int64`，跨包传值注意类型。
 
-## 15. 本版（v0.21）变更清单
+## 14.18 （v0.22）接入 apply / rollback 落地与段1 事务测试
+
+### 14.18.1 产品口径（用户 m02947）
+
+- **段1（本轮完成）**：本机事务测试——只验证「改得对、回滚得掉」，不验证「有没有人走它」；不需要任何 LAN 客户端，也不改变别人的网络。
+- **段2（已写成手册，待回家执行）**：B2 端到端——主路由 DHCP 网关/DNS 指向旁路由，看 `lan_clients` 从 warn 变 ok。手册：`homenet-panel/docs/access-test-b2.md`（前置条件/基线记录/单设备先行/改 DHCP/六项验证/回滚/排查/验收/记录表）。
+- **最小权限原则**：apply 只做三件事——写 `config.d/panel-access.dae`（自有片段）、建/删自有 nft 表 `panel_dns`/`panel_snat`/`panel_tproxy`、`dae reload`。不碰 DHCP/PPPoE/NAT，不改 `/etc/config/*`，不改整段 `config.dae`。
+
+### 14.18.2 代码结构
+
+| 文件 | 职责 |
+| --- | --- |
+| `internal/access/apply.go` | `Applier{Runner,Dae,EntryPath,AccessPath,BackupDir,Probe}`；`Apply(opt, expectFingerprint, confirm)`：observe 拒绝 → 渲染 → dry-run 直返 → 指纹校验 → `configtx.ApplyMulti` 写片段+validate+reload → 清理自有表（幂等）→ 逐条执行 nft → 记录基线状态；`DeleteTables`（「表不存在」视为成功，detail=表不存在，跳过）；`RestoreAccess`（备份→删除片段→reload）；`Rollback(confirm)`（删表→还原片段→还原 `ip_forward`→删状态文件） |
+| 状态文件 | `<BackupDir>/access-state.json`（0600）：`appliedAt`/`fingerprint`/`originalIpForward`。**基线只在第一次记录**，重复 apply 不覆盖（否则会把 dae 改过的 `ip_forward=1` 当成基线） |
+| `internal/api/access.go` | `POST /api/access/apply`（body: `{opt, fingerprint, confirm}`；confirm 时持 `s.mu`；错误 422 + 审计 `access.apply`）、`POST /api/access/rollback`（audit `access.rollback`） |
+| 前端「接入向导」 | 计划卡底部两个按钮「应用（写入 + validate + reload + 建自有表）」「回滚接入变更」，均带 `window.confirm` 二次确认；新增「执行结果」卡（applied pill + message + backupPath + 步骤表） |
+
+### 14.18.3 段1 实测结果（192.168.1.85，panel + dae 均 active，dae pid 3489 全程未变）
+
+| 用例 | 期望 | 实测 |
+| --- | --- | --- |
+| dry-run（confirm=false） | 不写文件、不跑 nft、返回渲染结果 | ✅ `panel-access.dae` 不存在、`nft list tables` 为空、返回 steps 0 条 |
+| 指纹不一致 | 422 拒绝执行 | ✅ `计划已变化（当前 a7392d4e19e0340c ≠ 提交 0000000000000000）：请重新生成计划再应用` |
+| 真正 apply | 片段 0600 + reload OK + 自有表建立 | ✅ 片段 183B/0600，含 `tproxy_port: 12345`、`wan_interface: auto`、`auto_config_kernel_parameter: true`、`lan_interface: ens2`；`table inet panel_dns` + 3 条规则；`/etc/dae/config.dae` md5 `7de9781a…`、`panel-core.dae` md5 `4ef4d2a0…` **均未变**；`dae.progress=2 OK` |
+| 幂等（连续 apply 两次） | 规则集合不叠加 | ✅ 两次 apply 后 `dnat` 规则数仍为 2（udp+tcp 各 1），未翻倍 |
+| 回滚 | 删表 + 删片段（先备份）+ reload + 还原内核参数 | ✅ 表清空、片段移除、备份 `backups/access-20261023-224441.844.dae`、`ip_forward` 1→0、md5 未变、dae active |
+| 自检 | 6 项按预期分级 | ✅ `dae_running` ok / `lan_clients` warn（无 LAN 客户端，符合预期）/ `dae0_counters` ok（累计 ~900KB）/ `dns_hits` ok（已采集 ~900 次）/ `config_untouched` info / `stale_tables` ok |
+
+### 14.18.4 实机暴露并修掉的 4 个真 bug
+
+1. **inet 家族 nat 必须写族名**：`dnat to 192.168.1.85:53` 在 `table inet` 下报 `specify `dnat ip' or 'dnat ip6' in inet table to disambiguate`，首轮 apply 因此失败并正确回滚；改为 `dnat ip to <ip>:53` 后通过（`nftables v1.1.3` 实测）。
+2. **重复 apply 会叠加规则**：原实现只增不删，第二次 apply 会让 `panel_dns` 规则翻倍。修法：建表前先 `DeleteTables()`（幂等清理），并在步骤里显式记录 `nft-cleanup`。
+3. **`ip_forward` 被 dae 置 1 后回滚不还原**：`auto_config_kernel_parameter: true` 会把内核 `ip_forward` 从 0 改成 1，回滚 dae 不会改回来（实测回滚后仍为 1）。修法：apply 前记录基线到 `access-state.json`，rollback 时 `sysctl -w net.ipv4.ip_forward=0` 并在消息里注明「内核 ip_forward 已还原为 0」。**注意要读基线在读片段之前**（否则读到的是 dae 已经改过的值，等于没记）；且**基线只在第一次记录**，重复 apply 不得覆盖。
+4. **「表不存在」被当成失败**：`nft delete table inet panel_snat` 在表不存在时返回 `No such file or directory`，`exec.Command(...).Output()` 只返回 stdout 拿不到 stderr。修法：`execRunner` 改用 `CombinedOutput()`，`DeleteTables` 把该错误归一化为 `ok=true`（detail=表不存在，跳过）。
+
+### 14.18.5 边界与后续
+
+- **B3（旁路由自当 DHCP）仍不实现**：违反「不碰 DHCP」底线，代码里只有计划与警告文案。
+- **apply 不做网络连通性兜底**：如果 `lan_interface` 写错（例如写成 WAN 口），面板不会阻止，回滚路径仍是「点一下回滚」；因此前端强制二次确认并展示指纹。
+- **计划不持久化**：指纹随计划实时计算，改配置/换网卡后旧指纹自然失效（这正是设计意图）。
+- **段2 未执行**：`ip_forward=1` 与 `lan_interface` 生效后的真实 LAN 收流，必须回家在 B2 场景验证（手册第 6 节六项判定）。
+## 15. 本版（v0.22）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1290,3 +1332,4 @@ routing {
 11. **新增 §14.16（v0.19）**：接入向导 P-A 落地——`internal/access` 只读探测（平台/服务管理器/BPF-BTF/memlock/nft/默认路由/网卡/端口占用/dae 版本与运行/include 展开后的 `lan_interface`/遗留 `panel_*` 表）+ 与厂商无关的选档推荐 + `/api/access/{probe,recommend}` + 前端「接入向导」tab；记录实机暴露的 3 个 bug 与对应开发习惯。
 12. **§4.4.3 补实测样本（v0.20）**：中兴家用固件「地址管理」页可编辑「自定义网关地址」（DHCP Option 3）→ B2 在部分家用固件可行，纠正"家用路由普遍不能改 DHCP 网关"的统计假设；同时记录该字段可能影响路由器自身出口（填错整段断网）的风险与"记原值→改→验证→失败改回"的操作顺序。
 13. **接入向导 P-B（v0.21）**：新增 §14.17——`internal/access/plan.go`（计划生成：dae global 片段、`panel_dns`/`panel_snat`/`panel_tproxy` 渲染、人工步骤、回滚、6 项自检清单、指纹）+ `verify.go`（只读自检）+ `/api/access/plan`（GET/POST，dry-run）+ `/api/access/verify` + 前端「接入向导」计划与自检 UI；产品口径定稿为**默认 B1（设备端手改网关/DNS）**，其余档位只留生成计划入口；实机 4 通过 1 待确认（LAN 客户端尚未接入）。
+14. **新增 §14.18（v0.22）**：接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败整体回滚 + 幂等清理 + 指纹校验 + 内核参数还原），段1 本机事务测试 6 个用例全通过（干跑/指纹拒绝/apply/幂等/回滚/自检），修掉 4 个真 bug（`dnat ip to`、规则叠加、`ip_forward` 不还原、表不存在误判失败），段2 B2 端到端测试手册落地为 `homenet-panel/docs/access-test-b2.md`。

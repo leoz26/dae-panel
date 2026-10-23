@@ -15,7 +15,7 @@
 | 订阅源托管 | 记录上游 URL 与 UA；上游返回 Clash/Mihomo YAML 时自动转成节点链接；变更只报告差异，一键应用前先 dry-run |
 | 自建聚合 | 把多个订阅合并成一份只含节点的镜像 |
 | 流量观测 | DNS 命中排行、字节级统计（socket 计数器 + 拦截网卡总量，按节点/客户端归并） |
-| 接入向导 | 只读探测本机能力 → 推荐接入档位（网关/旁路由/观测）→ 生成 dry-run 计划（配置片段、nft 片段、回滚、自检） |
+| 接入向导 | 只读探测本机能力 → 推荐接入档位（网关/旁路由/观测）→ 生成计划（配置片段、nft 片段、回滚、自检）→ **一键应用**（写自有片段 + 建自有 nft 表 + `dae reload`，失败整体回滚）与一键撤销；[段2 B2 端到端测试手册](docs/access-test-b2.md) |
 | 审计日志 | 登录、应用、回滚、暂停、订阅更新等操作的 JSONL 记录，按大小轮转，可导出 CSV / JSONL |
 | 安全直连 | 自动前置注入「内网/回环/组播 + 本机进程直连」规则，避免把本机与内网流量也代理掉 |
 
@@ -69,7 +69,7 @@ internal/subs/            订阅解析（base64 / SIP008 / 明文链接），带
 internal/clashconv/       Clash/Mihomo YAML → 节点链接（手写 YAML 子集解析）
 internal/subsrc/          订阅源登记表、差异计算、拉取缓存
 internal/traffic/         DNS 命中聚合 + 字节级统计（ss / /proc/net/dev）
-internal/access/          接入探测、档位推荐、计划生成、只读自检
+internal/access/          接入探测、档位推荐、计划生成、apply/rollback、只读自检
 internal/audit/           审计日志（JSONL、按大小轮转、CSV/JSONL 导出）
 tools/netdiag/            外部网络诊断脚本（流量走向、被动抓包、按客户端汇总）
 architecture.md           详细架构设计与实测记录
@@ -85,6 +85,7 @@ go vet ./... && go test ./... -count=1
 ## 文档
 
 - `architecture.md`：总体架构、配置事务、订阅与聚合、接入档位设计、实测结论与变更清单
+- `docs/access-test-b2.md`：B2（主路由 DHCP 指向旁路由）端到端测试手册——前置条件、改前记录、逐项自检、三级回滚
 - `dae-cli-capability-checklist.md`：dae CLI 命令/信号/配置模型/坑点核对表
 
 ## 许可证
