@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.23  
+> **文档版本：** v0.24  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -26,6 +26,7 @@
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
 > **修订（v0.22）：** 接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败回滚 + 幂等 + 指纹校验），并在 192.168.1.85 完成段1「本机事务测试」：发现并修掉 4 个真 bug（inet 表需 `dnat ip to`、重复 apply 会叠加规则、`ip_forward` 被 dae 置 1 后回滚不还原、回滚把「表不存在」当失败）；段2「B2 端到端测试」写成 `homenet-panel/docs/access-test-b2.md`。详见 §14.18。
 > **修订（v0.23）：** 登录体验与 HTTPS：会话持久化（重启不掉登录）+ 「记住我 30 天」+ cookie `Secure` 按请求协议判定 + `/panel.crt` 证书下载 + 同端口协议分流（明文 `http://ip:8787` 自动 301 跳到 https，不再报 400）。详见 §14.19。  
+> **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1359,7 +1360,44 @@ routing {
 #### 14.19.6 「不安全」怎么彻底消掉（用户可选，非必须）
 
 自签证书的三个选择：①**下载证书并安装为受信任根证书**（iOS：设置→通用→关于本机→证书信任设置；Android：安装 CA 证书；macOS：钥匙串→系统→始终信任；Windows：受信任的根证书颁发机构）→ 之后是绿锁，且不影响加密；②**内网纯 HTTP**（`--allow-plain-http`，或干脆不配 `--tls-cert`）：密码与 cookie 明文过网，只建议在完全可控的内网；③**保持现状**（点「继续访问」）：加密照旧，只是每次新开浏览器要点一下。开源项目默认走 ①。
-## 15. 本版（v0.23）变更清单
+### 14.20 首次登录强制改密（v0.24）
+
+**问题**：面板以固定初始密码分发（`setpass` 写入 `/etc/homenet-panel.auth.json`），安装后若忘了改，等于长期用公开口令。要求"第一次登录强制改密码"。
+
+**实现（三道闸）**
+
+| 层 | 位置 | 行为 |
+| --- | --- | --- |
+| 凭据标记 | `internal/auth` `credFile.MustChange` | `Set()` 委托 `SetWithFlag(path,user,pw,must)`；`NeedsChange(path,user)` 读文件判断该用户是否仍为初始密码 |
+| 服务端门禁 | `internal/api/server.go` auth 中间件 | 已登录但 `NeedsChange` 为真时，除白名单外一律 `403 {"code":"must_change_password","mustChange":true}`。白名单：`/api/me`、`/api/passwd`、`/api/logout`、`/api/health` |
+| 修改入口 | `handlePasswd` `POST /api/passwd` | `{oldPassword,newPassword}`；旧密码错 → 401；弱密码 → 400；新旧相同 → 400；成功写新凭据（**同时清空 MustChange**）并写审计 |
+
+**口令强度规则**（`passwordWeakness`，返回空串表示合格）
+
+- 长度 < 8 → "新密码至少 8 位"；> 128 → 过长；
+- 必须同时含"字母"和"数字或符号"；
+- 黑名单（小写比较）：`password`、`admin`、`12345678`、`homenet`。
+
+**命令行**：`homenet-panel setpass --user admin --password '...' --must-change` 把账号标记为"初始密码"；首次启动自动建号也走 `--must-change`（提示"登录后必须修改"）。
+
+**前端**：登录卡片与主控台之间插入 `v-else-if="mustChange"` 分支（三输入框 + "保存并进入"），`changePass()` 成功后清空字段、`mustChange=false`、直接刷新主控台。注意 Vue 的 `v-if/v-else` 链顺序：新分支必须插在登录卡（`v-if="!authed"`）与主控台（`v-else`）之间，否则主控台会先命中。
+
+**实机验证（192.168.1.85）**
+
+| 用例 | 结果 |
+| --- | --- |
+| `setpass --must-change` 后 `/etc/homenet-panel.auth.json` | `mustChange: true` |
+| login | 200 |
+| `GET /api/me` | `{"mustChange":true,"user":"admin"}` |
+| `GET /api/status` | 403 `{"code":"must_change_password",...}` |
+| `POST /api/passwd` 弱口令 `abc` | 400 "新密码至少 8 位" |
+| `POST /api/passwd` 正常口令 | 200，之后 `/api/status` 200 |
+| headless Chrome + 会话 cookie 渲染 | DOM 19,184B、`{{` 泄漏 0、"请先修改初始密码"出现、主控台标题不出现 |
+
+**坑**：通过 `/api/passwd` 改密成功会清除 `MustChange`，做回归测试把密码改回原值时也会顺手清掉标记——验证完要重新跑一次 `setpass --must-change`。
+
+
+## 15. 本版（v0.24）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1376,3 +1414,4 @@ routing {
 13. **接入向导 P-B（v0.21）**：新增 §14.17——`internal/access/plan.go`（计划生成：dae global 片段、`panel_dns`/`panel_snat`/`panel_tproxy` 渲染、人工步骤、回滚、6 项自检清单、指纹）+ `verify.go`（只读自检）+ `/api/access/plan`（GET/POST，dry-run）+ `/api/access/verify` + 前端「接入向导」计划与自检 UI；产品口径定稿为**默认 B1（设备端手改网关/DNS）**，其余档位只留生成计划入口；实机 4 通过 1 待确认（LAN 客户端尚未接入）。
 14. **新增 §14.18（v0.22）**：接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败整体回滚 + 幂等清理 + 指纹校验 + 内核参数还原），段1 本机事务测试 6 个用例全通过（干跑/指纹拒绝/apply/幂等/回滚/自检），修掉 4 个真 bug（`dnat ip to`、规则叠加、`ip_forward` 不还原、表不存在误判失败），段2 B2 端到端测试手册落地为 `homenet-panel/docs/access-test-b2.md`。
 15. **新增 §14.19（v0.23）**：登录体验与 HTTPS——会话落盘（`/var/lib/homenet-panel/sessions.json`，只存 token 摘要）、「记住我 30 天」、cookie `Secure` 按请求协议判定、公共端点 `GET /panel.crt` 下载证书、同端口协议分流（明文请求 301 跳 https，`--allow-plain-http` 可放开）；顺带给出「消除不安全提示」的三个可选做法。
+16. **首次登录强制改密**：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` + 口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均已验证（§14.20）。

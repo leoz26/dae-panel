@@ -104,6 +104,7 @@ func main() {
 	allowPlain := fs.Bool("allow-plain-http", false, "TLS 开启时也允许明文 HTTP 访问(内网便利；默认只做 301 跳转到 https)")
 	userF := fs.String("user", "admin", "setpass 登录用户名")
 	passF := fs.String("password", "", "setpass 登录密码(留空则自动生成)")
+	mustChange := fs.Bool("must-change", false, "setpass 标记为初始密码：下次登录必须先改密码")
 	_ = fs.Parse(os.Args[2:])
 
 	if *token == "" {
@@ -204,25 +205,28 @@ func main() {
 			pass = randPass(16)
 			generated = true
 		}
-		if err := auth.Set(*authPath, *userF, pass); err != nil {
+		if err := auth.SetWithFlag(*authPath, *userF, pass, *mustChange); err != nil {
 			fmt.Fprintln(os.Stderr, "写入凭证失败:", err)
 			os.Exit(1)
 		}
-		out := map[string]any{"ok": true, "user": *userF, "authPath": *authPath}
+		out := map[string]any{"ok": true, "user": *userF, "authPath": *authPath, "mustChange": *mustChange}
 		if generated {
 			out["password"] = pass
 		}
 		mustJSON(out)
+		if *mustChange {
+			fmt.Println("已标记为初始密码：下次登录会强制要求修改。")
+		}
 
 	case "serve":
 		if !auth.Exists(*authPath) {
 			pass := randPass(16)
-			if err := auth.Set(*authPath, "admin", pass); err != nil {
+			if err := auth.SetWithFlag(*authPath, "admin", pass, true); err != nil {
 				fmt.Fprintln(os.Stderr, "初始化凭证失败:", err)
 				os.Exit(1)
 			}
 			fmt.Println("==================================================================")
-			fmt.Println("首次启动：已自动创建登录账号")
+			fmt.Println("首次启动：已自动创建登录账号（初始密码，登录后必须修改）")
 			fmt.Printf("  用户名: admin\n  密码:   %s\n", pass)
 			fmt.Printf("  (已写入 %s，可用 setpass 修改)\n", *authPath)
 			fmt.Println("==================================================================")

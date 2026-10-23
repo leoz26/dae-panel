@@ -254,3 +254,103 @@ func TestCertEndpointWithoutTLS(t *testing.T) {
 		t.Fatalf("未启用 TLS 时应 404，实际 %d", rr.Code)
 	}
 }
+
+func TestMustChangePasswordGate(t *testing.T) {
+	dir := t.TempDir()
+	ap := filepath.Join(dir, "auth.json")
+	if err := auth.SetWithFlag(ap, "admin", "initpw12", true); err != nil {
+		t.Fatal(err)
+	}
+	mk := func() http.Handler {
+		s := New(Config{
+			Dae:         dae.New(),
+			BackupDir:   filepath.Join(dir, "bk"),
+			AuthPath:    ap,
+			EntryPath:   filepath.Join(dir, "config.dae"),
+			CorePath:    filepath.Join(dir, "config.d", "panel-core.dae"),
+			ModelPath:   filepath.Join(dir, "model.json"),
+			SessionPath: filepath.Join(dir, "sessions.json"),
+		})
+		mux := http.NewServeMux()
+		s.Register(mux)
+		return mux
+	}
+	h := mk()
+	ck := loginCookie(t, h, `{"username":"admin","password":"initpw12"}`)
+
+	// /api/me 应标记 mustChange
+	req := httptest.NewRequest("GET", "/api/me", nil)
+	req.AddCookie(ck)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), `"mustChange":true`) {
+		t.Fatalf("/api/me 应返回 mustChange:true，实际 %d %s", rr.Code, rr.Body.String())
+	}
+
+	// 其他端点应被 403 拦住
+	req = httptest.NewRequest("GET", "/api/status", nil)
+	req.AddCookie(ck)
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 403 || !strings.Contains(rr.Body.String(), "must_change_password") {
+		t.Fatalf("初始密码状态下 /api/status 应 403，实际 %d %s", rr.Code, rr.Body.String())
+	}
+
+	// 弱密码应被拒
+	req = httptest.NewRequest("POST", "/api/passwd", strings.NewReader(`{"oldPassword":"initpw12","newPassword":"abcdefgh"}`))
+	req.AddCookie(ck)
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 400 {
+		t.Fatalf("纯字母密码应被拒，实际 %d %s", rr.Code, rr.Body.String())
+	}
+	// 旧密码错误应被拒
+	req = httptest.NewRequest("POST", "/api/passwd", strings.NewReader(`{"oldPassword":"wrong","newPassword":"goodpass12"}`))
+	req.AddCookie(ck)
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 401 {
+		t.Fatalf("旧密码错误应 401，实际 %d", rr.Code)
+	}
+	// 正常改密
+	req = httptest.NewRequest("POST", "/api/passwd", strings.NewReader(`{"oldPassword":"initpw12","newPassword":"goodpass12"}`))
+	req.AddCookie(ck)
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("改密应成功，实际 %d %s", rr.Code, rr.Body.String())
+	}
+	// 改完标记清除：受保护端点通了，且旧密码失效
+	req = httptest.NewRequest("GET", "/api/health", nil)
+	req.AddCookie(ck)
+	rr = httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("改密后 /api/health 应 200，实际 %d", rr.Code)
+	}
+	if auth.NeedsChange(ap, "admin") {
+		t.Fatal("改密后 mustChange 标记应被清除")
+	}
+	if ok, _ := auth.Verify(ap, "admin", "goodpass12"); !ok {
+		t.Fatal("新密码应可用")
+	}
+	if ok, _ := auth.Verify(ap, "admin", "initpw12"); ok {
+		t.Fatal("旧密码应失效")
+	}
+}
+
+func TestPasswordWeakness(t *testing.T) {
+	cases := map[string]bool{
+		"short1":      true, // 太短
+		"onlyletters": true, // 无数字/符号
+		"12345678":    true, // 纯数字且常见
+		"admin":       true, // 常见
+		"goodpass12":  false,
+		"P@ssw0rd!":   false,
+	}
+	for pw, weak := range cases {
+		if got := passwordWeakness(pw) != ""; got != weak {
+			t.Fatalf("%q 期望 weak=%v 实际 %v", pw, weak, got)
+		}
+	}
+}

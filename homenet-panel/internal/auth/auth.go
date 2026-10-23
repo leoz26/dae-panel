@@ -24,6 +24,8 @@ type credFile struct {
 	Salt     string `json:"salt"`
 	Hash     string `json:"hash"`
 	Iters    int    `json:"iters"`
+	// MustChange 为真表示这是初始/临时密码，登录后必须立刻修改。
+	MustChange bool `json:"mustChange,omitempty"`
 }
 
 // derive 用加盐迭代 SHA-256 派生口令摘要。
@@ -41,8 +43,11 @@ func derive(password string, salt []byte, iters int) []byte {
 	return dk
 }
 
-// Set 写入指定用户的口令凭证（0600）。
-func Set(path, user, password string) error {
+// Set 写入指定用户的口令凭证（0600），并清除「必须修改密码」标记。
+func Set(path, user, password string) error { return SetWithFlag(path, user, password, false) }
+
+// SetWithFlag 写入口令凭证，must=true 表示下次登录必须修改密码（初始密码场景）。
+func SetWithFlag(path, user, password string, must bool) error {
 	if user == "" || password == "" {
 		return errors.New("用户名和密码不能为空")
 	}
@@ -52,10 +57,11 @@ func Set(path, user, password string) error {
 	}
 	dk := derive(password, salt, defaultIters)
 	cf := credFile{
-		Username: user,
-		Salt:     hex.EncodeToString(salt),
-		Hash:     hex.EncodeToString(dk),
-		Iters:    defaultIters,
+		Username:   user,
+		Salt:       hex.EncodeToString(salt),
+		Hash:       hex.EncodeToString(dk),
+		Iters:      defaultIters,
+		MustChange: must,
 	}
 	b, err := json.MarshalIndent(cf, "", "  ")
 	if err != nil {
@@ -100,6 +106,19 @@ func Verify(path, user, password string) (bool, error) {
 	}
 	got := derive(password, salt, cf.Iters)
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
+}
+
+// NeedsChange 判断该用户是否被要求先修改密码（初始密码）。
+func NeedsChange(path, user string) bool {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var cf credFile
+	if err := json.Unmarshal(b, &cf); err != nil {
+		return false
+	}
+	return cf.MustChange && cf.Username == user
 }
 
 // Username 读取凭证文件里的用户名。

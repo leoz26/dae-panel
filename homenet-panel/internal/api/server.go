@@ -174,12 +174,30 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		if s.currentUser(r) != "" {
+		if u := s.currentUser(r); u != "" {
+			// 初始密码登录后必须先改密码，否则只放行少数端点。
+			if auth.NeedsChange(s.AuthPath, u) && !mustChangeAllowed(r.URL.Path) {
+				writeJSON(w, http.StatusForbidden, map[string]any{
+					"error":      "请先修改初始密码",
+					"code":       "must_change_password",
+					"mustChange": true,
+				})
+				return
+			}
 			next(w, r)
 			return
 		}
 		writeJSON(w, http.StatusUnauthorized, map[string]any{"error": "unauthorized"})
 	}
+}
+
+// mustChangeAllowed 是「必须先改密码」状态下仍允许访问的端点。
+func mustChangeAllowed(path string) bool {
+	switch path {
+	case "/api/me", "/api/passwd", "/api/logout", "/api/health":
+		return true
+	}
+	return false
 }
 
 // preflightHook 与 CLI 一致：--allow-goose 仅豁免 goose 头。
@@ -259,7 +277,83 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]any{"error": "unauthorized"})
 		return
 	}
-	writeJSON(w, 200, map[string]any{"user": u})
+	writeJSON(w, 200, map[string]any{"user": u, "mustChange": auth.NeedsChange(s.AuthPath, u)})
+}
+
+// handlePasswd 修改密码：先用旧密码验证，再校验新密码强度并落盘（同时清除「必须修改」标记）。
+func (s *Server) handlePasswd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, 405, map[string]any{"error": "method not allowed"})
+		return
+	}
+	u := s.currentUser(r)
+	if u == "" {
+		writeJSON(w, 401, map[string]any{"error": "unauthorized"})
+		return
+	}
+	var req struct {
+		OldPassword string `json:"oldPassword"`
+		NewPassword string `json:"newPassword"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		writeJSON(w, 400, map[string]any{"error": "bad json"})
+		return
+	}
+	ok, err := auth.Verify(s.AuthPath, u, req.OldPassword)
+	if err != nil {
+		writeJSON(w, 500, map[string]any{"error": "凭证文件不可用: " + err.Error()})
+		return
+	}
+	if !ok {
+		s.audit(r, "passwd", u, false, "旧密码错误")
+		writeJSON(w, 401, map[string]any{"error": "旧密码不正确"})
+		return
+	}
+	if msg := passwordWeakness(req.NewPassword); msg != "" {
+		writeJSON(w, 400, map[string]any{"error": msg})
+		return
+	}
+	if req.NewPassword == req.OldPassword {
+		writeJSON(w, 400, map[string]any{"error": "新密码不能与旧密码相同"})
+		return
+	}
+	if err := auth.Set(s.AuthPath, u, req.NewPassword); err != nil {
+		writeJSON(w, 500, map[string]any{"error": "写入新密码失败: " + err.Error()})
+		return
+	}
+	s.audit(r, "passwd", u, true, "已修改登录密码")
+	writeJSON(w, 200, map[string]any{"ok": true, "user": u})
+}
+
+// passwordWeakness 返回新密码的问题描述，空字符串表示通过。
+func passwordWeakness(pw string) string {
+	if len(pw) < 8 {
+		return "新密码至少 8 位"
+	}
+	if len(pw) > 128 {
+		return "新密码过长（≤128 位）"
+	}
+	var digit, letter, other int
+	for _, c := range pw {
+		switch {
+		case c >= '0' && c <= '9':
+			digit++
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+			letter++
+		default:
+			other++
+		}
+	}
+	if letter == 0 || (digit == 0 && other == 0) {
+		return "新密码需同时包含字母与数字（或符号）"
+	}
+	low := strings.ToLower(pw)
+	for _, bad := range []string{"password", "admin", "12345678", "homenet"} {
+		if low == bad {
+			return "这个密码太常见，请换一个"
+		}
+	}
+	return ""
 }
 
 // ---- 模型（内容层） ----
@@ -789,6 +883,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/me", s.handleMe)
+	mux.HandleFunc("/api/passwd", s.auth(s.handlePasswd))
 	// 服务器证书下载（公共端点）：把它装进设备/浏览器的信任库，即可消除「不安全」提示
 	mux.HandleFunc("/panel.crt", s.handleCert)
 

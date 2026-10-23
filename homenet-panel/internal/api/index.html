@@ -56,6 +56,16 @@ td input,td select{width:100%}
       <a href="/panel.crt" target="_blank">下载证书</a>
     </div>
   </div>
+  <div v-else-if="mustChange" class="login">
+    <h2>请先修改初始密码</h2>
+    <div class="info">这是首次登录（或管理员设置的初始密码）。改完后才能进入控制台，之后不再提示。</div>
+    <div v-if="passErr" class="banner">{{passErr}}</div>
+    <input v-model="oldPass" type="password" placeholder="当前密码（初始密码）"/>
+    <input v-model="newPass" type="password" placeholder="新密码（至少 8 位，含字母与数字）"/>
+    <input v-model="newPass2" type="password" placeholder="再输一次新密码" @keyup.enter="changePass"/>
+    <button class="primary" @click="changePass">保存并进入</button>
+    <div class="tlsHint">改完密码后，本浏览器仍保持登录（勾了「记住我」则 30 天免登录）。</div>
+  </div>
   <div v-else>
     <header>
       <b>HomeNet Panel</b><h1>dae 配置管理控制台</h1>
@@ -707,7 +717,7 @@ td input,td select{width:100%}
 const { createApp } = Vue;
 createApp({
   data(){ return {
-    authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"", loginRemember:true, loginNote:"",
+    authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"", loginRemember:true, loginNote:"", mustChange:false, oldPass:"", newPass:"", newPass2:"", passErr:"",
     tab:"content", status:{}, resultText:"", applyText:"",
     target:"/etc/dae/config.dae", content:"", allowGoose:false,
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
@@ -783,8 +793,9 @@ createApp({
       let d=t; try{ d=JSON.parse(t); }catch(e){}
       return {code:r.status, data:d};
     },
-    async checkAuth(){ const me=await this.api("/api/me"); if(me.code===200){ this.authed=true; this.user=me.data.user||""; this.refreshStatus(); this.loadModel(); } },
-    async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass,remember:this.loginRemember}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; this.refreshStatus(); this.loadModel(); } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
+    async checkAuth(){ const me=await this.api("/api/me"); if(me.code===200){ this.authed=true; this.user=me.data.user||""; this.mustChange=!!me.data.mustChange; if(!this.mustChange){ this.refreshStatus(); this.loadModel(); } } },
+    async changePass(){ this.passErr=""; if(this.newPass!==this.newPass2){ this.passErr="两次输入的新密码不一致"; return; } const r=await this.api("/api/passwd","POST",{oldPassword:this.oldPass,newPassword:this.newPass}); if(r.code===200){ this.mustChange=false; this.oldPass=""; this.newPass=""; this.newPass2=""; this.refreshStatus(); this.loadModel(); } else { this.passErr=(r.data&&r.data.error)||"修改失败"; } },
+    async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass,remember:this.loginRemember}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; const me=await this.api("/api/me"); this.mustChange=!!(me.code===200&&me.data&&me.data.mustChange); if(!this.mustChange){ this.refreshStatus(); this.loadModel(); } } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
     async logout(){ await this.api("/api/logout","POST"); this.authed=false; },
     async refreshStatus(){ const r=await this.api("/api/status"); if(r.code===200) this.status=r.data; },
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },

@@ -60,6 +60,10 @@ sudo /usr/local/bin/homenet-panel serve \
 
 ## 登录与 HTTPS（常见疑问）
 
+### 初始密码（首次登录必须改）
+
+首次部署执行 `homenet-panel setpass --user admin --password '你的初始密码' --must-change`。用初始密码登录后，面板会**强制要求先改密码**才能进入控制台（其余接口一律返回 403 `must_change_password`）。规则：至少 8 位、同时含字母与数字（或符号），且不能是 password/admin/12345678/homenet 之类的常见口令。忘了密码就重跑一次 `setpass`（不加 `--must-change` 就不再强制改）。
+
 - **要不要 HTTPS？** 面板能改 dae 配置、能看审计日志，建议保留 TLS；内网也一样，防的是同网段嗅探与误操作。若不配 `--tls-cert/--tls-key` 则纯 HTTP，仅建议绑在 `127.0.0.1`。
 - **浏览器提示「不安全」？** 那是自签证书没进设备信任库，加密本身没问题。登录页有「下载证书」链接（`GET /panel.crt`），装成受信任根证书即可（iOS：设置→通用→关于本机→证书信任设置；macOS：钥匙串→始终信任；Windows：受信任的根证书颁发机构；Android：安装 CA 证书）。
 - **可以直接输 `ip:8787` 吗？** 可以。同端口会识别明文 HTTP 并 **301 跳到 `https://`**；不想跳可加 `--allow-plain-http`（密码会明文过网）。
