@@ -1,0 +1,17 @@
+# 交叉编译产物
+bin/
+*.exe
+
+# 本地备份 / 临时文件
+*.bak
+*.bak-*
+*.orig
+*.rej
+*~
+
+# macOS
+.DS_Store
+
+# 编辑器
+.idea/
+.vscode/

@@ -1,0 +1,680 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>HomeNet Panel 控制台</title>
+<script src="/assets/vue.js"></script>
+<style>
+:root{--bg:#0f1420;--card:#1b2233;--line:#24304a;--fg:#e7ecf5;--muted:#8b97ad;--acc:#4c8dff;--ok:#2ecc71;--err:#ff5c5c;--warn:#e6b450}
+*{box-sizing:border-box}body{margin:0;background:#0f1420;color:#e7ecf5;font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:12px 20px;background:#141b29;border-bottom:1px solid #24304a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+header b{font-size:16px}h1{font-size:13px;color:#8b97ad;font-weight:400;margin:0}
+.wrap{padding:16px;max-width:1200px;margin:0 auto}
+.card{background:#1b2233;border:1px solid #24304a;border-radius:10px;padding:14px;margin-bottom:14px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th,.tbl td{border-bottom:1px solid #24304a;padding:5px 8px;text-align:left}.tbl .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}.hl{background:#22304d}.bad{border-color:#ff5c5c!important}
+.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.muted{color:#8b97ad}
+.card h2{font-size:12px;margin:0 0 10px;color:#8b97ad;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+button{background:#24304a;color:#e7ecf5;border:1px solid #34406a;border-radius:7px;padding:6px 12px;cursor:pointer;margin:3px 4px 3px 0;font-size:13px}
+button:hover{background:#2c3a5c}button.primary{background:#2f6bff;border-color:#2f6bff}button.danger{background:#7a2b2b;border-color:#a33}
+button.sm{padding:2px 8px;font-size:12px}
+input,textarea,select{background:#0d1220;color:#cfe0ff;border:1px solid #24304a;border-radius:7px;padding:6px 8px;font-size:13px}
+textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+pre{background:#0d1220;border:1px solid #24304a;border-radius:8px;padding:10px;overflow:auto;max-height:300px;font-size:12px;margin:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{background:#0d1220;border:1px solid #24304a;border-radius:20px;padding:3px 10px;font-size:12px}
+.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.muted{color:#8b97ad}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #24304a;vertical-align:top;font-size:13px}
+th{color:#8b97ad;font-weight:500;font-size:12px}
+td input,td select{width:100%}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button.active{background:#2f6bff;border-color:#2f6bff}
+.login{max-width:360px;margin:12vh auto;background:#1b2233;border:1px solid #24304a;border-radius:12px;padding:26px}
+.login h2{color:#e7ecf5;font-size:18px;margin:0 0 18px;text-transform:none;letter-spacing:0}
+.login input{width:100%;margin-bottom:12px}.login button{width:100%;padding:9px}
+.banner{background:#3a1f1f;border:1px solid #a33;border-radius:8px;padding:10px 14px;color:#ffb3b3;font-size:13px;margin-bottom:12px}
+.info{background:#122234;border:1px solid #244a6a;border-radius:8px;padding:8px 12px;color:#a9c7e8;font-size:12px;margin-bottom:10px}
+.mono{font-family:ui-monospace,Menlo,monospace}
+</style>
+</head>
+<body>
+<div id="app">
+  <div v-if="!authed" class="login">
+    <h2>HomeNet Panel 登录</h2>
+    <div v-if="loginErr" class="banner">{{loginErr}}</div>
+    <input v-model="loginUser" placeholder="用户名" @keyup.enter="doLogin"/>
+    <input v-model="loginPass" type="password" placeholder="密码" @keyup.enter="doLogin"/>
+    <button class="primary" @click="doLogin">登录</button>
+  </div>
+  <div v-else>
+    <header>
+      <b>HomeNet Panel</b><h1>dae 配置管理控制台</h1>
+      <span class="pill" :class="status.service===&#39;active&#39;?&#39;ok&#39;:&#39;err&#39;">dae: {{status.service||&#39;?&#39;}}</span>
+      <span class="pill">pid {{status.pid||&#39;-&#39;}}</span>
+      <span class="pill">{{status.progressCode||&#39;&#39;}}</span>
+      <span v-if="status.subsrcChanged>0" class="pill err" style="cursor:pointer" @click="goSubsrc()" title="点击查看变化明细">订阅 {{status.subsrcChanged}} 条有变化</span>
+      <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <span class="muted">{{user}}</span>
+        <button @click="refreshStatus">刷新状态</button>
+        <button @click="logout">退出</button>
+      </span>
+    </header>
+    <div class="wrap">
+      <div class="tabs">
+        <button :class="{active:tab===&#39;content&#39;}" @click="tab=&#39;content&#39;">内容层</button>
+        <button :class="{active:tab===&#39;subgrp&#39;}" @click="tab=&#39;subgrp&#39;;loadSubs()">订阅·分组</button>
+        <button :class="{active:tab===&#39;subsrc&#39;}" @click="tab=&#39;subsrc&#39;;loadSubsrc()">订阅源更新</button>
+        <button :class="{active:tab===&#39;agg&#39;}" @click="tab=&#39;agg&#39;;loadAgg()">自建聚合</button>
+        <button :class="{active:tab===&#39;route&#39;}" @click="tab=&#39;route&#39;">分流调试</button>
+        <button :class="{active:tab===&#39;traffic&#39;}" @click="tab=&#39;traffic&#39;;loadTraffic()">流量/命中</button>
+        <button :class="{active:tab===&#39;probe&#39;}" @click="tab=&#39;probe&#39;">运行探测</button>
+        <button :class="{active:tab===&#39;bytes&#39;}" @click="tab=&#39;bytes&#39;;loadBytes()">字节统计</button>
+        <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
+        <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
+        <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
+      </div>
+
+      <!-- 内容层 -->
+      <div v-if="tab===&#39;content&#39;">
+        <div v-if="modelErr" class="banner">模型解析告警: {{modelErr}}</div>
+        <div class="info">结构化编辑订阅 / 分组 / 分流规则，应用时自动渲染为 dae 配置并做 校验+备份+reload+失败回滚。全局(global)与 DNS 为高级原文编辑。</div>
+        <div class="card">
+          <h2>订阅 (subscription)</h2>
+          <table>
+            <tr><th style="width:160px">名称</th><th>来源 (file://subs/xxx.sub 或 https://...)</th><th style="width:70px"></th></tr>
+            <tr v-for="(s,i) in model.subscriptions" :key="&#39;s&#39;+i">
+              <td><input v-model="s.name"/></td>
+              <td><input v-model="s.source"/></td>
+              <td><button class="danger sm" @click="model.subscriptions.splice(i,1)">删除</button></td>
+            </tr>
+          </table>
+          <button @click="model.subscriptions.push({name:&#39;&#39;,source:&#39;&#39;})">+ 添加订阅</button>
+        </div>
+        <div class="card">
+          <h2>分组 (group)</h2>
+          <table>
+            <tr><th style="width:120px">名称</th><th style="width:150px">策略</th><th>过滤(filter，每行一条)</th><th style="width:70px"></th></tr>
+            <tr v-for="(g,i) in model.groups" :key="&#39;g&#39;+i">
+              <td><input v-model="g.name"/></td>
+              <td><select v-model="g.policy"><option>min_moving_avg</option><option>min_avg10</option><option>min_avg40</option><option>min_last_delay</option><option>random</option><option>fixed</option></select></td>
+              <td><textarea rows="2" :value="(g.filters||[]).join(&#39;\n&#39;)" @input="g.filters=splitLines($event.target.value)"></textarea></td>
+              <td><button class="danger sm" @click="model.groups.splice(i,1)">删除</button></td>
+            </tr>
+          </table>
+          <button @click="model.groups.push({name:&#39;&#39;,policy:&#39;min_moving_avg&#39;,filters:[]})">+ 添加分组</button>
+        </div>
+        <div class="card">
+          <h2>分流规则 (routing)</h2>
+          <datalist id="outopts">
+            <option v-for="g in model.groups" :value="g.name"></option>
+            <option value="direct"></option>
+            <option value="block"></option>
+          </datalist>
+          <div class="muted" style="font-size:12px;margin-bottom:6px">规则自上而下首条命中即生效（顺序敏感，可调序）。出站可从下拉选分组或 direct。</div>
+          <div class="muted" style="font-size:12px;margin-bottom:6px;color:#ffcc66">系统安全规则（自动前置注入，不在此表内、删不掉）：内网/回环/组播目标直连 + 本机进程（面板本身、dae、dhcpcd、systemd-resolved、sshd 等）直连。这样 DHCP 与面板自身的出站请求不会被丢进代理组。</div>
+          <table class="tbl">
+            <tr><th style="width:32px">#</th><th>匹配器 (如 domain(geosite:youtube) / ip(geoip:cn) / pname(app))</th><th style="width:150px">出站</th><th style="width:92px">顺序</th><th style="width:60px"></th></tr>
+            <tr v-for="(r,i) in model.rules" :key="&#39;r&#39;+i" :class="{hl: ruleHitIndex()===i}">
+              <td>{{i+1}}</td>
+              <td><input v-model="r.matcher" style="width:100%"/></td>
+              <td>
+                <input v-model="r.out" list="outopts" style="width:100%" :class="{bad: outInvalid(r.out)}"/>
+                <div v-if="outInvalid(r.out)" class="warn" style="font-size:11px">未找到该出站</div>
+              </td>
+              <td>
+                <button class="sm" @click="moveRule(i,-1)" :disabled="i===0">↑</button>
+                <button class="sm" @click="moveRule(i,1)" :disabled="i===model.rules.length-1">↓</button>
+              </td>
+              <td><button class="danger sm" @click="model.rules.splice(i,1)">删除</button></td>
+            </tr>
+          </table>
+          <div class="row" style="margin-top:8px">
+            <button @click="model.rules.push({matcher:&#39;&#39;,out:&#39;&#39;})">+ 添加规则</button>
+            <span class="muted" style="margin-left:12px">兜底 fallback:</span>
+            <input v-model="model.fallback" list="outopts" style="width:140px"/>
+          </div>
+          <div class="row" style="margin-top:10px;border-top:1px solid #24304a;padding-top:10px">
+            <span class="muted">用当前(未保存)规则试算：</span>
+            <input v-model="ruleProbeDomain" placeholder="域名，如 www.youtube.com" style="min-width:220px" @keyup.enter="probeRules"/>
+            <button class="sm" @click="probeRules">试算命中</button>
+            <span v-if="ruleProbe" class="muted">结果: <b :class="ruleProbe.decided?&#39;ok&#39;:&#39;warn&#39;">{{ruleProbe.chosen||&#39;—&#39;}}</b> {{ruleProbe.reason}}</span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>全局 / DNS (高级原文)</h2>
+          <div class="row" style="align-items:flex-start">
+            <div style="flex:1"><div class="muted" style="font-size:12px;margin-bottom:4px">global { }</div><textarea v-model="model.global" rows="5"></textarea></div>
+            <div style="flex:1"><div class="muted" style="font-size:12px;margin-bottom:4px">dns { }</div><textarea v-model="model.dns" rows="10"></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="row">
+            <button @click="previewModel">预览生成结果</button>
+            <button class="primary" @click="applyModel">校验+备份+reload 应用</button>
+            <span class="muted" v-if="modelMsg">{{modelMsg}}</span>
+          </div>
+          <div v-if="previewEntry" style="margin-top:10px">
+            <div class="muted" style="font-size:12px">入口 config.dae：</div>
+            <pre>{{previewEntry}}</pre>
+            <div class="muted" style="font-size:12px;margin-top:8px">主体 panel-core.dae：</div>
+            <pre>{{previewCore}}</pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- 订阅·分组 -->
+      <div v-if="tab===&#39;subgrp&#39;">
+        <div class="info">只读解析订阅来源(file:// 相对路径 / http(s))，并按分组 filter 本地求值展示命中节点。点“全部测速”对节点端点做 TCP 建连延迟测量（≥3s 视为不可达）。不修改任何文件。</div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadSubs">刷新</button>
+            <button class="primary" @click="runSpeedAll">全部测速</button>
+            <span class="pill" v-if="subsData">订阅节点 {{subsData.total}} 个 / {{subsData.subscriptions.length}} 个订阅</span>
+            <span class="muted" v-if="subMsg">{{subMsg}}</span>
+          </div>
+        </div>
+        <div class="card" v-for="(s,si) in (subsData?subsData.subscriptions:[])" :key="&#39;sub&#39;+si">
+          <h2>订阅 {{s.name}} <span class="muted" style="text-transform:none">— {{s.source}} — {{s.count}} 个节点</span></h2>
+          <div v-if="s.error" class="banner">{{s.error}}</div>
+          <table v-else>
+            <tr><th style="width:80px">协议</th><th>地址</th><th style="width:80px">端口</th><th>备注(tag)</th><th style="width:80px">延迟</th><th style="width:60px"></th></tr>
+            <tr v-for="(n,ni) in s.nodes" :key="&#39;n&#39;+si+&#39;-&#39;+ni">
+              <td>{{n.scheme}}</td><td class="mono">{{n.host}}</td><td>{{n.port}}</td><td>{{n.tag}}</td>
+              <td :class="latClass(n)">{{latText(n)}}</td>
+              <td><button class="sm" @click="speedOne(n)">测</button></td>
+            </tr>
+          </table>
+        </div>
+        <div class="card" v-for="(g,gi) in (groupsData?groupsData.groups:[])" :key="&#39;grp&#39;+gi">
+          <h2>分组 {{g.name}} <span class="muted" style="text-transform:none">— 策略 {{g.policy}} — 命中 {{g.count}} 个节点</span></h2>
+          <div v-if="g.count===0" class="warn" style="font-size:12px">该分组当前未命中任何节点（检查 filter 或订阅是否正常）。</div>
+          <table v-else>
+            <tr><th style="width:80px">来源</th><th class="mono">地址</th><th style="width:80px">端口</th><th>备注(tag)</th><th style="width:80px">延迟</th></tr>
+            <tr v-for="(n,ni) in g.nodes" :key="&#39;gn&#39;+gi+&#39;-&#39;+ni">
+              <td>{{n.subtag}}</td><td class="mono">{{n.host}}</td><td>{{n.port}}</td><td>{{n.tag}}</td>
+              <td :class="latClass(n)">{{latText(n)}}</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 订阅源更新 -->
+      <div v-if="tab===&#39;subsrc&#39;">
+        <div class="info">给每条订阅登记上游 URL：面板负责<b>拉取 → 解析校验（0 节点拒绝覆盖）→ 备份旧镜像 → 写 0600 镜像 → dae reload</b>。上游返回 <b>Clash/Mihomo YAML</b> 时（dae 无法直接消费）会自动转换成节点链接再写入镜像；部分机场按 User-Agent 决定返回内容甚至直接 403，可在下方单独指定 UA，reload 失败会自动恢复旧文件并再次 reload。dae 侧仍通过 file:// 引用镜像文件，配置结构不变。检查后 2 分钟内点「应用」会复用同一次拉取结果——机场上游对短时间内重复请求会挂起（超时属限流，等 1 分钟再试）。后台每 {{subsrcHours}} 小时自动巡检一次（只报告差异，不自动改配置）。</div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadSubsrc">刷新</button>
+            <button class="primary" @click="checkAllSrc">检查全部上游</button>
+            <span class="muted" v-if="subsrcMsg">{{subsrcMsg}}</span>
+            <span class="pill" v-if="subsrcLastRun">上次巡检 {{subsrcLastRun}}</span>
+          </div>
+        </div>
+        <div class="card" v-for="(it,i) in subsrcItems" :key="&#39;src&#39;+i">
+          <h2>订阅 {{it.name}}
+            <span class="muted" style="text-transform:none">— 镜像 {{it.source}}</span>
+            <span v-if="it.changed" class="pill" style="margin-left:8px">上游有更新</span>
+            <span v-else-if="it.lastCheck" class="pill" style="margin-left:8px">{{it.lastOk?&#39;已是最新&#39;:&#39;检查失败&#39;}}</span>
+          </h2>
+          <div class="row" style="margin-bottom:8px">
+            <input style="flex:1;min-width:260px" v-model="it.url" placeholder="上游订阅 URL（https://...，含 token）">
+            <input style="width:210px" v-model="it.ua" placeholder="User-Agent（留空=默认）" title="部分机场只认特定 UA（如 clash-verge/v1.7.7），留空则用面板默认">
+            <button @click="saveSrc(it)">保存</button>
+            <button @click="checkSrc(it.name)">检查差异</button>
+            <button class="primary" @click="applySrc(it)">拉取并应用</button>
+          </div>
+          <div class="warn" v-if="it.err" style="font-size:12px">{{it.err}}</div>
+          <div class="muted" style="font-size:12px" v-if="it.lastCheck">
+            本地 {{it.localCount}} 节点 / 上游 {{it.remoteCount}} 节点 · 新增 {{it.added}} · 移除 {{it.removed}} · 检查于 {{it.lastCheck}}
+            <span v-if="it.format"> · 上游格式 {{it.format==='clash'?'Clash YAML（已转节点链接）':'节点链接'}}</span>
+            <span v-if="it.skipped"> · 跳过 {{it.skipped}} 个不支持的代理</span>
+            <span v-if="it.lastApplied"> · 上次应用 {{it.lastApplied}}</span>
+          </div>
+          <div class="muted" style="font-size:12px" v-if="it.addedKeys && it.addedKeys.length">
+            新增节点：<span class="mono">{{it.addedKeys.join(&#39;, &#39;)}}</span>
+          </div>
+          <div class="muted" style="font-size:12px" v-if="it.removedKeys && it.removedKeys.length">
+            消失节点：<span class="mono">{{it.removedKeys.join(&#39;, &#39;)}}</span>
+          </div>
+        </div>
+        <div class="card" v-if="subsrcItems.length===0"><div class="muted">当前模型没有订阅项。</div></div>
+      </div>
+
+      <!-- 接入向导（P-A 只读探测） -->
+      <div v-if="tab===&#39;access&#39;">
+        <div class="info">回答「流量凭什么经过 dae」这个前提问题。<b>本页只做只读探测</b>：不改任何系统状态、不改主路由、不改 dae 配置。档位说明见文档 §4.4。</div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadAccess">重新探测</button>
+            <span class="muted" v-if="accessMsg">{{accessMsg}}</span>
+          </div>
+        </div>
+
+        <div class="card" v-if="accessProbe">
+          <h2>本机能力</h2>
+          <table class="tbl">
+            <tr><th style="width:180px">项目</th><th>结果</th></tr>
+            <tr><td>平台 / 系统</td><td class="mono">{{accessProbe.platform}} · {{accessProbe.osName||&#39;—&#39;}} · {{accessProbe.arch}} · kernel {{accessProbe.kernel||&#39;—&#39;}}</td></tr>
+            <tr><td>服务管理器</td><td class="mono">{{accessProbe.serviceManager}}</td></tr>
+            <tr><td>内核 BPF / BTF</td><td class="mono">{{accessProbe.hasBpf?&#39;BPF 可用&#39;:&#39;BPF 不可用&#39;}} / {{accessProbe.hasBtf?&#39;BTF 可用&#39;:&#39;BTF 缺失&#39;}}</td></tr>
+            <tr><td>memlock 上限</td><td class="mono">{{accessProbe.memlockKB? accessProbe.memlockKB+&#39; KB&#39; : &#39;—&#39;}}</td></tr>
+            <tr><td>nftables</td><td class="mono">{{accessProbe.nft?&#39;可用&#39;:&#39;不可用&#39;}}</td></tr>
+            <tr><td>默认路由</td><td class="mono">via {{accessProbe.defaultGw||&#39;—&#39;}} dev {{accessProbe.defaultIface||&#39;—&#39;}} · ip_forward={{accessProbe.ipForward?&#39;1&#39;:&#39;0&#39;}}</td></tr>
+            <tr><td>dae</td><td class="mono">{{accessProbe.daeInstalled? (accessProbe.daeVersion||&#39;已安装&#39;) : &#39;未安装&#39;}} · {{accessProbe.daeRunning?&#39;运行中&#39;:&#39;未运行&#39;}} · lan_interface: {{(accessProbe.daeLanIfaces||[]).join(&#39;, &#39;)||&#39;未声明&#39;}}</td></tr>
+            <tr><td>端口占用</td><td class="mono">{{accessProbe.busyPorts && Object.keys(accessProbe.busyPorts).length? JSON.stringify(accessProbe.busyPorts) : &#39;无&#39;}}</td></tr>
+          </table>
+        </div>
+
+        <div class="card" v-if="accessProbe && accessProbe.ifaces && accessProbe.ifaces.length">
+          <h2>网卡</h2>
+          <table class="tbl">
+            <tr><th style="width:120px">名称</th><th>地址</th><th style="width:150px">MAC</th><th style="width:190px">状态</th></tr>
+            <tr v-for="(it,i) in accessProbe.ifaces" :key="&#39;if&#39;+i">
+              <td class="mono">{{it.name}}</td>
+              <td class="mono">{{(it.addrs||[]).join(&#39;, &#39;)||&#39;—&#39;}}</td>
+              <td class="mono">{{it.mac||&#39;—&#39;}}</td>
+              <td>{{it.up?&#39;UP&#39;:&#39;DOWN&#39;}}<span v-if="it.bridge"> · bridge</span><span v-if="it.loopback"> · loopback</span><span v-if="it.virtual"> · 虚拟</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="card" v-if="accessRec">
+          <h2>推荐档位：{{accessLabel(accessRec.mode)}}</h2>
+          <div v-if="accessRec.blockers && accessRec.blockers.length" class="banner">
+            <div v-for="(b,i) in accessRec.blockers" :key="&#39;bl&#39;+i">阻塞：{{b}}</div>
+          </div>
+          <ul>
+            <li v-for="(r,i) in accessRec.reasons" :key="&#39;rs&#39;+i">{{r}}</li>
+          </ul>
+          <div class="muted">操作要点（只读说明，本页不会执行）：</div>
+          <ul>
+            <li v-for="(g,i) in accessGuide" :key="&#39;gd&#39;+i">{{g}}</li>
+          </ul>
+        </div>
+
+        <div class="card" v-if="accessRec && accessRec.questions && accessRec.questions.length">
+          <h2>向导三问（与路由器品牌无关）</h2>
+          <div class="info">不知道就选「不知道」，不影响继续；它只影响推荐档位。</div>
+          <table class="tbl">
+            <tr><th>问题</th><th style="width:150px">回答</th><th style="width:320px">为什么问</th></tr>
+            <tr v-for="(q,i) in accessRec.questions" :key="&#39;q&#39;+i">
+              <td>{{q.text}}</td>
+              <td>
+                <select v-model="accessAns[q.key]">
+                  <option value="">不知道</option>
+                  <option value="yes">能</option>
+                  <option value="no">不能</option>
+                </select>
+              </td>
+              <td class="muted">{{q.why}}</td>
+            </tr>
+          </table>
+          <div class="row"><button @click="recommendAccess">按回答重新推荐</button></div>
+        </div>
+
+        <div class="card" v-if="accessProbe && accessProbe.staleTables && accessProbe.staleTables.length">
+          <h2>需要清理</h2>
+          <div class="muted">发现上次遗留的面板 nft 表，规则叠加会出问题，先回滚清理：</div>
+          <pre class="mono">{{(accessProbe.staleTables||[]).join(&#39;\n&#39;)}}</pre>
+        </div>
+        <div class="card" v-if="accessProbe && accessProbe.notes && accessProbe.notes.length">
+          <h2>提示</h2>
+          <ul><li v-for="(n,i) in accessProbe.notes" :key="&#39;nt&#39;+i">{{n}}</li></ul>
+        </div>
+      </div>
+
+      <!-- 审计日志 -->
+      <div v-if="tab===&#39;audit&#39;">
+        <div class="info">记录登录、配置应用/回滚、聚合切换、订阅源更新等操作的 JSONL 审计日志（默认 /var/lib/homenet-panel/audit.log，0600）。<span v-if="auditData && auditData.retention">保留策略：{{auditData.retention.desc}}，更早的自动删除；按大小轮转，不需要定时清理。</span></div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadAudit">刷新</button>
+            <button @click="exportAudit">导出 CSV</button>
+            <button @click="exportAudit('jsonl')">导出 JSONL</button>
+            <span class="pill" v-if="auditData">最近 {{auditData.count}} 条</span>
+            <span class="pill" v-if="auditData && auditData.files">{{auditData.files.length}} 个文件 / {{Math.round((auditData.bytes||0)/1024)}} KB</span>
+            <span class="muted" v-if="auditMsg">{{auditMsg}}</span>
+          </div>
+        </div>
+        <div class="card" v-if="auditData && auditData.items && auditData.items.length">
+          <table class="tbl">
+            <tr><th style="width:150px">时间</th><th style="width:90px">操作者</th><th style="width:110px">来源IP</th><th style="width:130px">动作</th><th>对象/详情</th><th style="width:60px">结果</th></tr>
+            <tr v-for="(a,i) in auditData.items" :key="&#39;au&#39;+i">
+              <td class="mono">{{a.ts}}</td><td>{{a.actor}}</td><td class="mono">{{a.ip||&#39;—&#39;}}</td>
+              <td class="mono">{{a.action}}</td>
+              <td class="mono">{{a.target}}<span v-if="a.detail"> — {{a.detail}}</span></td>
+              <td :class="a.ok?&#39;ok&#39;:&#39;err&#39;">{{a.ok?&#39;OK&#39;:&#39;失败&#39;}}</td>
+            </tr>
+          </table>
+        </div>
+        <div class="card" v-else><div class="muted">暂无审计记录。</div></div>
+      </div>
+
+      <!-- 自建聚合 -->
+      <div v-if="tab===&#39;agg&#39;">
+        <div class="info">模式 B：把当前所有订阅的节点合并、按完整链接去重，生成一个面板托管的合并订阅文件 <span class="mono">panel-merged.sub</span>（base64，0600，位于 /etc/dae/subs/）。生成后可在「内容层」把某个订阅来源改成 <span class="mono">file://subs/panel-merged.sub</span> 引用它。生成动作只新增一个文件，不触碰 live 配置。</div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadAgg">预览合并</button>
+            <button class="primary" @click="buildAgg">生成 panel-merged.sub</button>
+            <span class="muted" v-if="aggMsg">{{aggMsg}}</span>
+          </div>
+        </div>
+        <div class="card" v-if="aggData">
+          <h2>合并统计</h2>
+          <div class="row">
+            <span class="pill">合并前 {{aggData.stats.total}}</span>
+            <span class="pill ok">去重后 {{aggData.stats.unique}}</span>
+            <span class="pill warn">重复去掉 {{aggData.stats.duplicates}}</span>
+          </div>
+          <table style="margin-top:10px">
+            <tr><th>来源</th><th style="width:100px">节点数</th><th>错误</th></tr>
+            <tr v-for="(p,i) in aggData.perSource" :key="&#39;ps&#39;+i"><td>{{p.name}}</td><td>{{p.count}}</td><td class="err">{{p.error||&#39;&#39;}}</td></tr>
+          </table>
+        </div>
+        <div class="card" v-if="aggBuilt">
+          <h2>已生成</h2>
+          <div>路径: <span class="mono">{{aggBuilt.path}}</span></div>
+          <div>节点数: {{aggBuilt.count}}（合并前 {{aggBuilt.stats.total}} / 去重后 {{aggBuilt.stats.unique}}）</div>
+          <div class="muted" style="font-size:12px;margin-top:6px">如需 dae 使用：内容层把订阅来源设为 file://subs/panel-merged.sub 后「应用」即可（会经事务校验+reload）。</div>
+        </div>
+        <div class="card">
+          <h2>一键切换（模式B）</h2>
+          <div class="info" style="margin-bottom:8px">把订阅引用整体切到合并文件，并自动把分组 filter 的 subtag(旧订阅名) 改写为 subtag(合并名)，经事务校验+reload，失败自动整体回滚。默认仅预览，不改 live。</div>
+          <div class="row">
+            <button @click="switchDry">预览切换（不改 live）</button>
+            <button class="danger" v-if="swPreview && !swResult" @click="switchApply">确认切换并应用</button>
+            <span class="muted" v-if="swMsg">{{swMsg}}</span>
+          </div>
+          <div v-if="swPreview" style="margin-top:10px">
+            <div>合并后节点: {{swPreview.count}}　新订阅源: <span class="mono">{{swPreview.newSource}}</span></div>
+            <div class="muted" style="font-size:12px">旧订阅: {{(swPreview.oldSubscriptions||[]).join(&#39;, &#39;)}}</div>
+            <table style="margin-top:10px">
+              <tr><th>分组</th><th>改前 filter</th><th>改后 filter</th></tr>
+              <tr v-for="(c,i) in (swPreview.groupChanges||[])" :key="&#39;sw&#39;+i"><td>{{c.name}}</td><td class="mono" style="font-size:12px">{{(c.before||[]).join(&#39; | &#39;)}}</td><td class="mono" style="font-size:12px">{{(c.after||[]).join(&#39; | &#39;)}}</td></tr>
+            </table>
+          </div>
+          <div v-if="swResult" style="margin-top:10px">
+            <div class="pill ok" v-if="swResult.applied">已切换并应用（reload OK）</div>
+            <div class="pill err" v-else>未应用：{{swResult.error||&#39;未知&#39;}}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 运行探测 -->
+      <div v-if="tab===&#39;probe&#39;">
+        <div class="card">
+          <h2>运行探测</h2>
+          <div class="row">
+            <button @click="call(&#39;/api/detect&#39;)">dae 版本</button>
+            <button @click="call(&#39;/api/runtimecheck&#39;)">内核/BPF</button>
+            <button @click="call(&#39;/api/preflight&#39;)">双写预检</button>
+            <button @click="call(&#39;/api/outline&#39;)">outline</button>
+            <button @click="call(&#39;/api/status&#39;)">status</button>
+            <button class="danger" @click="call(&#39;/api/suspend&#39;,&#39;POST&#39;)">应急 suspend</button>
+            <button class="danger" @click="call(&#39;/api/rollback&#39;,&#39;POST&#39;,{target:&#39;/etc/dae/config.dae&#39;})">回滚最近备份</button>
+          </div>
+          <pre style="margin-top:10px">{{resultText}}</pre>
+        </div>
+      </div>
+
+      <!-- 分流调试（按站点命中） -->
+      <div v-if="tab===&#39;route&#39;">
+        <div class="card">
+          <h2>分流命中调试</h2>
+          <div class="muted" style="margin-bottom:8px">输入域名，按当前 routing 规则顺序本地求值（geosite 用 /usr/share/dae/geosite.dat 判定；ip/pname 等运行时谓词标记为“未知”）。</div>
+          <div class="row">
+            <input v-model="routeDomain" placeholder="例如 www.youtube.com" style="min-width:260px" @keyup.enter="routeTest"/>
+            <button class="primary" @click="routeTest">测试命中</button>
+          </div>
+          <div v-if="routeMsg" class="muted" style="margin-top:8px">{{routeMsg}}</div>
+          <div v-if="routeRes" style="margin-top:10px">
+            <div class="row" style="margin-bottom:8px">
+              <span>结果：</span>
+              <b :class="routeRes.decided?&#39;ok&#39;:&#39;warn&#39;">{{routeRes.chosen||&#39;—&#39;}}</b>
+              <span class="muted">{{routeRes.reason}}</span>
+            </div>
+            <table class="tbl">
+              <thead><tr><th>#</th><th>规则</th><th>出口</th><th>结果</th></tr></thead>
+              <tbody>
+                <tr v-for="r in routeRes.rules" :key="r.index">
+                  <td>{{r.index+1}}</td>
+                  <td class="mono">{{r.matcher}}</td>
+                  <td>{{r.out}}</td>
+                  <td :class="r.result===&#39;match&#39;?&#39;ok&#39;:(r.result===&#39;unknown&#39;?&#39;warn&#39;:&#39;muted&#39;)">
+                    {{ r.result===&#39;match&#39;?&#39;命中&#39;:(r.result===&#39;unknown&#39;?&#39;未知(地址)&#39;:(r.result===&#39;ctx&#39;?&#39;上下文&#39;:&#39;否&#39;)) }}
+                  </td>
+                </tr>
+                <tr><td>—</td><td class="mono">fallback</td><td>{{routeRes.fallback}}</td><td class="muted">兜底</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 流量 / 命中统计 -->
+      <div v-if="tab===&#39;traffic&#39;">
+        <div class="card">
+          <h2>流量 / 命中统计 <span class="muted" style="font-size:12px">(DNS 旁路观测，只读)</span></h2>
+          <div class="muted" style="margin-bottom:8px">旁路抓取本机网卡 UDP/53 查询，统计域名查询频度，并按当前分流规则标注归属出口。<b>不采集字节量</b>（字节级计量走预留的 eBPF 源）。DNS 缓存命中不会重复走查询，故这是“查询频度”而非精确流量。</div>
+          <div class="row">
+            <button class="primary" @click="loadTraffic">刷新</button>
+            <label class="muted" style="margin-left:8px"><input type="checkbox" v-model="trafficAuto" @change="toggleTrafficAuto"/> 每 10s 自动刷新</label>
+            <span v-if="trafficMsg" class="muted" style="margin-left:12px">{{trafficMsg}}</span>
+          </div>
+          <div v-if="trafficData">
+            <div v-if="!trafficData.available" class="banner">流量统计未启用：{{trafficData.detail||trafficData.error}}</div>
+            <div v-else>
+              <div class="row" style="margin-top:10px">
+                <span class="muted">源: {{trafficData.source}} @ {{trafficData.iface}}</span>
+                <span class="muted" style="margin-left:12px">查询总数: {{trafficData.queries}}</span>
+                <span class="muted" style="margin-left:12px">域名数: {{trafficData.domains}}</span>
+              </div>
+              <div style="margin-top:8px" v-if="trafficData.groups">
+                <div class="muted" style="margin-bottom:4px">按出口汇总（* 表示含未决谓词）:</div>
+                <span v-for="(v,k) in trafficData.groups" :key="k" class="mono" style="margin-right:14px">{{k}}: {{v}}</span>
+              </div>
+              <table class="tbl" style="margin-top:10px">
+                <thead><tr><th>域名</th><th style="width:80px">次数</th><th style="width:130px">出口</th><th style="width:150px">最近</th></tr></thead>
+                <tbody>
+                  <tr v-for="h in trafficData.hits" :key="h.domain">
+                    <td class="mono">{{h.domain}}</td>
+                    <td>{{h.count}}</td>
+                    <td :class="h.decided?&#39;ok&#39;:&#39;warn&#39;">{{h.out||&#39;—&#39;}}{{h.decided?&#39;&#39;:&#39; *&#39;}}</td>
+                    <td class="muted">{{fmtTime(h.lastSeen)}}</td>
+                  </tr>
+                  <tr v-if="!trafficData.hits||!trafficData.hits.length"><td colspan="4" class="muted">暂无数据（等待 DNS 查询…）</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px" v-if="trafficData.sources">
+              <div class="muted" style="margin-bottom:4px">采集源：</div>
+              <table class="tbl">
+                <thead><tr><th style="width:160px">源</th><th style="width:90px">状态</th><th>说明</th></tr></thead>
+                <tbody>
+                  <tr v-for="src in trafficData.sources" :key="src.name">
+                    <td class="mono">{{src.name}}</td>
+                    <td :class="src.status===&#39;ready&#39;?&#39;ok&#39;:(src.status===&#39;reserved&#39;?&#39;warn&#39;:&#39;muted&#39;)">{{src.status}}</td>
+                    <td class="muted">{{src.detail}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 字节统计 -->
+      <div v-if="tab===&#39;bytes&#39;">
+        <div class="card">
+          <h2>字节级流量统计 <span class="muted" style="font-size:12px">(只读：dae 的 socket 计数器 + dae0 网卡总量)</span></h2>
+          <div class="muted" style="margin-bottom:8px">逐节点统计 dae 到各节点的实际收发字节（读内核 socket 计数器，不抓包）；下方 dae0 是拦截侧设备的累计总量（含 UDP/QUIC）。注意：UDP 多数无字节计数、两次采样之间的短连接会漏计，所以这里是<b>下限值</b>；面板重启后首见连接只作基线不算历史。</div>
+          <div class="row">
+            <button class="primary" @click="loadBytes">刷新</button>
+            <label class="muted" style="margin-left:8px"><input type="checkbox" v-model="bytesAuto" @change="toggleBytesAuto"/> 每 10s 自动刷新</label>
+            <span v-if="bytesMsg" class="muted" style="margin-left:12px">{{bytesMsg}}</span>
+          </div>
+          <div v-if="bytesData">
+            <div v-if="!bytesData.enabled" class="banner">字节统计未启用（启动参数 --bytes-interval 0 即为关闭）</div>
+            <div v-else>
+              <div v-if="bytesData.error" class="banner">{{bytesData.error}}</div>
+              <div class="row" style="margin-top:10px">
+                <span class="muted">累计上行 <b class="mono">{{fmtBytes(bytesData.totalTx)}}</b></span>
+                <span class="muted" style="margin-left:14px">累计下行 <b class="mono">{{fmtBytes(bytesData.totalRx)}}</b></span>
+                <span class="muted" style="margin-left:14px">当前速率 上 <span class="mono">{{fmtRate(bytesData.rateTx)}}</span> / 下 <span class="mono">{{fmtRate(bytesData.rateRx)}}</span></span>
+                <span class="muted" style="margin-left:14px">活跃 socket: {{bytesData.sockets}}</span>
+                <span class="muted" style="margin-left:14px">采样间隔: {{bytesData.intervalMs}}ms</span>
+              </div>
+              <div class="row" style="margin-top:6px">
+                <span class="muted">网卡 {{bytesData.ifaceName||&#39;—&#39;}} 累计 收 <span class="mono">{{fmtBytes(bytesData.ifaceRx)}}</span> / 发 <span class="mono">{{fmtBytes(bytesData.ifaceTx)}}</span></span>
+                <span class="muted" style="margin-left:14px">速率 收 <span class="mono">{{fmtRate(bytesData.ifaceRateRx)}}</span> / 发 <span class="mono">{{fmtRate(bytesData.ifaceRateTx)}}</span></span>
+                <span class="muted" style="margin-left:14px">采集起于 {{fmtTime(bytesData.startedAt)}}，更新于 {{fmtTime(bytesData.updatedAt)}}</span>
+              </div>
+              <div style="margin-top:12px">
+                <div class="muted" style="margin-bottom:4px">按节点（dae → 节点出口，累计增量）:</div>
+                <table class="tbl">
+                  <thead><tr><th>节点</th><th>对端</th><th style="width:110px">上行</th><th style="width:110px">下行</th><th style="width:120px">速率 上/下</th><th style="width:70px">连接</th><th style="width:120px">最近</th></tr></thead>
+                  <tbody>
+                    <tr v-for="r in bytesData.nodes" :key="r.key">
+                      <td>{{r.name||&#39;(未匹配节点)&#39;}}</td>
+                      <td class="mono muted">{{r.key}}</td>
+                      <td class="mono">{{fmtBytes(r.tx)}}</td>
+                      <td class="mono">{{fmtBytes(r.rx)}}</td>
+                      <td class="mono muted">{{fmtRate(r.rateTx)}} / {{fmtRate(r.rateRx)}}</td>
+                      <td>{{r.conns}}</td>
+                      <td class="muted">{{fmtTime(r.lastSeen)}}</td>
+                    </tr>
+                    <tr v-if="!bytesData.nodes||!bytesData.nodes.length"><td colspan="7" class="muted">暂无数据（等待 dae 建立到节点的连接）</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div style="margin-top:12px">
+                <div class="muted" style="margin-bottom:4px">按客户端（对端为内网地址，即经本机代理的局域网设备）:</div>
+                <table class="tbl">
+                  <thead><tr><th>客户端</th><th style="width:110px">上行</th><th style="width:110px">下行</th><th style="width:120px">速率 上/下</th><th style="width:70px">连接</th><th style="width:120px">最近</th></tr></thead>
+                  <tbody>
+                    <tr v-for="r in bytesData.clients" :key="r.key">
+                      <td class="mono">{{r.key}}</td>
+                      <td class="mono">{{fmtBytes(r.tx)}}</td>
+                      <td class="mono">{{fmtBytes(r.rx)}}</td>
+                      <td class="mono muted">{{fmtRate(r.rateTx)}} / {{fmtRate(r.rateRx)}}</td>
+                      <td>{{r.conns}}</td>
+                      <td class="muted">{{fmtTime(r.lastSeen)}}</td>
+                    </tr>
+                    <tr v-if="!bytesData.clients||!bytesData.clients.length"><td colspan="6" class="muted">暂无数据（目前没有内网设备经本机 dae 上网）</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 整段配置 -->
+      <div v-if="tab===&#39;raw&#39;">
+        <div class="card">
+          <h2>整段配置应用(高级)</h2>
+          <div class="row" style="margin-bottom:8px">
+            <span class="muted">目标:</span>
+            <input v-model="target" style="flex:1"/>
+            <label class="muted"><input type="checkbox" v-model="allowGoose"/> allow-goose</label>
+          </div>
+          <textarea v-model="content" rows="18" placeholder="粘贴完整配置内容…"></textarea>
+          <div class="row" style="margin-top:8px">
+            <button @click="call(&#39;/api/validate&#39;,&#39;POST&#39;,{path:target})">校验目标文件</button>
+            <button class="primary" @click="doRawApply">备份+校验+reload 应用</button>
+          </div>
+          <pre style="margin-top:10px">{{applyText}}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const { createApp } = Vue;
+createApp({
+  data(){ return {
+    authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"",
+    tab:"content", status:{}, resultText:"", applyText:"",
+    target:"/etc/dae/config.dae", content:"", allowGoose:false,
+    model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
+    modelSource:"", modelErr:"", previewEntry:"", previewCore:"", modelMsg:"",
+    subsData:null, subMsg:"", groupsData:null, latency:{},
+    subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, auditData:null, auditMsg:"",
+    aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
+    routeDomain:"", routeRes:null, routeMsg:"",
+    ruleProbeDomain:"", ruleProbe:null,
+    trafficData:null, trafficMsg:"", trafficAuto:false, trafficTimer:null,
+    bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
+    accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
+    accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""}
+  };},
+  mounted(){ this.checkAuth(); },
+  methods:{
+    async loadTraffic(){ this.trafficMsg=""; const r=await this.api("/api/traffic/hits?limit=100"); if(r.code===200){ this.trafficData=r.data; if(r.data && r.data.available){ this.trafficMsg="更新于 "+new Date().toLocaleTimeString(); } else { this.trafficMsg="流量统计未启用"; } } else { this.trafficMsg="加载失败 (HTTP "+r.code+")"; } },
+    toggleTrafficAuto(){ if(this.trafficAuto){ this.loadTraffic(); if(this.trafficTimer) clearInterval(this.trafficTimer); this.trafficTimer=setInterval(()=>this.loadTraffic(),10000); } else { if(this.trafficTimer){ clearInterval(this.trafficTimer); this.trafficTimer=null; } } },
+    async loadAccess(){ this.accessMsg="探测中…"; const r=await this.api("/api/access/probe"); if(r.code===200){ this.accessProbe=r.data.probe; this.accessRec=r.data.probe&&r.data.probe.rec; this.accessGuide=r.data.guide||[]; this.accessMsg="探测完成 "+new Date().toLocaleTimeString(); } else { this.accessMsg="探测失败 (HTTP "+r.code+")"; } },
+    accessLabel(m){ var L={gateway:"A 网关（同机）","bypass-manual":"B1 旁路由 · 单机手改","bypass-router-dhcp":"B2 旁路由 · 主路由 DHCP 下发网关","bypass-self-dhcp":"B3 旁路由 · 面板托管 DHCP（高风险）","bypass-pbr":"C 旁路由 · 主路由策略路由",observe:"观察模式（不接管）"}; return L[m]||m; },
+    accessAnsPayload(){ var f=function(v){ return v==="yes"?true:(v==="no"?false:null); }; return {dhcpGateway:f(this.accessAns.dhcpGateway), dhcpDns:f(this.accessAns.dhcpDns), canDisableDhcp:f(this.accessAns.canDisableDhcp), pbr:f(this.accessAns.pbr)}; },
+    async recommendAccess(){ const r=await this.api("/api/access/recommend","POST",this.accessAnsPayload()); if(r.code===200){ this.accessRec=r.data.rec; this.accessGuide=r.data.guide||[]; this.accessMsg="已按你的回答重算档位"; } else { this.accessMsg="重算失败 (HTTP "+r.code+")"; } },
+    async loadBytes(){ const r=await this.api("/api/traffic/bytes"); if(r.code===200){ this.bytesData=r.data; this.bytesMsg=(r.data&&r.data.enabled)?("更新于 "+new Date().toLocaleTimeString()):"字节统计未启用"; } else this.bytesMsg="加载失败 (HTTP "+r.code+")"; },
+    toggleBytesAuto(){ if(this.bytesAuto){ this.loadBytes(); if(this.bytesTimer) clearInterval(this.bytesTimer); this.bytesTimer=setInterval(()=>this.loadBytes(),10000); } else { if(this.bytesTimer){ clearInterval(this.bytesTimer); this.bytesTimer=null; } } },
+    fmtBytes(v){ var n=Number(v)||0; var u=["B","KB","MB","GB","TB"]; var i=0; while(n>=1024 && i<u.length-1){ n=n/1024; i++; } return (i===0? n.toFixed(0) : n.toFixed(2))+" "+u[i]; },
+    fmtRate(v){ return this.fmtBytes(v)+"/s"; },
+    fmtTime(t){ if(!t) return "—"; try{ return new Date(t).toLocaleTimeString(); }catch(e){ return String(t); } },
+    splitLines(s){ return (s||"").split("\n").map(function(x){return x.trim();}).filter(function(x){return x.length>0;}); },
+    key(n){ return n.host+"|"+n.port; },
+    latText(n){ var e=this.latency[this.key(n)]; if(!e) return "—"; if(e.error) return "✗"; return e.ms+"ms"; },
+    latClass(n){ var e=this.latency[this.key(n)]; if(!e) return "muted"; if(e.error) return "err"; if(e.ms<300) return "ok"; if(e.ms<800) return "warn"; return "err"; },
+    moveRule(i,d){ const j=i+d; const a=this.model.rules; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; },
+    outInvalid(o){ if(!o) return false; if(o==='direct'||o==='block'||o==='reject') return false; return !(this.model.groups||[]).some(function(g){return g.name===o;}); },
+    ruleHitIndex(){ if(!this.ruleProbe||!this.ruleProbe.rules) return -1; for(const rr of this.ruleProbe.rules){ if(rr.result==='match') return rr.index; } return -1; },
+    async probeRules(){ const d=(this.ruleProbeDomain||"").trim(); if(!d){ return; } const res=await this.api("/api/route/test","POST",{domain:d, model:this.model}); if(res.code!==200){ this.ruleProbe=null; return; } this.ruleProbe=res.data.result; },
+    async routeTest(){
+      this.routeMsg=""; this.routeRes=null;
+      const d=(this.routeDomain||"").trim();
+      if(!d){ this.routeMsg="请输入域名"; return; }
+      const res=await this.api("/api/route/test","POST",{domain:d});
+      if(res.code!==200){ this.routeMsg="测试失败: "+(res.data&&res.data.error||res.code); return; }
+      this.routeRes=res.data.result;
+      if(res.data.geoError) this.routeMsg="geosite 加载失败: "+res.data.geoError;
+      else if(!res.data.geoLoaded) this.routeMsg="提示：未加载 geosite 数据，geosite 规则将标记为未知";
+    },
+    async api(url, method, body){
+      const opt={method:method||"GET", headers:{}, credentials:"same-origin"};
+      if(body){ opt.headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
+      const r=await fetch(url,opt); const t=await r.text();
+      if(r.status===401){ this.authed=false; return {code:401, data:t}; }
+      let d=t; try{ d=JSON.parse(t); }catch(e){}
+      return {code:r.status, data:d};
+    },
+    async checkAuth(){ const me=await this.api("/api/me"); if(me.code===200){ this.authed=true; this.user=me.data.user||""; this.refreshStatus(); this.loadModel(); } },
+    async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; this.refreshStatus(); this.loadModel(); } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
+    async logout(){ await this.api("/api/logout","POST"); this.authed=false; },
+    async refreshStatus(){ const r=await this.api("/api/status"); if(r.code===200) this.status=r.data; },
+    async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
+    async doRawApply(){ this.applyText="应用中…"; const r=await this.api("/api/apply","POST",{target:this.target,content:this.content,allowGoose:this.allowGoose}); this.applyText=this.pretty(r.data); this.refreshStatus(); },
+    pretty(d){ try{ return typeof d==="string"?d:JSON.stringify(d,null,2); }catch(e){ return String(d); } },
+    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; } },
+    async previewModel(){ this.modelMsg="生成中…"; const r=await this.api("/api/model/preview","POST",{model:this.model}); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; this.modelMsg="已生成预览(未应用)"; } else this.modelMsg="预览失败: "+this.pretty(r.data); },
+    async applyModel(){ this.modelMsg="应用中…"; const r=await this.api("/api/model/apply","POST",{model:this.model}); this.modelMsg=(r.code===200 && r.data.result && r.data.result.applied) ? "已应用并重载成功" : ("应用失败: "+this.pretty(r.data.error||r.data)); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; } this.refreshStatus(); },
+    async loadSubs(){ this.subMsg="加载中…"; const r=await this.api("/api/subs/nodes"); if(r.code===200){ this.subsData=r.data; this.subMsg=""; } else { this.subMsg="加载失败"; } const g=await this.api("/api/subs/groups"); if(g.code===200){ this.groupsData=g.data; } },
+    async runSpeedAll(){ this.subMsg="测速中…"; const r=await this.api("/api/subs/speedtest","POST",{timeoutMs:3000}); if(r.code===200){ const m={}; r.data.results.forEach(function(x){ m[x.host+"|"+x.port]={ms:x.ms,error:x.error}; }); this.latency=m; this.subMsg="测速完成"; } else this.subMsg="测速失败"; },
+    async speedOne(n){ const r=await this.api("/api/subs/speedtest","POST",{nodes:[{host:n.host,port:n.port}],timeoutMs:3000}); if(r.code===200 && r.data.results && r.data.results[0]){ const x=r.data.results[0]; this.latency[this.key(n)]={ms:x.ms,error:x.error}; } },
+    async loadSubsrc(){ this.subsrcMsg="加载中…"; const r=await this.api("/api/subsrc"); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcHours=r.data.checkHours||6; this.subsrcLastRun=r.data.lastRun||""; this.subsrcMsg=""; } else this.subsrcMsg="加载失败 (HTTP "+r.code+")"; },
+    async saveSrc(it){ this.subsrcMsg="保存中…"; const r=await this.api("/api/subsrc/url","POST",{name:it.name,url:(it.url||"").trim(),ua:(it.ua||"").trim()}); this.subsrcMsg=(r.code===200)?"上游设置已保存":("保存失败: "+(r.data&&r.data.error||r.code)); if(r.code===200) this.loadSubsrc(); },
+    async checkSrc(name){ this.subsrcMsg="检查中…"; const r=await this.api("/api/subsrc/check","POST",{name:name}); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcMsg="检查完成"; } else this.subsrcMsg="检查失败: "+this.pretty(r.data&&r.data.error||r.data); },
+    async checkAllSrc(){ this.subsrcMsg="检查全部上游…"; const r=await this.api("/api/subsrc/check","POST",{}); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcMsg="检查完成（"+r.data.checked+" 个）"; } else this.subsrcMsg="检查失败: "+this.pretty(r.data&&r.data.error||r.data); },
+    async applySrc(it){ if(!(it.url||"").trim()){ this.subsrcMsg="请先保存上游 URL"; return; } const r1=await this.api("/api/subsrc/apply","POST",{name:it.name}); if(r1.code!==200){ this.subsrcMsg="预览失败: "+this.pretty(r1.data&&r1.data.error||r1.data); return; } const d=r1.data; const fmt=(d.format==='clash')?"上游为 Clash YAML，已转为节点链接。":"上游为节点链接。"; const msg=fmt+"上游 "+d.remoteNodes+" 节点（本地 "+d.localNodes+"），新增 "+d.added+"、移除 "+d.removed+"。\n确认覆盖本地镜像并 reload dae？（失败会自动恢复旧文件）"; if(!confirm(msg)) { this.subsrcMsg="已取消"; return; } this.subsrcMsg="应用中…"; const r2=await this.api("/api/subsrc/apply","POST",{name:it.name,confirm:true}); this.subsrcMsg=(r2.code===200)?("已应用: "+(r2.data.message||"OK")):("应用失败: "+this.pretty(r2.data&&r2.data.error||r2.data)); this.loadSubsrc(); this.refreshStatus(); },
+    goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
+    exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
+    async loadAudit(){ this.auditMsg="加载中…"; const r=await this.api("/api/audit?limit=200"); if(r.code===200){ this.auditData=r.data; this.auditMsg=""; } else this.auditMsg="加载失败 (HTTP "+r.code+")"; },
+    async loadAgg(){ this.aggMsg="合并中…"; const r=await this.api("/api/aggregate/preview"); if(r.code===200){ this.aggData=r.data; this.aggMsg=""; } else this.aggMsg="预览失败: "+this.pretty(r.data); },
+    async buildAgg(){ this.aggMsg="生成中…"; const r=await this.api("/api/aggregate/build","POST",{}); if(r.code===200){ this.aggBuilt=r.data; this.aggMsg="已生成"; } else this.aggMsg="生成失败: "+this.pretty(r.data.error||r.data); },
+    async switchDry(){ this.swMsg="预览中…"; this.swResult=null; const r=await this.api("/api/aggregate/switch","POST",{dryRun:true}); if(r.code===200){ this.swPreview=r.data; this.swMsg="预览完成（未改动 live）"; } else { this.swMsg="预览失败: "+this.pretty(r.data.error||r.data); } },
+    async switchApply(){ if(!confirm("确认切换到合并订阅并应用？将修改 live 配置（可回滚）。")) return; this.swMsg="应用中…"; const r=await this.api("/api/aggregate/switch","POST",{confirm:true}); this.swResult=r.data; if(r.code===200 && r.data && r.data.applied){ this.swMsg="已切换并应用"; this.loadModel(); } else { this.swMsg="切换失败: "+this.pretty(r.data.error||r.data); } }
+  }
+}).mount("#app");
+</script>
+</body>
+</html>
