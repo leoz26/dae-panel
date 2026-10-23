@@ -43,7 +43,7 @@ sudo /usr/local/bin/homenet-panel serve \
 
 浏览器访问 `https://<主机>:8787`（自签证书首次需手动确认）。不传 `--tls-cert/--tls-key` 则为明文 HTTP，仅建议在 `127.0.0.1` 上这样用。
 
-常用参数：`--sub-ua`（订阅拉取默认 UA）、`--audit-max-mb`/`--audit-keep`（审计轮转）、`--subsrc-check-hours`（订阅巡检间隔，0=关闭）、`--bytes-interval`（字节采样间隔，0=关闭）。
+常用参数：`--sub-ua`（订阅拉取默认 UA）、`--audit-max-mb`/`--audit-keep`（审计轮转）、`--subsrc-check-hours`（订阅巡检间隔，0=关闭）、`--bytes-interval`（字节采样间隔，0=关闭）、`--session-path`（登录会话落盘位置，重启不掉登录；空=仅内存）、`--allow-plain-http`（TLS 开启时也接受明文访问，默认只 301 跳 https）。
 
 ## 接入档位（把流量送到 dae 面前）
 
@@ -57,6 +57,13 @@ sudo /usr/local/bin/homenet-panel serve \
 | observe | 无 | 无 | 只读观测，不改任何路径 |
 
 原则：**面板永不接管 DHCP**；一切变更先出计划（dry-run），应用时备份并可一键回滚；探测失败一律降级到 observe。
+
+## 登录与 HTTPS（常见疑问）
+
+- **要不要 HTTPS？** 面板能改 dae 配置、能看审计日志，建议保留 TLS；内网也一样，防的是同网段嗅探与误操作。若不配 `--tls-cert/--tls-key` 则纯 HTTP，仅建议绑在 `127.0.0.1`。
+- **浏览器提示「不安全」？** 那是自签证书没进设备信任库，加密本身没问题。登录页有「下载证书」链接（`GET /panel.crt`），装成受信任根证书即可（iOS：设置→通用→关于本机→证书信任设置；macOS：钥匙串→始终信任；Windows：受信任的根证书颁发机构；Android：安装 CA 证书）。
+- **可以直接输 `ip:8787` 吗？** 可以。同端口会识别明文 HTTP 并 **301 跳到 `https://`**；不想跳可加 `--allow-plain-http`（密码会明文过网）。
+- **每次都要重新登录？** 登录页勾「记住我」= 30 天免登录；会话写在 `--session-path`（默认 `/var/lib/homenet-panel/sessions.json`，0600，只存 token 的 SHA-256 摘要），面板重启也不会掉。
 
 ## 目录结构
 

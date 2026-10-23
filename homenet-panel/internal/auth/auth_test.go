@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -38,5 +40,65 @@ func TestSessions(t *testing.T) {
 	s.Delete(tok)
 	if _, ok := s.User(tok); ok {
 		t.Fatal("删除后不应有效")
+	}
+}
+
+func TestSessionsPersistAcrossReload(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sessions.json")
+	s := NewSessions(time.Hour)
+	s.SetPath(path)
+	tok := s.CreateTTL("admin", 2*time.Hour)
+	if _, ok := s.User(tok); !ok {
+		t.Fatal("会话应有效")
+	}
+	// 文件存在且 0600，且不包含明文 token（只存摘要）
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("会话文件应落盘: %v", err)
+	}
+	if strings.Contains(string(b), tok) {
+		t.Fatal("会话文件不应包含明文 token")
+	}
+	if st, err := os.Stat(path); err == nil && st.Mode().Perm() != 0o600 {
+		t.Fatalf("会话文件权限应为 0600，实际 %o", st.Mode().Perm())
+	}
+	// 模拟进程重启：新实例 Load 后会话仍有效
+	s2 := NewSessions(time.Hour)
+	s2.SetPath(path)
+	if err := s2.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if u, ok := s2.User(tok); !ok || u != "admin" {
+		t.Fatal("重启后会话应仍有效")
+	}
+	// 删除也要落盘
+	s2.Delete(tok)
+	s3 := NewSessions(time.Hour)
+	s3.SetPath(path)
+	_ = s3.Load()
+	if _, ok := s3.User(tok); ok {
+		t.Fatal("删除后重启不应再有效")
+	}
+}
+
+func TestSessionsExpireNotLoaded(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "sessions.json")
+	s := NewSessions(time.Hour)
+	s.SetPath(path)
+	tok := s.CreateTTL("admin", 10*time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
+	if _, ok := s.User(tok); ok {
+		t.Fatal("过期会话不应有效")
+	}
+}
+
+func TestSessionsRememberTTLConstants(t *testing.T) {
+	if RememberSessionTTL <= DefaultSessionTTL {
+		t.Fatal("记住我的有效期应长于默认")
+	}
+	if RememberSessionTTL != 30*24*time.Hour {
+		t.Fatalf("记住我应为 30 天，实际 %v", RememberSessionTTL)
 	}
 }

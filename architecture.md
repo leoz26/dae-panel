@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.22  
+> **文档版本：** v0.23  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -25,6 +25,7 @@
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
 > **修订（v0.22）：** 接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败回滚 + 幂等 + 指纹校验），并在 192.168.1.85 完成段1「本机事务测试」：发现并修掉 4 个真 bug（inet 表需 `dnat ip to`、重复 apply 会叠加规则、`ip_forward` 被 dae 置 1 后回滚不还原、回滚把「表不存在」当失败）；段2「B2 端到端测试」写成 `homenet-panel/docs/access-test-b2.md`。详见 §14.18。
+> **修订（v0.23）：** 登录体验与 HTTPS：会话持久化（重启不掉登录）+ 「记住我 30 天」+ cookie `Secure` 按请求协议判定 + `/panel.crt` 证书下载 + 同端口协议分流（明文 `http://ip:8787` 自动 301 跳到 https，不再报 400）。详见 §14.19。  
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1317,7 +1318,48 @@ routing {
 - **apply 不做网络连通性兜底**：如果 `lan_interface` 写错（例如写成 WAN 口），面板不会阻止，回滚路径仍是「点一下回滚」；因此前端强制二次确认并展示指纹。
 - **计划不持久化**：指纹随计划实时计算，改配置/换网卡后旧指纹自然失效（这正是设计意图）。
 - **段2 未执行**：`ip_forward=1` 与 `lan_interface` 生效后的真实 LAN 收流，必须回家在 B2 场景验证（手册第 6 节六项判定）。
-## 15. 本版（v0.22）变更清单
+
+### 14.19 登录体验与 HTTPS（v0.23：会话持久化 + 记住我 + 同端口明文跳转）
+
+#### 14.19.1 用户反馈（现场）
+
+- 「每次登录都要输密码，也记不住密码」；「浏览器提示不安全」；「直接输 `192.168.1.85:8787` 打不开，必须手写 `https://`」。
+
+#### 14.19.2 根因
+
+1. **会话是纯内存**（`auth.Sessions` 只有 `map`），面板每次重启（今天为部署重启了十余次）会话全丢；cookie 虽带 `MaxAge`（12h），但进程一重启就失效 → 表现为「老要重新登录」。
+2. **没有「记住我」**：TTL 固定 12 小时，且 `Secure` 恒等于 `s.TLS`（配置值），拿不到请求自身协议。
+3. **「不安全」来自自签证书**：证书确实是自签（`CN=homenet-panel`，SAN 含 `IP:192.168.1.85, IP:127.0.0.1, DNS:localhost`，有效期至 2029-01-25），加密强度没问题，只是没进设备信任库。
+4. **明文打不开**：TLS 模式下端口只接受 TLS 握手，浏览器发明文会被 Go 回 400（`Client sent an HTTP request to an HTTPS server`）。
+
+#### 14.19.3 改动
+
+- `internal/auth`：`Sessions` 会话表可持久化——`SetPath()` + `Load()`，每次 `Create/Delete/过期清理` 后原子落盘（0600）；**键存 token 的 SHA-256 摘要**，文件泄露也不能直接拿来登录；新增 `CreateTTL(user, ttl)`、`Count()`；常量 `DefaultSessionTTL = 12h`、`RememberSessionTTL = 30d`。
+- `internal/api`：`/api/login` 接受 `remember` 字段（true → 30 天，否则 12 小时）；cookie 的 `Secure` 改为**按请求实际协议** `r.TLS != nil`（否则内网明文访问时浏览器拒绝保存）；新增公共端点 `GET /panel.crt` 下载服务器证书（`application/x-x509-ca-cert` + attachment）；`Config` 增加 `SessionPath` / `CertPath`，默认 `SessionPath=/var/lib/homenet-panel/sessions.json`（启动时 `Load()`）。
+- `cmd/homenet-panel`：新增 `--session-path`（空=仅内存）、`--allow-plain-http`（默认 false）；`serve` 在 TLS 模式下改用**同端口协议分流**：读连接首字节，`0x16` 当 TLS，否则当明文 HTTP → 明文默认 **301 跳 `https://同主机:同端口/原路径`**，加 `--allow-plain-http` 则明文直接服务（并在启动日志警告密码会明文过网）。
+- 前端登录卡片：新增「记住我（30 天内免登录）」勾选（默认勾上）+ 「下载证书」链接与一句解释「提示不安全是因为自签证书，装一次即可消除」。
+
+#### 14.19.4 协议分流实现要点
+
+- `connChan`：把 `chan net.Conn` 包成 `net.Listener`，供 `http.Server.Serve` 消费；
+- `splitConns`：`Accept` 后用 `bufio.Reader.Peek(1)` 判首字节（带 10s 读超时），**必须用 `bufferedConn` 把 Peek 过的字节还给下游**，否则 TLS 握手会丢第一个字节；
+- 两个 `http.Server`：TLS 侧 `tls.NewListener(tlsL, cfg)`（`MinVersion TLS1.2`）；明文侧 handler 只在 `allowPlain` 时直通 `mux`，否则只做 301。
+
+#### 14.19.5 实机验证（192.168.1.85）
+
+| 项目 | 结果 |
+| --- | --- |
+| 明文 `http://127.0.0.1:8787/` | **301 → `https://127.0.0.1:8787/`**（同端口） |
+| `remember=false` | `Set-Cookie: … Max-Age=43200; HttpOnly; Secure; SameSite=Lax`（12h） |
+| `remember=true` | `Max-Age=2592000`（30 天） |
+| 重启后面板 | 旧 cookie 仍有效（`GET /api/me` 200，`sessions.json` 397B / 0600） |
+| `GET /panel.crt` | 200、`application/x-x509-ca-cert`、`attachment; filename="homenet-panel.crt"`、1172B、含 BEGIN CERTIFICATE |
+| 登录页 DOM（headless） | 18540B、`{{` 泄漏 0、含「记住我」「下载证书」「不安全…」说明 |
+
+#### 14.19.6 「不安全」怎么彻底消掉（用户可选，非必须）
+
+自签证书的三个选择：①**下载证书并安装为受信任根证书**（iOS：设置→通用→关于本机→证书信任设置；Android：安装 CA 证书；macOS：钥匙串→系统→始终信任；Windows：受信任的根证书颁发机构）→ 之后是绿锁，且不影响加密；②**内网纯 HTTP**（`--allow-plain-http`，或干脆不配 `--tls-cert`）：密码与 cookie 明文过网，只建议在完全可控的内网；③**保持现状**（点「继续访问」）：加密照旧，只是每次新开浏览器要点一下。开源项目默认走 ①。
+## 15. 本版（v0.23）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1333,3 +1375,4 @@ routing {
 12. **§4.4.3 补实测样本（v0.20）**：中兴家用固件「地址管理」页可编辑「自定义网关地址」（DHCP Option 3）→ B2 在部分家用固件可行，纠正"家用路由普遍不能改 DHCP 网关"的统计假设；同时记录该字段可能影响路由器自身出口（填错整段断网）的风险与"记原值→改→验证→失败改回"的操作顺序。
 13. **接入向导 P-B（v0.21）**：新增 §14.17——`internal/access/plan.go`（计划生成：dae global 片段、`panel_dns`/`panel_snat`/`panel_tproxy` 渲染、人工步骤、回滚、6 项自检清单、指纹）+ `verify.go`（只读自检）+ `/api/access/plan`（GET/POST，dry-run）+ `/api/access/verify` + 前端「接入向导」计划与自检 UI；产品口径定稿为**默认 B1（设备端手改网关/DNS）**，其余档位只留生成计划入口；实机 4 通过 1 待确认（LAN 客户端尚未接入）。
 14. **新增 §14.18（v0.22）**：接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败整体回滚 + 幂等清理 + 指纹校验 + 内核参数还原），段1 本机事务测试 6 个用例全通过（干跑/指纹拒绝/apply/幂等/回滚/自检），修掉 4 个真 bug（`dnat ip to`、规则叠加、`ip_forward` 不还原、表不存在误判失败），段2 B2 端到端测试手册落地为 `homenet-panel/docs/access-test-b2.md`。
+15. **新增 §14.19（v0.23）**：登录体验与 HTTPS——会话落盘（`/var/lib/homenet-panel/sessions.json`，只存 token 摘要）、「记住我 30 天」、cookie `Secure` 按请求协议判定、公共端点 `GET /panel.crt` 下载证书、同端口协议分流（明文请求 301 跳 https，`--allow-plain-http` 可放开）；顺带给出「消除不安全提示」的三个可选做法。

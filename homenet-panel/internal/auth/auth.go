@@ -115,25 +115,46 @@ func Username(path string) (string, error) {
 	return cf.Username, nil
 }
 
-// ---- 内存会话 ----
+// ---- 会话（可持久化） ----
+
+const (
+	// DefaultSessionTTL 是默认会话有效期（未勾选「记住我」）。
+	DefaultSessionTTL = 12 * time.Hour
+	// RememberSessionTTL 是勾选「记住我」后的会话有效期。
+	RememberSessionTTL = 30 * 24 * time.Hour
+)
 
 type session struct {
-	user    string
-	expires time.Time
+	User    string    `json:"user"`
+	Expires time.Time `json:"expires"`
 }
 
-// Sessions 是进程内会话表（重启后失效，需重新登录）。
+// Sessions 是会话表。设置 Path 后每次变更都会落盘（0600），进程重启后仍有效；
+// 表内键是 token 的 SHA-256 摘要（不存明文 token，文件泄露也不能直接拿来登录）。
 type Sessions struct {
-	mu  sync.Mutex
-	m   map[string]session
-	ttl time.Duration
+	mu   sync.Mutex
+	m    map[string]session
+	ttl  time.Duration
+	path string
 }
 
 func NewSessions(ttl time.Duration) *Sessions {
 	if ttl <= 0 {
-		ttl = 24 * time.Hour
+		ttl = DefaultSessionTTL
 	}
 	return &Sessions{m: make(map[string]session), ttl: ttl}
+}
+
+// SetPath 设置会话持久化文件路径（空表示仅内存）。
+func (s *Sessions) SetPath(p string) {
+	s.mu.Lock()
+	s.path = p
+	s.mu.Unlock()
+}
+
+func hashToken(tok string) string {
+	sum := sha256.Sum256([]byte(tok))
+	return hex.EncodeToString(sum[:])
 }
 
 func randToken() string {
@@ -142,13 +163,67 @@ func randToken() string {
 	return hex.EncodeToString(b)
 }
 
-// Create 新建会话，返回会话 token。
-func (s *Sessions) Create(user string) string {
+// Load 从持久化文件载入未过期会话（文件缺失/损坏不算错误）。
+func (s *Sessions) Load() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.path == "" {
+		return nil
+	}
+	b, err := os.ReadFile(s.path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	var m map[string]session
+	if err := json.Unmarshal(b, &m); err != nil {
+		return err
+	}
+	now := time.Now()
+	for k, v := range m {
+		if v.User == "" || now.After(v.Expires) {
+			continue
+		}
+		s.m[k] = v
+	}
+	return nil
+}
+
+// saveLocked 把当前会话表原子写入磁盘（需持锁）。
+func (s *Sessions) saveLocked() {
+	if s.path == "" {
+		return
+	}
+	b, err := json.Marshal(s.m)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+		return
+	}
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0o600); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, s.path)
+}
+
+// Create 新建会话（默认有效期），返回会话 token。
+func (s *Sessions) Create(user string) string { return s.CreateTTL(user, 0) }
+
+// CreateTTL 新建会话并指定有效期（<=0 用默认）。
+func (s *Sessions) CreateTTL(user string, ttl time.Duration) string {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleanupLocked()
 	tok := randToken()
-	s.m[tok] = session{user: user, expires: time.Now().Add(s.ttl)}
+	s.m[hashToken(tok)] = session{User: user, Expires: time.Now().Add(ttl)}
+	s.saveLocked()
 	return tok
 }
 
@@ -159,27 +234,49 @@ func (s *Sessions) User(tok string) (string, bool) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	se, ok := s.m[tok]
-	if !ok || time.Now().After(se.expires) {
-		delete(s.m, tok)
+	k := hashToken(tok)
+	se, ok := s.m[k]
+	if !ok {
 		return "", false
 	}
-	return se.user, true
+	if time.Now().After(se.Expires) {
+		delete(s.m, k)
+		s.saveLocked()
+		return "", false
+	}
+	return se.User, true
 }
 
 // Delete 删除会话。
 func (s *Sessions) Delete(tok string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.m, tok)
+	k := hashToken(tok)
+	if _, ok := s.m[k]; ok {
+		delete(s.m, k)
+		s.saveLocked()
+	}
+}
+
+// Count 返回当前有效会话数（诊断用）。
+func (s *Sessions) Count() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cleanupLocked()
+	return len(s.m)
 }
 
 func (s *Sessions) cleanupLocked() {
 	now := time.Now()
+	changed := false
 	for k, v := range s.m {
-		if now.After(v.expires) {
+		if now.After(v.Expires) {
 			delete(s.m, k)
+			changed = true
 		}
+	}
+	if changed {
+		s.saveLocked()
 	}
 }
 

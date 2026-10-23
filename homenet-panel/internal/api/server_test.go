@@ -21,13 +21,14 @@ func newTestServer(t *testing.T, token, user, pass string) http.Handler {
 		}
 	}
 	s := New(Config{
-		Dae:       dae.New(),
-		BackupDir: filepath.Join(dir, "bk"),
-		Token:     token,
-		AuthPath:  ap,
-		EntryPath: filepath.Join(dir, "config.dae"),
-		CorePath:  filepath.Join(dir, "config.d", "panel-core.dae"),
-		ModelPath: filepath.Join(dir, "model.json"),
+		Dae:         dae.New(),
+		BackupDir:   filepath.Join(dir, "bk"),
+		Token:       token,
+		AuthPath:    ap,
+		EntryPath:   filepath.Join(dir, "config.dae"),
+		CorePath:    filepath.Join(dir, "config.d", "panel-core.dae"),
+		ModelPath:   filepath.Join(dir, "model.json"),
+		SessionPath: filepath.Join(dir, "sessions.json"),
 	})
 	mux := http.NewServeMux()
 	s.Register(mux)
@@ -168,5 +169,88 @@ func TestIndexHTMLScriptHasNoHTMLEntities(t *testing.T) {
 	// 页面必须有可挂载的根节点
 	if !strings.Contains(html, "id=\"app\"") {
 		t.Fatal("index.html 缺少 #app 挂载点")
+	}
+}
+
+func loginCookie(t *testing.T, h http.Handler, body string) *http.Cookie {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest("POST", "/api/login", strings.NewReader(body)))
+	if rr.Code != 200 {
+		t.Fatalf("login want 200 got %d: %s", rr.Code, rr.Body.String())
+	}
+	for _, c := range rr.Result().Cookies() {
+		if c.Name == cookieName {
+			return c
+		}
+	}
+	t.Fatal("session cookie not found")
+	return nil
+}
+
+func TestLoginRememberExtendsCookie(t *testing.T) {
+	h := newTestServer(t, "", "admin", "pw123")
+	short := loginCookie(t, h, `{"username":"admin","password":"pw123"}`)
+	long := loginCookie(t, h, `{"username":"admin","password":"pw123","remember":true}`)
+	if short.MaxAge <= 0 || long.MaxAge <= 0 {
+		t.Fatal("cookie 必须是持久 cookie（MaxAge>0），否则关浏览器就掉登录")
+	}
+	wantShort := int(auth.DefaultSessionTTL.Seconds())
+	wantLong := int(auth.RememberSessionTTL.Seconds())
+	if short.MaxAge != wantShort {
+		t.Fatalf("未勾选记住我应为 %d 秒，实际 %d", wantShort, short.MaxAge)
+	}
+	if long.MaxAge != wantLong {
+		t.Fatalf("勾选记住我应为 %d 秒，实际 %d", wantLong, long.MaxAge)
+	}
+	// 明文 HTTP 访问时不能置 Secure，否则浏览器不保存这个 cookie
+	if short.Secure || long.Secure {
+		t.Fatal("明文请求下 cookie 不应置 Secure")
+	}
+	if !short.HttpOnly {
+		t.Fatal("cookie 必须是 HttpOnly")
+	}
+}
+
+func TestSessionSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	ap := filepath.Join(dir, "auth.json")
+	if err := auth.Set(ap, "admin", "pw123"); err != nil {
+		t.Fatal(err)
+	}
+	mk := func() http.Handler {
+		s := New(Config{
+			Dae:         dae.New(),
+			BackupDir:   filepath.Join(dir, "bk"),
+			AuthPath:    ap,
+			EntryPath:   filepath.Join(dir, "config.dae"),
+			CorePath:    filepath.Join(dir, "config.d", "panel-core.dae"),
+			ModelPath:   filepath.Join(dir, "model.json"),
+			SessionPath: filepath.Join(dir, "sessions.json"),
+		})
+		mux := http.NewServeMux()
+		s.Register(mux)
+		return mux
+	}
+	h1 := mk()
+	ck := loginCookie(t, h1, `{"username":"admin","password":"pw123","remember":true}`)
+
+	// 模拟面板重启：新 Server 实例（同一 sessions.json）
+	h2 := mk()
+	req := httptest.NewRequest("GET", "/api/health", nil)
+	req.AddCookie(ck)
+	rr := httptest.NewRecorder()
+	h2.ServeHTTP(rr, req)
+	if rr.Code != 200 {
+		t.Fatalf("重启后旧 cookie 应仍有效，实际 %d", rr.Code)
+	}
+}
+
+func TestCertEndpointWithoutTLS(t *testing.T) {
+	h := newTestServer(t, "", "", "")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest("GET", "/panel.crt", nil))
+	if rr.Code != 404 {
+		t.Fatalf("未启用 TLS 时应 404，实际 %d", rr.Code)
 	}
 }

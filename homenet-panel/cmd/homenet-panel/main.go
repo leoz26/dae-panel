@@ -1,13 +1,17 @@
 package main
 
 import (
+	"bufio"
 	crand "crypto/rand"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"homenet-panel/internal/api"
@@ -96,6 +100,8 @@ func main() {
 	bytesIface := fs.String("bytes-iface", "dae0", "serve 字节统计读哪块网卡的收发总量(dae 的拦截侧设备)")
 	auditMaxMB := fs.Int("audit-max-mb", 5, "审计日志单文件上限(MB)，超过后轮转")
 	auditKeep := fs.Int("audit-keep", 3, "审计日志保留几份历史(路由器建议 2)")
+	sessionPath := fs.String("session-path", "/var/lib/homenet-panel/sessions.json", "登录会话持久化文件(重启后不用重新登录；空=仅内存)")
+	allowPlain := fs.Bool("allow-plain-http", false, "TLS 开启时也允许明文 HTTP 访问(内网便利；默认只做 301 跳转到 https)")
 	userF := fs.String("user", "admin", "setpass 登录用户名")
 	passF := fs.String("password", "", "setpass 登录密码(留空则自动生成)")
 	_ = fs.Parse(os.Args[2:])
@@ -231,6 +237,8 @@ func main() {
 			TrafficIface: *trafficIface,
 			AuditPath:    *auditPath,
 			SubsrcPath:   *subsrcPath,
+			SessionPath:  *sessionPath,
+			CertPath:     *tlsCert,
 		})
 		mux := http.NewServeMux()
 		srv.Register(mux)
@@ -262,12 +270,16 @@ func main() {
 		} else {
 			fmt.Println("鉴权: 账号密码登录")
 		}
-		httpSrv := &http.Server{Addr: *addr, Handler: mux}
 		var err error
 		if tlsOn {
-			fmt.Println("TLS: 已启用 (cookie Secure)")
-			err = httpSrv.ListenAndServeTLS(*tlsCert, *tlsKey)
+			if *allowPlain {
+				fmt.Println("TLS: 已启用，且允许同端口明文 HTTP 访问（--allow-plain-http，密码会明文过网）")
+			} else {
+				fmt.Println("TLS: 已启用；明文请求自动 301 跳到 https")
+			}
+			err = serveDual(*addr, mux, *tlsCert, *tlsKey, *allowPlain)
 		} else {
+			httpSrv := &http.Server{Addr: *addr, Handler: mux}
 			err = httpSrv.ListenAndServe()
 		}
 		if err != nil {
@@ -283,3 +295,100 @@ func main() {
 }
 
 var _ = errors.New
+
+// ---- 同端口 TLS / 明文 HTTP 分流 ----
+
+// connChan 把连接通道包装成 net.Listener。
+type connChan struct {
+	ch   chan net.Conn
+	addr net.Addr
+}
+
+func (c *connChan) Accept() (net.Conn, error) {
+	nc, ok := <-c.ch
+	if !ok {
+		return nil, net.ErrClosed
+	}
+	return nc, nil
+}
+
+func (c *connChan) Close() error   { return nil }
+func (c *connChan) Addr() net.Addr { return c.addr }
+
+// bufferedConn 保留被 Peek 过的那一个字节。
+type bufferedConn struct {
+	net.Conn
+	r *bufio.Reader
+}
+
+func (b *bufferedConn) Read(p []byte) (int, error) { return b.r.Read(p) }
+
+// splitConns 读首字节判断协议：0x16 是 TLS 握手，其余当明文 HTTP。
+func splitConns(ln net.Listener, tlsCh, plainCh *connChan) {
+	for {
+		c, err := ln.Accept()
+		if err != nil {
+			close(tlsCh.ch)
+			close(plainCh.ch)
+			return
+		}
+		go func(c net.Conn) {
+			br := bufio.NewReader(c)
+			_ = c.SetReadDeadline(time.Now().Add(10 * time.Second))
+			b, err := br.Peek(1)
+			_ = c.SetReadDeadline(time.Time{})
+			if err != nil {
+				_ = c.Close()
+				return
+			}
+			bc := &bufferedConn{Conn: c, r: br}
+			if b[0] == 0x16 {
+				tlsCh.ch <- bc
+			} else {
+				plainCh.ch <- bc
+			}
+		}(c)
+	}
+}
+
+// serveDual 在同一个端口上同时接受 TLS 与明文 HTTP：明文默认 301 跳到 https。
+func serveDual(addr string, mux http.Handler, certFile, keyFile string, allowPlain bool) error {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+	base, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	_, port, err := net.SplitHostPort(base.Addr().String())
+	if err != nil {
+		return err
+	}
+	tlsL := &connChan{ch: make(chan net.Conn, 64), addr: base.Addr()}
+	plainL := &connChan{ch: make(chan net.Conn, 64), addr: base.Addr()}
+	go splitConns(base, tlsL, plainL)
+
+	plainHandler := mux
+	if !allowPlain {
+		plainHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			host := r.Host
+			if h, _, e := net.SplitHostPort(host); e == nil {
+				host = h
+			}
+			if strings.HasPrefix(host, "[") && !strings.HasSuffix(host, "]") {
+				host = "[" + host + "]"
+			}
+			u := "https://" + net.JoinHostPort(strings.Trim(host, "[]"), port) + r.URL.RequestURI()
+			http.Redirect(w, r, u, http.StatusMovedPermanently)
+		})
+	}
+	plainSrv := &http.Server{Handler: plainHandler}
+	go func() { _ = plainSrv.Serve(plainL) }()
+
+	tlsSrv := &http.Server{
+		Handler:   mux,
+		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
+	}
+	return tlsSrv.Serve(tls.NewListener(tlsL, tlsSrv.TLSConfig))
+}

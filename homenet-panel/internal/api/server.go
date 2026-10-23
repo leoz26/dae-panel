@@ -46,6 +46,8 @@ type Config struct {
 	TrafficIface string // DNS 旁路统计抓包网卡（空=关闭流量统计）
 	AuditPath    string // 审计日志（JSONL）路径
 	SubsrcPath   string // 订阅源登记表路径
+	SessionPath  string // 会话持久化文件路径（重启后不用重新登录）
+	CertPath     string // TLS 服务器证书路径（供页面下载以安装信任）
 }
 
 type Server struct {
@@ -61,6 +63,8 @@ type Server struct {
 	TrafficIface string
 	AuditPath    string
 	SubsrcPath   string
+	SessionPath  string
+	CertPath     string
 
 	Sessions *auth.Sessions
 	mu       sync.Mutex // 串行化变更类操作
@@ -107,6 +111,10 @@ func New(c Config) *Server {
 	if ssPath == "" {
 		ssPath = "/var/lib/homenet-panel/subsrc.json"
 	}
+	sessPath := c.SessionPath
+	if sessPath == "" {
+		sessPath = "/var/lib/homenet-panel/sessions.json"
+	}
 	s := &Server{
 		Dae:          c.Dae,
 		BackupDir:    c.BackupDir,
@@ -120,8 +128,12 @@ func New(c Config) *Server {
 		TrafficIface: c.TrafficIface,
 		AuditPath:    apAudit,
 		SubsrcPath:   ssPath,
-		Sessions:     auth.NewSessions(12 * time.Hour),
+		SessionPath:  sessPath,
+		CertPath:     c.CertPath,
+		Sessions:     auth.NewSessions(auth.DefaultSessionTTL),
 	}
+	s.Sessions.SetPath(sessPath)
+	_ = s.Sessions.Load()
 	if c.TrafficIface != "" {
 		if src, err := traffic.NewDNSSource(c.TrafficIface); err != nil {
 			s.TrafficErr = err
@@ -198,6 +210,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		Remember bool   `json:"remember"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		writeJSON(w, 400, map[string]any{"error": "bad json"})
@@ -213,15 +226,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 401, map[string]any{"error": "用户名或密码错误"})
 		return
 	}
-	tok := s.Sessions.Create(req.Username)
+	ttl := s.Sessions.TTL()
+	if req.Remember {
+		ttl = auth.RememberSessionTTL
+	}
+	tok := s.Sessions.CreateTTL(req.Username, ttl)
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
 		Value:    tok,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   s.TLS,
+		Secure:   r.TLS != nil, // 明文访问（LAN 内 HTTP）时不能置 Secure，否则浏览器不保存
 		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int(s.Sessions.TTL().Seconds()),
+		MaxAge:   int(ttl.Seconds()),
 	})
 	_ = audit.Append(s.AuditPath, audit.Entry{Actor: req.Username, IP: clientIP(r), Action: "login", OK: true})
 	writeJSON(w, 200, map[string]any{"ok": true, "user": req.Username})
@@ -772,6 +789,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/login", s.handleLogin)
 	mux.HandleFunc("/api/logout", s.handleLogout)
 	mux.HandleFunc("/api/me", s.handleMe)
+	// 服务器证书下载（公共端点）：把它装进设备/浏览器的信任库，即可消除「不安全」提示
+	mux.HandleFunc("/panel.crt", s.handleCert)
 
 	// 受保护端点
 	mux.HandleFunc("/api/health", s.auth(func(w http.ResponseWriter, r *http.Request) {
@@ -952,4 +971,21 @@ func (s *Server) Register(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write(b)
 	})
+}
+
+// handleCert 提供 TLS 服务器证书下载，便于在客户端安装为受信根证书。
+func (s *Server) handleCert(w http.ResponseWriter, r *http.Request) {
+	if s.CertPath == "" {
+		writeJSON(w, 404, map[string]any{"error": "未启用 TLS，没有证书可下载"})
+		return
+	}
+	b, err := os.ReadFile(s.CertPath)
+	if err != nil {
+		writeJSON(w, 404, map[string]any{"error": "证书不可读: " + err.Error()})
+		return
+	}
+	w.Header().Set("Content-Type", "application/x-x509-ca-cert")
+	w.Header().Set("Content-Disposition", `attachment; filename="homenet-panel.crt"`)
+	w.Header().Set("Content-Length", strconv.Itoa(len(b)))
+	_, _ = w.Write(b)
 }

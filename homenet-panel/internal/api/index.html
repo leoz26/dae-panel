@@ -33,6 +33,10 @@ td input,td select{width:100%}
 .login{max-width:360px;margin:12vh auto;background:#1b2233;border:1px solid #24304a;border-radius:12px;padding:26px}
 .login h2{color:#e7ecf5;font-size:18px;margin:0 0 18px;text-transform:none;letter-spacing:0}
 .login input{width:100%;margin-bottom:12px}.login button{width:100%;padding:9px}
+.remember{display:flex;align-items:center;gap:8px;color:#aab6c8;font-size:12px;margin:2px 0 12px}
+.remember input{width:auto;margin:0}
+.tlsHint{margin-top:14px;color:#8b97a8;font-size:11px;line-height:1.6}
+.tlsHint a{color:#6ea8fe}
 .banner{background:#3a1f1f;border:1px solid #a33;border-radius:8px;padding:10px 14px;color:#ffb3b3;font-size:13px;margin-bottom:12px}
 .info{background:#122234;border:1px solid #244a6a;border-radius:8px;padding:8px 12px;color:#a9c7e8;font-size:12px;margin-bottom:10px}
 .mono{font-family:ui-monospace,Menlo,monospace}
@@ -45,7 +49,12 @@ td input,td select{width:100%}
     <div v-if="loginErr" class="banner">{{loginErr}}</div>
     <input v-model="loginUser" placeholder="用户名" @keyup.enter="doLogin"/>
     <input v-model="loginPass" type="password" placeholder="密码" @keyup.enter="doLogin"/>
+    <label class="remember"><input type="checkbox" v-model="loginRemember"/> <span>记住我（30 天内免登录）</span></label>
     <button class="primary" @click="doLogin">登录</button>
+    <div class="tlsHint">
+      提示「不安全」是因为用了自签证书。内网使用不影响加密强度，装一次证书即可消除警告：
+      <a href="/panel.crt" target="_blank">下载证书</a>
+    </div>
   </div>
   <div v-else>
     <header>
@@ -698,7 +707,7 @@ td input,td select{width:100%}
 const { createApp } = Vue;
 createApp({
   data(){ return {
-    authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"",
+    authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"", loginRemember:true, loginNote:"",
     tab:"content", status:{}, resultText:"", applyText:"",
     target:"/etc/dae/config.dae", content:"", allowGoose:false,
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
@@ -775,7 +784,7 @@ createApp({
       return {code:r.status, data:d};
     },
     async checkAuth(){ const me=await this.api("/api/me"); if(me.code===200){ this.authed=true; this.user=me.data.user||""; this.refreshStatus(); this.loadModel(); } },
-    async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; this.refreshStatus(); this.loadModel(); } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
+    async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass,remember:this.loginRemember}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; this.refreshStatus(); this.loadModel(); } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
     async logout(){ await this.api("/api/logout","POST"); this.authed=false; },
     async refreshStatus(){ const r=await this.api("/api/status"); if(r.code===200) this.status=r.data; },
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
