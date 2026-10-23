@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.20  
+> **文档版本：** v0.21  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -20,6 +20,7 @@
 > **修订（v0.17）：** §4.4 重写为「网络接入与 LAN 接管」：两类流量命运、三张流程图（网关/旁路由/旁路由+策略路由）、**五种接入档位**（gateway / bypass-manual / bypass-router-dhcp / bypass-self-dhcp / bypass-pbr）+ observe、自动选档算法（含中兴光猫与中兴路由的默认假设）、`AccessProfile`/`Plan`/`PBRSpec` 数据模型（策略路由作为保留接口，只出片段不远程执行）、"只写自有 nft 表"的边界、七项自检矩阵、P-A…P-E 实施阶段与风险红线。  
 > **修订（v0.18）：** §4.4 去厂商耦合（面向开源）：
 > **修订（v0.19）：** 实现 §4.4.7 的 P-A 阶段——新增 `internal/access`（只读能力探测 + 选档推荐）与 `/api/access/probe`、`/api/access/recommend`、前端「接入向导」tab；实机（192.168.1.85）跑通并修掉 3 个真机 bug（`dae version` 子命令不存在 / 未展开 `include` / `nft list tables` 字段数假设），详见 §14.16。
+> **修订（v0.21）：** 落地接入向导 P-B（只出计划与只读自检，不执行）：新增 §14.17，定稿"默认 B1、其余档位仅留生成入口"，并新增 README/LICENSE（MIT）用于开源。
 > **修订（v0.20）：** 补入 §4.4.3 的现场实测样本：中兴家用固件「地址管理」页提供可编辑的**「自定义网关地址」**（= DHCP Option 3），说明"家用路由普遍改不了 DHCP 网关"不成立 → B2 在部分家用固件上可行；同时记录"该值可能影响路由器自身出口、填错会整段断网"的风险与操作顺序。详见 §4.4.3。  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
@@ -1228,7 +1229,53 @@ routing {
 
 ---
 
-## 15. 本版（v0.20）变更清单
+## 14.17 接入向导 P-B：计划生成 + 只读自检（v0.21）
+
+### 14.17.1 产品口径（用户定稿）
+
+- **默认档 = B1 旁路由 · 单机手改**：用户在**设备端**把网关与 DNS 指向旁路由，面板只出片段与自检清单。
+- 其余档位（A 网关 / B2 主路由 DHCP / C 策略路由 / B3 面板托管 DHCP）**只保留「生成计划」的入口**，默认不启用、不自动执行；B3 仅出说明文本。
+- 计划一律 dry-run：`dryRun: true`，面板不执行任何命令、不写系统状态；apply 阶段（真正写盘与建 nft 表）留待用户确认后实现。
+
+### 14.17.2 代码结构
+
+| 文件 | 内容 |
+| --- | --- |
+| `internal/access/plan.go` | `PlanOptions`（Mode/LanIfaces/TProxyPort/DNSMode/SNAT/ProxyIP/TestDevice）、`Step`、`Check`、`Plan`、`PlanFor(p,opt)`（纯函数）、渲染器 `RenderDaeGlobal` / `RenderNftDNS` / `RenderNftSNAT` / `RenderNftTProxyPlaceholder` / `RenderPBR`、`manualStepsFor`、`rollbackStepsFor`、`ChecksFor`、`modeWarnings`、`fingerprintOf`（sha256 前 8 字节） |
+| `internal/access/verify.go` | `VerifyInput{Clients,DNSQueries,IfaceRx,IfaceTx}` + `Verify(in) []CheckResult`（6 项，Level = ok/warn/fail/info） |
+| `internal/api/access.go` | `GET|POST /api/access/plan`（GET 走 query、POST 走 `PlanOptions` JSON）、`GET /api/access/verify`（自检数据来自 `access.Collect` + `s.Bytes.Snapshot()` + `s.Traffic.Snapshot(1).Queries`） |
+| `internal/api/index.html` | 「接入向导」tab 增加：档位/LAN 网卡/旁路由 IP/tproxy 端口/DNS 方式/SNAT/测试设备 表单 + 「生成接入计划」「运行自检（只读）」+ 计划分区（警告 / 面板侧步骤、可复制片段 / 人工步骤 / 回滚 / 自检清单）+ 自检结果表 |
+
+### 14.17.3 渲染口径（与 §4.4.5 一致）
+
+- dae 侧只写**自有片段** `config.d/panel-access.dae` 的 `global`：`tproxy_port` / `wan_interface: auto` / `auto_config_kernel_parameter: true` / `lan_interface: <逗号分隔>`；lan_interface 未确定时输出注释行而不是乱填。
+- `panel_dns`：把 LAN 网卡上 53/tcp、53/udp `dnat` 到 `<旁路由IP>:53`（DNS 必须经过本机，否则域名规则失效）；`DNSMode=none` 时仅输出关闭说明。
+- `panel_snat`：`auto`（默认）**不生成**——被 tproxy/netkit 劫持的 TCP/UDP 在旁路由本地终结、回程天然对称；只有"未被劫持却被转发"的流量跨网段或主路由开 rp_filter 时才需要，届时 `snat=on` 生成 `masquerade`。
+- `panel_tproxy`：**默认不建**（dae 会为 `lan_interface` 自行安装拦截规则），仅保留"自定义放行例外"的注释片段，避免规则叠加。
+- 回滚统一为 `nft delete table inet panel_dns|panel_snat|panel_tproxy` + 各档位恢复步骤 + 删 `panel-access.dae` 后 `dae reload`。
+- C 档（策略路由）**只渲染主路由侧 `ip rule`/`nftset` 片段**，面板不远程登录主路由。
+
+### 14.17.4 实机验证（192.168.1.85，dae v2.1.1 / Debian 13）
+
+- `POST /api/access/plan {mode:"",...}` → 200，`mode=bypass-manual`（默认 B1）、`lanIfaces=["ens2"]`（自动取内网网卡）、`proxyIp=192.168.1.85`、`tproxyPort=12345`、`fingerprint=a074ea50e148d531`；steps 4 / manual 3 / rollback 3 / checks 6；片段含 `lan_interface: ens2`。
+- `POST /api/access/plan {mode:"bypass-router-dhcp",lanIfaces:["ens2"],...}` → 200，B2 计划、2 条风险警告（含"改错会断网""先记录原值"）。
+- `GET /api/access/verify` → `4 项通过 / 1 项待确认`：dae 运行 ok、dae0 累计 861KB/453KB ok、DNS 已采集 220 次 ok、遗留表 ok；`lan_clients` 为 warn——**这台机上确实还没有 LAN 设备走 dae**，自检如实报出而不是假装成功。
+- 浏览器（headless Chrome + 真实会话 cookie）：点「接入向导」→「生成接入计划」→「运行自检」，DOM 27,337 字节、`{{` 泄漏 0，计划卡渲染出 `计划：B1 旁路由 · 单机手改 DRY-RUN 指纹 A7392D4E19E0340C` 与自检表。
+
+### 14.17.5 明确边界（本版没做）
+
+- **apply 未实现**：真正写 `panel-access.dae`、建 nft 表、`dae reload` 需要用户在场确认（会在回家网络的 B2 真机场景做）。
+- B3（面板托管 DHCP）只出说明，不提供执行路径。
+- 计划不持久化：每次生成都重新探测，指纹用于将来 apply 时校验"用户看到的就是要执行的"。
+
+### 14.17.6 工程教训
+
+- 生成 Go 代码时，中文字符串里**不能夹 ASCII 双引号**当引号用（会把字面量提前闭合，报 `missing 
+ in composite literal` / `string literal not terminated`）；统一用「」。
+- 通过模板字符串拼接写 Go 源码时，`"\n"` 可能被还原成真实换行，写完必须 `gofmt -l` + `go vet` 复核。
+- `traffic.Snapshot().Queries` 是 `int64`，跨包传值注意类型。
+
+## 15. 本版（v0.21）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1242,3 +1289,4 @@ routing {
 10. **§4.4 去厂商耦合（v0.18）**：厂商画像改为 preset（只预填导航）+ 默认档统一 B1 + 向导三问通用化；新增 §4.4.9 开源通用性约束表（探测代替硬编码、service 抽象、fail-open、degraded 只读、Plan 先行）。
 11. **新增 §14.16（v0.19）**：接入向导 P-A 落地——`internal/access` 只读探测（平台/服务管理器/BPF-BTF/memlock/nft/默认路由/网卡/端口占用/dae 版本与运行/include 展开后的 `lan_interface`/遗留 `panel_*` 表）+ 与厂商无关的选档推荐 + `/api/access/{probe,recommend}` + 前端「接入向导」tab；记录实机暴露的 3 个 bug 与对应开发习惯。
 12. **§4.4.3 补实测样本（v0.20）**：中兴家用固件「地址管理」页可编辑「自定义网关地址」（DHCP Option 3）→ B2 在部分家用固件可行，纠正"家用路由普遍不能改 DHCP 网关"的统计假设；同时记录该字段可能影响路由器自身出口（填错整段断网）的风险与"记原值→改→验证→失败改回"的操作顺序。
+13. **接入向导 P-B（v0.21）**：新增 §14.17——`internal/access/plan.go`（计划生成：dae global 片段、`panel_dns`/`panel_snat`/`panel_tproxy` 渲染、人工步骤、回滚、6 项自检清单、指纹）+ `verify.go`（只读自检）+ `/api/access/plan`（GET/POST，dry-run）+ `/api/access/verify` + 前端「接入向导」计划与自检 UI；产品口径定稿为**默认 B1（设备端手改网关/DNS）**，其余档位只留生成计划入口；实机 4 通过 1 待确认（LAN 客户端尚未接入）。

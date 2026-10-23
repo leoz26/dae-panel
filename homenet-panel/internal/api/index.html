@@ -312,6 +312,93 @@ td input,td select{width:100%}
           <div class="row"><button @click="recommendAccess">按回答重新推荐</button></div>
         </div>
 
+        <div class="card" v-if="accessProbe">
+          <h2>接入计划（dry-run：只生成，不执行）</h2>
+          <div class="info">默认是最普通也最安全的场景：<b>B1</b> —— 你在设备端把网关与 DNS 指向这台旁路由。其他档位只保留“生成计划”的入口，面板不会自动执行。</div>
+          <table class="tbl">
+            <tr><th style="width:170px">档位</th><td>
+              <select v-model="accessPlanOpt.mode">
+                <option value="">按推荐（{{accessLabel(accessRec&&accessRec.mode)}}）</option>
+                <option value="bypass-manual">B1 旁路由 · 单机手改（默认）</option>
+                <option value="bypass-router-dhcp">B2 旁路由 · 主路由 DHCP 下发网关</option>
+                <option value="gateway">A 网关（同机 OpenWrt/软路由）</option>
+                <option value="bypass-pbr">C 旁路由 · 主路由策略路由（只出片段）</option>
+                <option value="bypass-self-dhcp">B3 面板托管 DHCP（高风险，仅出说明）</option>
+                <option value="observe">观察模式（不改任何东西）</option>
+              </select>
+            </td></tr>
+            <tr><th>LAN 网卡</th><td><input v-model="accessPlanOpt.lanIfaces" placeholder="留空=自动（取探测到的内网网卡）"/></td></tr>
+            <tr><th>旁路由 IP</th><td><input v-model="accessPlanOpt.proxyIp" placeholder="留空=自动（本机内网 IPv4）"/></td></tr>
+            <tr><th>tproxy 端口</th><td><input v-model.number="accessPlanOpt.tproxyPort" type="number"/></td></tr>
+            <tr><th>DNS 方式</th><td>
+              <select v-model="accessPlanOpt.dnsMode">
+                <option value="hijack53">劫持 53（推荐）</option>
+                <option value="forward-from-router">主路由转发 DNS 到本机</option>
+                <option value="none">不处理（需自己保证 DNS 经过本机）</option>
+              </select>
+            </td></tr>
+            <tr><th>SNAT</th><td>
+              <select v-model="accessPlanOpt.snat">
+                <option value="auto">自动判断（默认不生成）</option>
+                <option value="on">强制开启</option>
+                <option value="off">关闭</option>
+              </select>
+            </td></tr>
+            <tr><th>测试设备</th><td><input v-model="accessPlanOpt.testDevice" placeholder="例如 客厅手机"/></td></tr>
+          </table>
+          <div class="row">
+            <button @click="genPlan">生成接入计划</button>
+            <button @click="runVerify">运行自检（只读）</button>
+            <span class="muted" v-if="accessPlanMsg">{{accessPlanMsg}}</span>
+          </div>
+        </div>
+
+        <div class="card" v-if="accessVerify">
+          <h2>自检结果 <span class="pill">{{accessVerify.summary}}</span></h2>
+          <table class="tbl">
+            <tr><th style="width:240px">项目</th><th style="width:80px">结果</th><th>说明</th></tr>
+            <tr v-for="(c,i) in accessVerify.checks" :key="'vc'+i">
+              <td>{{c.name}}</td>
+              <td :class="c.level==='ok'?'ok':(c.level==='fail'?'err':'')">{{c.level==='ok'?'通过':(c.level==='warn'?'待确认':(c.level==='fail'?'失败':'说明'))}}</td>
+              <td class="muted">{{c.detail}}</td>
+            </tr>
+          </table>
+          <div class="muted">自检只读：不改系统、不重启 dae，可反复执行；「字节统计出现内网客户端」是 LAN 流量真来了的硬证据。</div>
+        </div>
+
+        <div class="card" v-if="accessPlan">
+          <h2>计划：{{accessPlan.label}} <span class="pill">dry-run</span> <span class="pill mono">指纹 {{accessPlan.fingerprint}}</span></h2>
+          <div class="muted">LAN 网卡：{{(accessPlan.lanIfaces||[]).join(', ')||'未确定'}} · 旁路由 IP：{{accessPlan.proxyIp||'未确定'}} · tproxy {{accessPlan.tproxyPort}} · DNS {{accessPlan.dnsMode}} · SNAT {{accessPlan.snat}}</div>
+          <div v-if="accessPlan.warnings && accessPlan.warnings.length" class="banner">
+            <div v-for="(w,i) in accessPlan.warnings" :key="'pw'+i">注意：{{w}}</div>
+          </div>
+          <h3>面板侧（只写自有片段与自有 nft 表）</h3>
+          <div v-for="(s,i) in accessPlan.steps" :key="'ps'+i" style="margin:10px 0">
+            <div><b>{{i+1}}. {{s.title}}</b></div>
+            <div class="muted">{{s.detail}}</div>
+            <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
+            <button class="sm" v-if="s.snippet" @click="copyText(s.snippet)">复制片段</button>
+          </div>
+          <h3>需要你（或主路由）人工完成</h3>
+          <div v-for="(s,i) in accessPlan.manualSteps" :key="'pm'+i" style="margin:10px 0">
+            <div><b>{{i+1}}. {{s.title}}</b></div>
+            <div class="muted">{{s.detail}}</div>
+            <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
+          </div>
+          <h3>回滚</h3>
+          <div v-for="(s,i) in accessPlan.rollback" :key="'pr'+i" style="margin:10px 0">
+            <div><b>{{i+1}}. {{s.title}}</b></div>
+            <div class="muted">{{s.detail}}</div>
+            <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
+          </div>
+          <h3>自检清单</h3>
+          <table class="tbl">
+            <tr><th style="width:240px">项目</th><th>怎么看</th></tr>
+            <tr v-for="(c,i) in accessPlan.checks" :key="'pc'+i"><td>{{c.name}}</td><td class="muted">{{c.how}}</td></tr>
+          </table>
+          <div class="info">本页不会执行任何命令：计划只是文本。真正应用接入需要你确认后再做，届时面板先备份、只写自有片段与自有 nft 表。</div>
+        </div>
+
         <div class="card" v-if="accessProbe && accessProbe.staleTables && accessProbe.staleTables.length">
           <h2>需要清理</h2>
           <div class="muted">发现上次遗留的面板 nft 表，规则叠加会出问题，先回滚清理：</div>
@@ -607,7 +694,8 @@ createApp({
     trafficData:null, trafficMsg:"", trafficAuto:false, trafficTimer:null,
     bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
     accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
-    accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""}
+    accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""},
+    accessPlan:null, accessPlanMsg:"", accessVerify:null, accessPlanOpt:{mode:"",lanIfaces:"",tproxyPort:12345,dnsMode:"hijack53",snat:"auto",proxyIp:"",testDevice:""}
   };},
   mounted(){ this.checkAuth(); },
   methods:{
@@ -617,6 +705,9 @@ createApp({
     accessLabel(m){ var L={gateway:"A 网关（同机）","bypass-manual":"B1 旁路由 · 单机手改","bypass-router-dhcp":"B2 旁路由 · 主路由 DHCP 下发网关","bypass-self-dhcp":"B3 旁路由 · 面板托管 DHCP（高风险）","bypass-pbr":"C 旁路由 · 主路由策略路由",observe:"观察模式（不接管）"}; return L[m]||m; },
     accessAnsPayload(){ var f=function(v){ return v==="yes"?true:(v==="no"?false:null); }; return {dhcpGateway:f(this.accessAns.dhcpGateway), dhcpDns:f(this.accessAns.dhcpDns), canDisableDhcp:f(this.accessAns.canDisableDhcp), pbr:f(this.accessAns.pbr)}; },
     async recommendAccess(){ const r=await this.api("/api/access/recommend","POST",this.accessAnsPayload()); if(r.code===200){ this.accessRec=r.data.rec; this.accessGuide=r.data.guide||[]; this.accessMsg="已按你的回答重算档位"; } else { this.accessMsg="重算失败 (HTTP "+r.code+")"; } },
+    async genPlan(){ this.accessPlanMsg="生成中…"; const o=this.accessPlanOpt; const body={mode:o.mode||"", lanIfaces:(o.lanIfaces||"").split(",").map(function(s){return s.trim();}).filter(function(s){return s;}), tproxyPort:Number(o.tproxyPort)||0, dnsMode:o.dnsMode, snat:o.snat, proxyIp:o.proxyIp||"", testDevice:o.testDevice||""}; const r=await this.api("/api/access/plan","POST",body); if(r.code===200){ this.accessPlan=r.data.plan; this.accessPlanMsg="计划已生成（未执行任何命令）"; } else { this.accessPlanMsg="生成失败 (HTTP "+r.code+")"; } },
+    async runVerify(){ const r=await this.api("/api/access/verify"); if(r.code===200){ this.accessVerify=r.data; this.accessPlanMsg="自检完成："+r.data.summary; } else { this.accessPlanMsg="自检失败 (HTTP "+r.code+")"; } },
+    copyText(s){ try{ navigator.clipboard.writeText(s); this.accessPlanMsg="片段已复制"; }catch(e){ this.accessPlanMsg="复制失败，请手动选择文本"; } },
     async loadBytes(){ const r=await this.api("/api/traffic/bytes"); if(r.code===200){ this.bytesData=r.data; this.bytesMsg=(r.data&&r.data.enabled)?("更新于 "+new Date().toLocaleTimeString()):"字节统计未启用"; } else this.bytesMsg="加载失败 (HTTP "+r.code+")"; },
     toggleBytesAuto(){ if(this.bytesAuto){ this.loadBytes(); if(this.bytesTimer) clearInterval(this.bytesTimer); this.bytesTimer=setInterval(()=>this.loadBytes(),10000); } else { if(this.bytesTimer){ clearInterval(this.bytesTimer); this.bytesTimer=null; } } },
     fmtBytes(v){ var n=Number(v)||0; var u=["B","KB","MB","GB","TB"]; var i=0; while(n>=1024 && i<u.length-1){ n=n/1024; i++; } return (i===0? n.toFixed(0) : n.toFixed(2))+" "+u[i]; },

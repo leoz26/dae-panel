@@ -923,6 +923,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// 网络接入向导（P-A 只读探测）
 	mux.HandleFunc("/api/access/probe", s.auth(s.handleAccessProbe))
 	mux.HandleFunc("/api/access/recommend", s.auth(s.handleAccessRecommend))
+	mux.HandleFunc("/api/access/plan", s.auth(s.handleAccessPlan))
+	mux.HandleFunc("/api/access/verify", s.auth(s.handleAccessVerify))
 
 	mux.HandleFunc("/api/audit", s.auth(s.handleAudit))
 	mux.HandleFunc("/api/audit/export", s.auth(s.handleAuditExport))
