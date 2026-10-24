@@ -1,0 +1,470 @@
+{
+  "label": "mac-via-openwrt-vm",
+  "started_at": "2026-10-24 10:44:31",
+  "local": {
+    "default_gateway": "192.168.1.11",
+    "default_iface": "en1",
+    "hostname": "sthhodeMac-mini.local",
+    "platform": "darwin",
+    "dns_servers": [
+      "100.100.100.100",
+      "fd7a:115c:a1e0::53"
+    ]
+  },
+  "rounds": 3,
+  "samples": [
+    {
+      "round": 1,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 2.7,
+          "tcp_ms": 492.5,
+          "tls_ms": 781.1,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 10.3,
+          "tcp_ms": 1223.3,
+          "tls_ms": 31.5,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 0.8,
+          "tcp_ms": 11.8,
+          "tls_ms": 31.9,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 3.2,
+          "tcp_ms": 3.6,
+          "tls_ms": 1025.3,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 3.2,
+          "tcp_ms": 4.0,
+          "tls_ms": 650.0,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 3.4,
+          "tcp_ms": 3.4,
+          "tls_ms": 288.1,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 3.3,
+          "tcp_ms": 3.6,
+          "tls_ms": 673.8,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 4.2,
+          "bytes": 45
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 4.6,
+          "bytes": 45
+        }
+      ],
+      "download": {
+        "bytes": 2000000,
+        "seconds": 4.51,
+        "mbps": 3.55
+      },
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 594.2,
+          "ttfb_ms": 16.8,
+          "total_ms": 611.1,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "connect_ms": 1499.2,
+          "ttfb_ms": 120.8,
+          "total_ms": 1620.1,
+          "bytes": 372,
+          "status": 302
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 3.9,
+          "tcp_ms": 14.1,
+          "tls_ms": 758.2,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 4.4,
+          "tcp_ms": 14.5,
+          "tls_ms": 515.7,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 1.8,
+          "tcp_ms": 77.6,
+          "tls_ms": 142.3,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 17.0,
+          "tcp_ms": 7.8,
+          "tls_ms": 604.1,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 581.3,
+          "tcp_ms": 4.0,
+          "tls_ms": 683.6,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 312.1,
+          "tcp_ms": 3.3,
+          "tls_ms": 795.2,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 9.0,
+          "tcp_ms": 4.1,
+          "tls_ms": 506.4,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 3.7,
+          "bytes": 45
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 4.5,
+          "bytes": 45
+        }
+      ],
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 1296.0,
+          "ttfb_ms": 16.7,
+          "total_ms": 1312.8,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "connect_ms": 1903.9,
+          "ttfb_ms": 112.4,
+          "total_ms": 2016.3,
+          "bytes": 372,
+          "status": 302
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 3.7,
+          "tcp_ms": 11.9,
+          "tls_ms": 1193.2,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 4.2,
+          "tcp_ms": 101.8,
+          "tls_ms": 1329.3,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 1.7,
+          "tcp_ms": 18.7,
+          "tls_ms": 25.9,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 2.7,
+          "tcp_ms": 2.8,
+          "tls_ms": 1677.4,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 1.9,
+          "tcp_ms": 2.5,
+          "tls_ms": 865.4,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 3.0,
+          "tcp_ms": 3.7,
+          "tls_ms": 555.4,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 3.5,
+          "tcp_ms": 15.8,
+          "tls_ms": 421.7,
+          "tls": "TLSv1.2"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 3.5,
+          "bytes": 45
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 4.0,
+          "bytes": 45
+        }
+      ],
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 256.2,
+          "ttfb_ms": 19.6,
+          "total_ms": 275.9,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "connect_ms": 574.7,
+          "ttfb_ms": 152.2,
+          "total_ms": 980.5,
+          "bytes": 372,
+          "status": 302
+        }
+      ]
+    }
+  ],
+  "exit_ip": "218.250.145.26",
+  "exit_ip_source": "https://api.ipify.org?format=json",
+  "exit_org": {
+    "country": "HK",
+    "city": "Hong Kong",
+    "org": "AS4760 HKT Limited"
+  },
+  "ping": [
+    {
+      "host": "223.5.5.5",
+      "rtt": {
+        "min": 10.9,
+        "avg": 163.7,
+        "max": 307.5
+      },
+      "loss": "0.0% packet loss"
+    },
+    {
+      "host": "1.1.1.1",
+      "rtt": {
+        "min": 55.0,
+        "avg": 139.5,
+        "max": 245.8
+      },
+      "loss": "0.0% packet loss"
+    }
+  ],
+  "pages": [
+    {
+      "url": "https://www.baidu.com/",
+      "connect_ms": 820.3,
+      "ttfb_ms": 419.7,
+      "total_ms": 1240.0,
+      "bytes": 227,
+      "status": 200
+    },
+    {
+      "url": "https://www.google.com/",
+      "connect_ms": 2643.4,
+      "ttfb_ms": 116.4,
+      "total_ms": 2759.8,
+      "bytes": 372,
+      "status": 302
+    }
+  ],
+  "baseline": {
+    "cn": [
+      {
+        "host": "www.baidu.com",
+        "dns_ms": 8.7,
+        "tcp_ms": 14.2,
+        "tls_ms": 627.0,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "www.qq.com",
+        "dns_ms": 18.2,
+        "tcp_ms": 16.8,
+        "tls_ms": 1589.6,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "223.5.5.5",
+        "dns_ms": 1.4,
+        "tcp_ms": 11.2,
+        "tls_ms": 29.0,
+        "tls": "TLSv1.2"
+      }
+    ],
+    "global": [
+      {
+        "host": "www.google.com",
+        "dns_ms": 6.5,
+        "tcp_ms": 3.2,
+        "tls_ms": 677.9,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "github.com",
+        "dns_ms": 6.9,
+        "tcp_ms": 3.9,
+        "tls_ms": 694.1,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "www.youtube.com",
+        "dns_ms": 3.6,
+        "tcp_ms": 3.5,
+        "tls_ms": 2336.0,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "www.cloudflare.com",
+        "dns_ms": 7.3,
+        "tcp_ms": 3.6,
+        "tls_ms": 3611.9,
+        "tls": "TLSv1.2"
+      }
+    ],
+    "dns": [
+      {
+        "dns_ms": 4.3,
+        "addrs": [
+          "183.2.172.177"
+        ],
+        "error": "",
+        "host": "www.baidu.com"
+      },
+      {
+        "dns_ms": 2.5,
+        "addrs": [
+          "198.18.0.41"
+        ],
+        "error": "",
+        "host": "www.google.com"
+      },
+      {
+        "dns_ms": 2.8,
+        "addrs": [
+          "198.18.0.9"
+        ],
+        "error": "",
+        "host": "github.com"
+      },
+      {
+        "dns_ms": 1.9,
+        "addrs": [
+          "198.18.0.5"
+        ],
+        "error": "",
+        "host": "www.youtube.com"
+      }
+    ],
+    "udp_dns": [
+      {
+        "server": "223.5.5.5",
+        "udp_ms": 419.4,
+        "bytes": 45
+      },
+      {
+        "server": "1.1.1.1",
+        "udp_ms": 5.4,
+        "bytes": 45
+      }
+    ]
+  },
+  "stats": {
+    "cn_tcp_ms": {
+      "n": 9,
+      "min": 11.8,
+      "p50": 18.7,
+      "p90": 492.5,
+      "max": 1223.3
+    },
+    "cn_tls_ms": {
+      "n": 9,
+      "min": 25.9,
+      "p50": 515.7,
+      "p90": 1193.2,
+      "max": 1329.3
+    },
+    "global_tcp_ms": {
+      "n": 12,
+      "min": 2.5,
+      "p50": 3.7,
+      "p90": 7.8,
+      "max": 15.8
+    },
+    "global_tls_ms": {
+      "n": 12,
+      "min": 288.1,
+      "p50": 673.8,
+      "p90": 1025.3,
+      "max": 1677.4
+    },
+    "global_dns_ms": {
+      "n": 12,
+      "min": 1.9,
+      "p50": 3.4,
+      "p90": 312.1,
+      "max": 581.3
+    }
+  },
+  "verdict": [
+    "境内 TLS 中位 515.7 ms / 境外 TLS 中位 673.8 ms（境外是境内的 1.3 倍）",
+    "境外握手 400–800ms：能用但偏慢，多资源页面会有等待感",
+    "页面 https://www.baidu.com/ 首字节 419.7 ms（总 1240.0 ms，227 字节，HTTP 200）",
+    "页面 https://www.google.com/ 首字节 116.4 ms（总 2759.8 ms，372 字节，HTTP 302）",
+    "2MB 下载 4.51 s / 3.55 Mbps"
+  ]
+}

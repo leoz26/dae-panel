@@ -1,0 +1,454 @@
+{
+  "label": "dae-192.168.1.85",
+  "started_at": "2026-10-24 10:48:05",
+  "local": {
+    "default_route": "default via 192.168.1.1 dev ens2 proto dhcp src 192.168.1.85 metric 1002",
+    "hostname": "Debian-te",
+    "platform": "linux",
+    "dns_servers": [
+      "192.168.1.1",
+      "fe80::1%ens2"
+    ]
+  },
+  "rounds": 3,
+  "samples": [
+    {
+      "round": 1,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 1.4,
+          "tcp_ms": 7.8,
+          "tls_ms": 22.9,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 1.7,
+          "tcp_ms": 8.8,
+          "tls_ms": 13.4,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 0.1,
+          "tcp_ms": 7.3,
+          "tls_ms": 17.5,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 1.0,
+          "tcp_ms": 0.2,
+          "tls_ms": 684.0,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 1.2,
+          "tcp_ms": 0.6,
+          "tls_ms": 727.0,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 1.9,
+          "tcp_ms": 0.6,
+          "tls_ms": 621.9,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 1.6,
+          "tcp_ms": 0.6,
+          "tls_ms": 1728.3,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 0.6,
+          "bytes": 61
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 0.4,
+          "bytes": 61
+        }
+      ],
+      "download": {
+        "error": "Remote end closed connection without response"
+      },
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 28.6,
+          "ttfb_ms": 10.6,
+          "total_ms": 39.3,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "error": "Remote end closed connection without response"
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 0.9,
+          "tcp_ms": 8.6,
+          "tls_ms": 27.4,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 1.1,
+          "tcp_ms": 8.9,
+          "tls_ms": 17.6,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 0.1,
+          "tcp_ms": 7.8,
+          "tls_ms": 19.7,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 1.8,
+          "tcp_ms": 0.3,
+          "tls_ms": 522.0,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 1.9,
+          "tcp_ms": 0.3,
+          "tls_ms": 563.6,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 1.5,
+          "tcp_ms": 0.6,
+          "tls_ms": 649.0,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 2.0,
+          "tcp_ms": 0.6,
+          "tls_ms": 734.0,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 0.4,
+          "bytes": 61
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 0.2,
+          "bytes": 61
+        }
+      ],
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 38.9,
+          "ttfb_ms": 14.7,
+          "total_ms": 53.7,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "connect_ms": 545.7,
+          "ttfb_ms": 307.7,
+          "total_ms": 853.8,
+          "bytes": 372,
+          "status": 302
+        }
+      ]
+    },
+    {
+      "round": 3,
+      "cn": [
+        {
+          "host": "www.baidu.com",
+          "dns_ms": 1.8,
+          "tcp_ms": 8.2,
+          "tls_ms": 24.0,
+          "tls": "TLSv1.2"
+        },
+        {
+          "host": "www.qq.com",
+          "dns_ms": 1.7,
+          "tcp_ms": 9.6,
+          "tls_ms": 16.2,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "223.5.5.5",
+          "dns_ms": 0.1,
+          "tcp_ms": 8.9,
+          "tls_ms": 13.1,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "global": [
+        {
+          "host": "www.google.com",
+          "dns_ms": 0.6,
+          "tcp_ms": 0.1,
+          "tls_ms": 556.0,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "github.com",
+          "dns_ms": 0.6,
+          "tcp_ms": 0.3,
+          "tls_ms": 557.2,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.youtube.com",
+          "dns_ms": 1.8,
+          "tcp_ms": 0.6,
+          "tls_ms": 649.7,
+          "tls": "TLSv1.3"
+        },
+        {
+          "host": "www.cloudflare.com",
+          "dns_ms": 1.7,
+          "tcp_ms": 0.6,
+          "tls_ms": 550.1,
+          "tls": "TLSv1.3"
+        }
+      ],
+      "udp_dns": [
+        {
+          "server": "223.5.5.5",
+          "udp_ms": 0.7,
+          "bytes": 61
+        },
+        {
+          "server": "1.1.1.1",
+          "udp_ms": 0.4,
+          "bytes": 61
+        }
+      ],
+      "pages": [
+        {
+          "url": "https://www.baidu.com/",
+          "connect_ms": 29.1,
+          "ttfb_ms": 14.3,
+          "total_ms": 43.4,
+          "bytes": 227,
+          "status": 200
+        },
+        {
+          "url": "https://www.google.com/",
+          "error": "Remote end closed connection without response"
+        }
+      ]
+    }
+  ],
+  "exit_ip": "",
+  "exit_ip_source": "",
+  "exit_org": {},
+  "ping": [
+    {
+      "host": "223.5.5.5",
+      "rtt": {
+        "min": 7.6,
+        "avg": 8.8,
+        "max": 11.0
+      },
+      "loss": "0% packet loss"
+    },
+    {
+      "host": "1.1.1.1",
+      "rtt": {
+        "min": 49.9,
+        "avg": 50.1,
+        "max": 50.3
+      },
+      "loss": "0% packet loss"
+    }
+  ],
+  "pages": [
+    {
+      "url": "https://www.baidu.com/",
+      "connect_ms": 44.4,
+      "ttfb_ms": 17.7,
+      "total_ms": 62.2,
+      "bytes": 227,
+      "status": 200
+    },
+    {
+      "url": "https://www.google.com/",
+      "error": "Remote end closed connection without response"
+    }
+  ],
+  "baseline": {
+    "cn": [
+      {
+        "host": "www.baidu.com",
+        "dns_ms": 2.6,
+        "tcp_ms": 10.5,
+        "tls_ms": 24.8,
+        "tls": "TLSv1.2"
+      },
+      {
+        "host": "www.qq.com",
+        "dns_ms": 0.9,
+        "tcp_ms": 8.5,
+        "tls_ms": 12.6,
+        "tls": "TLSv1.3"
+      },
+      {
+        "host": "223.5.5.5",
+        "dns_ms": 0.1,
+        "tcp_ms": 8.2,
+        "tls_ms": 21.0,
+        "tls": "TLSv1.3"
+      }
+    ],
+    "global": [
+      {
+        "host": "www.google.com",
+        "dns_ms": 1.5,
+        "tcp_ms": 0.9,
+        "tls_ms": 545.8,
+        "tls": "TLSv1.3"
+      },
+      {
+        "host": "github.com",
+        "dns_ms": 1.7,
+        "tcp_ms": 0.6,
+        "tls_ms": 524.9,
+        "tls": "TLSv1.3"
+      },
+      {
+        "host": "www.youtube.com",
+        "dns_ms": 10.4,
+        "tcp_ms": 0.9,
+        "tls_ms": 606.1,
+        "tls": "TLSv1.3"
+      },
+      {
+        "host": "www.cloudflare.com",
+        "dns_ms": 1.8,
+        "tcp_ms": 0.6,
+        "tls_ms": 555.1,
+        "tls": "TLSv1.3"
+      }
+    ],
+    "dns": [
+      {
+        "dns_ms": 2.3,
+        "addrs": [
+          "183.2.172.177",
+          "240e:ff:e020:98c:0:ff:b061:c306",
+          "240e:ff:e020:99b:0:ff:b099:cff1"
+        ],
+        "error": "",
+        "host": "www.baidu.com"
+      },
+      {
+        "dns_ms": 1.2,
+        "addrs": [
+          "174.132.167.252",
+          "2001::1"
+        ],
+        "error": "",
+        "host": "www.google.com"
+      },
+      {
+        "dns_ms": 0.9,
+        "addrs": [
+          "20.205.243.166"
+        ],
+        "error": "",
+        "host": "github.com"
+      },
+      {
+        "dns_ms": 1.1,
+        "addrs": [
+          "157.240.7.20",
+          "2001::1"
+        ],
+        "error": "",
+        "host": "www.youtube.com"
+      }
+    ],
+    "udp_dns": [
+      {
+        "server": "223.5.5.5",
+        "udp_ms": 0.9,
+        "bytes": 61
+      },
+      {
+        "server": "1.1.1.1",
+        "udp_ms": 0.5,
+        "bytes": 61
+      }
+    ]
+  },
+  "stats": {
+    "cn_tcp_ms": {
+      "n": 9,
+      "min": 7.3,
+      "p50": 8.6,
+      "p90": 8.9,
+      "max": 9.6
+    },
+    "cn_tls_ms": {
+      "n": 9,
+      "min": 13.1,
+      "p50": 17.6,
+      "p90": 24.0,
+      "max": 27.4
+    },
+    "global_tcp_ms": {
+      "n": 12,
+      "min": 0.1,
+      "p50": 0.6,
+      "p90": 0.6,
+      "max": 0.6
+    },
+    "global_tls_ms": {
+      "n": 12,
+      "min": 522.0,
+      "p50": 649.0,
+      "p90": 734.0,
+      "max": 1728.3
+    },
+    "global_dns_ms": {
+      "n": 12,
+      "min": 0.6,
+      "p50": 1.7,
+      "p90": 1.9,
+      "max": 2.0
+    }
+  },
+  "verdict": [
+    "境内 TLS 中位 17.6 ms / 境外 TLS 中位 649.0 ms（境外是境内的 36.9 倍）",
+    "境外握手 400–800ms：能用但偏慢，多资源页面会有等待感",
+    "页面 https://www.baidu.com/ 首字节 17.7 ms（总 62.2 ms，227 字节，HTTP 200）",
+    "页面 https://www.google.com/ 失败：Remote end closed connection without response"
+  ]
+}

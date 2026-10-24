@@ -20,6 +20,7 @@
 | `flowsniff2.py` | `python3 flowsniff2.py 30` | 同上，但分「其他内网设备→外网」/「本机(.85)→外网」两段（A 段未排除 .85，仅作粗看） |
 | `flowwho.py` | `python3 flowwho.py 30` | 按客户端 IP 汇总，Top 目的域名/IP，跳过面板与 SSH 端口 |
 | `pubip.py` | `python3 pubip.py` | TLS 直连 api.ipify.org 取当前出口公网 IP（代理路径不稳时会超时） |
+| `proxbench.py` | `python3 proxbench.py --label <名> --rounds 3 --out logs/<名>.json` | **同一条链路的质量基准**（换环境前后/两套旁路由之间对比用）：出口 IP 与归属、境内/境外 DNS+TCP+TLS 分段时延、UDP DNS、2MB 下载吞吐、ICMP、真实页面首字节/总耗时（baidu、google），结果写 JSON 并打印中文判定 |
 | `whereami.py` | `python3 whereami.py [--json] [--watch 5] [--via 192.168.1.85] [--no-trace]` | **在任意测试设备上跑**（macOS/Linux 均可，纯标准库）：本机网卡/网关/DNS/VPN 接口、出口 IPv4+IPv6 与归属、境内 vs 境外的 TCP/TLS 时延指纹、traceroute 首跳，最后给出「本机流量从哪儿出去」的中文判定 |
 
 
@@ -59,3 +60,21 @@
 2. **没有任何 LAN 客户端经过这台 dae 上网**（45s 抓包中客户端→外网仅 KB 级），
    Mac 的默认网关是 192.168.1.11。要让 LAN 走 dae，必须先解决「谁当网关」，见 §4.4。
 3. 订阅节点主机名形如 `<uuid>.bbtechconsultants.com`——之前当成「可疑 DNS 心跳」是误判。
+
+## 2026-10-24 两条旁路由路径对比（详见 `logs/COMPARE.md`）
+
+同一份 `proxbench.py`、同一批目标，分别从「Mac 经 OpenWrt 虚拟机网关」和「192.168.1.85 经 dae」测：
+
+| 指标 | 经 .85（dae） | 经 OpenWrt(192.168.1.11) |
+|---|---|---|
+| 出口 | 178.249.213.185（Cdn77/东京） | 218.250.145.26（PCCW/HKT 香港） |
+| 境内 TLS 中位 | 17.6 ms（正常直连） | 515.7 ms（国内也被代理） |
+| 境外 TLS 中位 | 649.0 ms | 673.8 ms |
+| baidu 页面首字节/总 | 17.7 / 62.2 ms | 419.7 / 1240.0 ms |
+| google 页面 | **失败**（Remote end closed） | 116.4 / 2759.8 ms |
+| 2MB 下载 | **失败** | 3.55 Mbps |
+
+附加稳定性测量（`logs/flap-probe.py`，在 .85 上连打 8 次）：google 2/8 成功、cloudflare 0/8 成功、ipify 6/8 成功（成功也要 1.0–1.5s）。
+同期 dae journal：`Group selects` 533 次 / `re-selects` 176 次（≈9 次/分钟换节点），`alive_dialers` 在 2–30 之间跳动。
+⇒ **.85 的症状是「连接被掐断」，不是「单纯慢」**；根因指向机场节点健康度 + 组策略频繁重选，而不是本机性能。
+
