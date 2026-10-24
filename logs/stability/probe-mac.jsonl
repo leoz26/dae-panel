@@ -1,0 +1,1222 @@
+{"ts":1792859904.7060192,"kind":"start","tag":"mac","host":"sthhodeMac-mini.local","layers":["l1","l2","l3","l4"],"interval":10,"duration":600,"pid":95885}
+{"ts":1792859904.71587,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.6,"err":null}
+{"ts":1792859904.760421,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":40.6,"ver":"TLSv1.2","err":null}
+{"ts":1792859904.807133,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.4,"firstByteMs":10.0,"code":404,"err":null}
+{"ts":1792859904.763478,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":57.3,"err":null}
+{"ts":1792859904.8716412,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":105.9,"ver":"TLSv1.2","err":null}
+{"ts":1792859905.012276,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":105.7,"firstByteMs":33.8,"code":200,"err":null}
+{"ts":1792859905.024138,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859905.0336199,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.3,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859905.0430112,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.2,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859905.052725,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859905.064896,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":12.0,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859905.075132,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792859908.7075992,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859908.707865,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859908.808405,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859909.7077608,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792859909.71505,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792859909.715095,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792859909.720854,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5014.2,"err":"timeout: timed out"}
+{"ts":1792859909.7209878,"kind":"system","load":[3.39,2.24,1.92],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859914.7218509,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.8,"err":null}
+{"ts":1792859914.76677,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":40.7,"ver":"TLSv1.2","err":null}
+{"ts":1792859914.8097181,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":32.3,"firstByteMs":10.2,"code":404,"err":null}
+{"ts":1792859914.745294,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":34.2,"err":null}
+{"ts":1792859914.860129,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":112.0,"ver":"TLSv1.2","err":null}
+{"ts":1792859915.006589,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":107.7,"firstByteMs":38.0,"code":200,"err":null}
+{"ts":1792859915.00978,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859915.0140579,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859915.017749,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859915.0278778,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859915.03988,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.9,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859915.0493681,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792859918.7116768,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859918.711755,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859918.811025,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859919.71202,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.8,"err":"timeout: timed out"}
+{"ts":1792859919.71402,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792859919.7144861,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792859919.7145019,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792859919.7145522,"kind":"system","load":[3.17,2.23,1.92],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859924.72667,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792859924.762966,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.4,"ver":"TLSv1.2","err":null}
+{"ts":1792859924.8148851,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.1,"firstByteMs":15.4,"code":404,"err":null}
+{"ts":1792859924.748117,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":32.2,"err":null}
+{"ts":1792859924.840648,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":89.5,"ver":"TLSv1.2","err":null}
+{"ts":1792859924.971963,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":98.6,"firstByteMs":32.3,"code":200,"err":null}
+{"ts":1792859924.977386,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":5.3,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859924.9806771,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.2,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859924.984264,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859924.9948502,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859925.0049212,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859925.0148978,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792859928.7164009,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859928.71645,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859928.815261,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859929.7172768,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792859929.723645,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792859929.7243361,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.2,"err":"timeout: timed out"}
+{"ts":1792859929.724405,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.3,"err":"timeout: timed out"}
+{"ts":1792859929.7244842,"kind":"system","load":[3.21,2.27,1.93],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859934.7300138,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.7,"err":null}
+{"ts":1792859934.769953,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.5,"ver":"TLSv1.2","err":null}
+{"ts":1792859934.818691,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.9,"firstByteMs":11.4,"code":404,"err":null}
+{"ts":1792859934.7474618,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":27.2,"err":null}
+{"ts":1792859934.867203,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":116.3,"ver":"TLSv1.2","err":null}
+{"ts":1792859935.014938,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":109.5,"firstByteMs":37.5,"code":200,"err":null}
+{"ts":1792859935.0186272,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859935.022437,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859935.025533,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.0,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859935.036599,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859935.0479228,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859935.057952,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792859938.721584,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859938.721646,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859938.82001,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859939.721559,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792859939.723219,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792859939.7233658,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792859939.7234151,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792859939.723449,"kind":"system","load":[3.34,2.33,1.96],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859944.7352052,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.3,"err":null}
+{"ts":1792859944.777796,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":37.7,"ver":"TLSv1.2","err":null}
+{"ts":1792859944.831761,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.4,"firstByteMs":12.9,"code":404,"err":null}
+{"ts":1792859944.754184,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":30.3,"err":null}
+{"ts":1792859944.808492,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":50.0,"ver":"TLSv1.2","err":null}
+{"ts":1792859944.870487,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":46.5,"firstByteMs":14.6,"code":200,"err":null}
+{"ts":1792859944.8751948,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859944.8790689,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859944.882841,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859944.8941529,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859944.9057221,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859944.9157472,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792859948.725163,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859948.7252,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.0,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859948.833098,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859949.724798,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.7,"err":"timeout: timed out"}
+{"ts":1792859949.7331882,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.1,"err":"timeout: timed out"}
+{"ts":1792859949.73382,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.9,"err":"timeout: timed out"}
+{"ts":1792859949.73391,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.9,"err":"timeout: timed out"}
+{"ts":1792859949.733958,"kind":"system","load":[3.44,2.38,1.98],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859954.7422972,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":14.4,"err":null}
+{"ts":1792859954.789531,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":38.3,"ver":"TLSv1.2","err":null}
+{"ts":1792859954.843457,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":41.4,"firstByteMs":11.5,"code":404,"err":null}
+{"ts":1792859954.7423518,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.5,"err":null}
+{"ts":1792859954.793779,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":46.3,"ver":"TLSv1.2","err":null}
+{"ts":1792859954.846216,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":38.5,"firstByteMs":13.2,"code":200,"err":null}
+{"ts":1792859958.8448331,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859958.8473852,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859958.850902,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859958.854511,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859958.8581219,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859958.867954,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859958.878484,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859958.888868,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792859959.729357,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792859959.730966,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792859959.732945,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5004.9,"err":"timeout: timed out"}
+{"ts":1792859959.733002,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5005.0,"err":"timeout: timed out"}
+{"ts":1792859959.737918,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5009.9,"err":"timeout: timed out"}
+{"ts":1792859959.737939,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5009.9,"err":"timeout: timed out"}
+{"ts":1792859962.845769,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859962.846024,"kind":"system","load":[3.48,2.45,2.01],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859964.742193,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.4,"err":null}
+{"ts":1792859964.782916,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":37.3,"ver":"TLSv1.2","err":null}
+{"ts":1792859964.832148,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.3,"firstByteMs":11.3,"code":404,"err":null}
+{"ts":1792859964.7463071,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.6,"err":null}
+{"ts":1792859964.787114,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":38.2,"ver":"TLSv1.2","err":null}
+{"ts":1792859964.851124,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":46.2,"firstByteMs":17.0,"code":200,"err":null}
+{"ts":1792859964.854868,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859964.858782,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859964.862705,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859964.872504,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859964.882968,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859964.892652,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792859968.734126,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859968.7341812,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859968.83328,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.0,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859969.7340858,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792859969.7408159,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.0,"err":"timeout: timed out"}
+{"ts":1792859969.7408671,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.9,"err":"timeout: timed out"}
+{"ts":1792859969.741434,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.6,"err":"timeout: timed out"}
+{"ts":1792859969.741478,"kind":"system","load":[3.52,2.47,2.02],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859974.747335,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.6,"err":null}
+{"ts":1792859974.7846458,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.8,"ver":"TLSv1.2","err":null}
+{"ts":1792859974.8288991,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":33.8,"firstByteMs":10.0,"code":404,"err":null}
+{"ts":1792859974.750608,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.8,"err":null}
+{"ts":1792859974.7980149,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":44.8,"ver":"TLSv1.2","err":null}
+{"ts":1792859974.8595378,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":44.6,"firstByteMs":16.3,"code":200,"err":null}
+{"ts":1792859974.863904,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.3,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859974.868087,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859974.8716512,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859974.881409,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859974.8923972,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859974.903116,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792859978.7392058,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859978.739279,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859978.830184,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859979.739269,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792859979.740212,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.4,"err":"timeout: timed out"}
+{"ts":1792859979.740245,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.4,"err":"timeout: timed out"}
+{"ts":1792859979.74069,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.8,"err":"timeout: timed out"}
+{"ts":1792859979.740762,"kind":"system","load":[3.77,2.56,2.06],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859984.7547898,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":12.1,"err":null}
+{"ts":1792859984.80065,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":40.3,"ver":"TLSv1.2","err":null}
+{"ts":1792859984.849199,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.6,"firstByteMs":11.3,"code":404,"err":null}
+{"ts":1792859984.760194,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":17.6,"err":null}
+{"ts":1792859984.818657,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":53.5,"ver":"TLSv1.2","err":null}
+{"ts":1792859984.88961,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":49.9,"firstByteMs":20.2,"code":200,"err":null}
+{"ts":1792859984.895961,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":6.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859984.9003022,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.3,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792859984.904321,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859984.915213,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859984.927715,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":12.4,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859984.9396238,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.8,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792859988.744319,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859988.744406,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859988.850685,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859989.7443688,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.6,"err":"timeout: timed out"}
+{"ts":1792859989.751332,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792859989.751364,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792859989.761033,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5018.2,"err":"timeout: timed out"}
+{"ts":1792859989.7612329,"kind":"system","load":[3.73,2.59,2.07],"daeRunning":false,"daeRssMB":0}
+{"ts":1792859994.752291,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.5,"err":null}
+{"ts":1792859994.7951272,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":40.1,"ver":"TLSv1.2","err":null}
+{"ts":1792859994.841202,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":35.1,"firstByteMs":10.6,"code":404,"err":null}
+{"ts":1792859994.7551239,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.4,"err":null}
+{"ts":1792859994.80065,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.6,"ver":"TLSv1.2","err":null}
+{"ts":1792859994.873384,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":50.3,"firstByteMs":21.9,"code":200,"err":null}
+{"ts":1792859994.877127,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792859994.88071,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859994.8847601,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792859994.895603,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792859994.906662,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792859994.9179468,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.2,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792859998.744229,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859998.744311,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859998.8426151,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792859999.744294,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792859999.7455308,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792859999.746042,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792859999.746138,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792859999.746233,"kind":"system","load":[3.76,2.63,2.09],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860004.756418,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.3,"err":null}
+{"ts":1792860004.7984982,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":37.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860004.842738,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":34.0,"firstByteMs":9.6,"code":404,"err":null}
+{"ts":1792860004.7621272,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.1,"err":null}
+{"ts":1792860004.811666,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":45.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860004.8790998,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":47.0,"firstByteMs":19.7,"code":200,"err":null}
+{"ts":1792860004.884487,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":5.3,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860004.888136,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860004.891774,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860004.901461,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.6,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860004.9106581,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.1,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860004.92051,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860008.7486231,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860008.748681,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860008.844291,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860009.748706,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860009.754632,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.3,"err":"timeout: timed out"}
+{"ts":1792860009.754803,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860009.755096,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.8,"err":"timeout: timed out"}
+{"ts":1792860009.755142,"kind":"system","load":[3.8,2.68,2.12],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860014.7603562,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.6,"err":null}
+{"ts":1792860014.8006241,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860014.843468,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":33.0,"firstByteMs":9.2,"code":404,"err":null}
+{"ts":1792860014.764315,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.6,"err":null}
+{"ts":1792860014.8113332,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":44.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860014.8708212,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":43.9,"firstByteMs":15.1,"code":200,"err":null}
+{"ts":1792860018.844821,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860018.872092,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860018.876383,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860018.8801541,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860018.884518,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.3,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860018.8949308,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860018.905619,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860018.9153962,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860019.750737,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.9,"err":"timeout: timed out"}
+{"ts":1792860019.751908,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.1,"err":"timeout: timed out"}
+{"ts":1792860019.752196,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.3,"err":"timeout: timed out"}
+{"ts":1792860019.7530901,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860019.756889,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5006.9,"err":"timeout: timed out"}
+{"ts":1792860019.757812,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860022.846238,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860022.84636,"kind":"system","load":[3.47,2.66,2.12],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860024.760113,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.2,"err":null}
+{"ts":1792860024.8021262,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860024.8505971,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.7,"firstByteMs":10.0,"code":404,"err":null}
+{"ts":1792860024.764951,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.1,"err":null}
+{"ts":1792860024.810692,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":41.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860024.8785942,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":50.7,"firstByteMs":16.5,"code":200,"err":null}
+{"ts":1792860024.882882,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860024.88704,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860024.8905878,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860024.900487,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860024.911052,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860024.92141,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860028.75138,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860028.7514281,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860028.851912,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860029.750936,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.9,"err":"timeout: timed out"}
+{"ts":1792860029.758555,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860029.75884,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.8,"err":"timeout: timed out"}
+{"ts":1792860029.759576,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.7,"err":"timeout: timed out"}
+{"ts":1792860029.7596328,"kind":"system","load":[3.43,2.66,2.12],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860034.764545,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.8,"err":null}
+{"ts":1792860034.807049,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":38.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860034.8571808,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.2,"firstByteMs":12.5,"code":404,"err":null}
+{"ts":1792860034.7688289,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.1,"err":null}
+{"ts":1792860034.819819,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":48.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860034.8832011,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":46.4,"firstByteMs":16.5,"code":200,"err":null}
+{"ts":1792860034.888461,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":5.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860034.894596,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":6.0,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860034.898258,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860034.908555,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860034.91957,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860034.929489,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860038.7562182,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860038.756288,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860038.8581371,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860039.756144,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860039.757709,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860039.7577322,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792860039.7580569,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860039.758115,"kind":"system","load":[3.44,2.69,2.14],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860044.769158,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.5,"err":null}
+{"ts":1792860044.809414,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860044.859402,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.9,"firstByteMs":10.6,"code":404,"err":null}
+{"ts":1792860044.773129,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.5,"err":null}
+{"ts":1792860044.8180811,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":41.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860044.874718,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":43.1,"firstByteMs":12.6,"code":200,"err":null}
+{"ts":1792860044.8789492,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860044.882418,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860044.886359,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860044.8971672,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860044.9082189,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860044.9193048,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860048.7609951,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860048.761056,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860048.8607192,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860049.760999,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860049.769418,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.6,"err":"timeout: timed out"}
+{"ts":1792860049.7694788,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.8,"err":"timeout: timed out"}
+{"ts":1792860049.769493,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.7,"err":"timeout: timed out"}
+{"ts":1792860049.769669,"kind":"system","load":[3.45,2.72,2.15],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860054.773429,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792860054.80767,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":29.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860054.856895,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.5,"firstByteMs":10.0,"code":404,"err":null}
+{"ts":1792860054.778996,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":16.4,"err":null}
+{"ts":1792860054.8233652,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860054.890441,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":49.0,"firstByteMs":17.2,"code":200,"err":null}
+{"ts":1792860054.894637,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860054.8984041,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860054.9017978,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.3,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860054.912916,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860054.9238,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860054.934044,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860058.764241,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860058.7642949,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860058.8582132,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860059.764291,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860059.7662232,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.5,"err":"timeout: timed out"}
+{"ts":1792860059.766319,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.4,"err":"timeout: timed out"}
+{"ts":1792860059.766334,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.5,"err":"timeout: timed out"}
+{"ts":1792860059.7663739,"kind":"system","load":[3.3,2.71,2.16],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860064.777372,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.0,"err":null}
+{"ts":1792860064.810218,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":30.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860064.8602839,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.9,"firstByteMs":11.8,"code":404,"err":null}
+{"ts":1792860064.77968,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.3,"err":null}
+{"ts":1792860064.8275998,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":44.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860064.891253,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":45.5,"firstByteMs":17.5,"code":200,"err":null}
+{"ts":1792860064.8950982,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860064.89874,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860064.902522,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860064.913028,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860064.9240792,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860064.934944,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860068.769001,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860068.76913,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860068.861567,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860069.768976,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860069.773943,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5006.4,"err":"timeout: timed out"}
+{"ts":1792860069.775051,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.5,"err":"timeout: timed out"}
+{"ts":1792860069.775091,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.5,"err":"timeout: timed out"}
+{"ts":1792860069.77521,"kind":"system","load":[3.11,2.69,2.16],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860074.781858,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.2,"err":null}
+{"ts":1792860074.819525,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":32.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860074.86965,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.4,"firstByteMs":12.1,"code":404,"err":null}
+{"ts":1792860074.78773,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":16.2,"err":null}
+{"ts":1792860074.8395488,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":47.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860074.901525,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":47.5,"firstByteMs":13.7,"code":200,"err":null}
+{"ts":1792860078.870992,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860078.902838,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860078.907063,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860078.910733,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860078.9147499,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860078.923723,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":8.9,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860078.933992,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860078.943746,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.6,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860079.773132,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860079.776565,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5004.7,"err":"timeout: timed out"}
+{"ts":1792860079.776594,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5004.8,"err":"timeout: timed out"}
+{"ts":1792860079.776951,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5005.2,"err":"timeout: timed out"}
+{"ts":1792860079.782526,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5010.6,"err":"timeout: timed out"}
+{"ts":1792860079.782767,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5010.9,"err":"timeout: timed out"}
+{"ts":1792860082.872412,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860082.872581,"kind":"system","load":[3.06,2.7,2.17],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860084.788884,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":12.4,"err":null}
+{"ts":1792860084.82596,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860084.880106,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":39.8,"firstByteMs":13.9,"code":404,"err":null}
+{"ts":1792860084.791349,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.9,"err":null}
+{"ts":1792860084.838667,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":44.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860084.892236,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":41.1,"firstByteMs":12.0,"code":200,"err":null}
+{"ts":1792860084.895457,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860084.899026,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860084.902665,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860084.9133708,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860084.923569,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860084.9372978,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":13.7,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860088.777952,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860088.778008,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860088.881388,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860089.777899,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860089.786197,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.5,"err":"timeout: timed out"}
+{"ts":1792860089.786239,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.5,"err":"timeout: timed out"}
+{"ts":1792860089.786248,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.6,"err":"timeout: timed out"}
+{"ts":1792860089.7863622,"kind":"system","load":[2.97,2.69,2.17],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860094.7871208,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.1,"err":null}
+{"ts":1792860094.827911,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860094.877834,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":39.1,"firstByteMs":10.2,"code":404,"err":null}
+{"ts":1792860094.7927198,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.7,"err":null}
+{"ts":1792860094.838388,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860094.9005928,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":43.9,"firstByteMs":17.2,"code":200,"err":null}
+{"ts":1792860094.90539,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860094.908531,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.0,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860094.912129,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860094.9221919,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860094.932736,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860094.944174,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860098.7783968,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860098.7784472,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860098.8786938,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.7,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860099.778492,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860099.7797399,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860099.7798002,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.6,"err":"timeout: timed out"}
+{"ts":1792860099.7802198,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.1,"err":"timeout: timed out"}
+{"ts":1792860099.780273,"kind":"system","load":[3.05,2.71,2.18],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860104.791069,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.5,"err":null}
+{"ts":1792860104.825788,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":31.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860104.878753,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":41.3,"firstByteMs":11.4,"code":404,"err":null}
+{"ts":1792860104.793808,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.2,"err":null}
+{"ts":1792860104.834236,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":37.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860104.894989,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":45.7,"firstByteMs":14.6,"code":200,"err":null}
+{"ts":1792860104.898848,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860104.902338,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860104.90628,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860104.916693,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860104.927661,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860104.93805,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860108.781974,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.0,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860108.782166,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860108.8800378,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860109.7820969,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860109.789461,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.8,"err":"timeout: timed out"}
+{"ts":1792860109.789493,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792860109.7895732,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.9,"err":"timeout: timed out"}
+{"ts":1792860109.7896261,"kind":"system","load":[3.19,2.76,2.2],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860114.795226,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.7,"err":null}
+{"ts":1792860114.835826,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":37.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860114.8991292,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":48.6,"firstByteMs":14.1,"code":404,"err":null}
+{"ts":1792860114.80405,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":18.5,"err":null}
+{"ts":1792860114.8529909,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":43.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860114.9138901,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":45.6,"firstByteMs":14.5,"code":200,"err":null}
+{"ts":1792860114.917526,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860114.920636,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.0,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860114.924891,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860114.9364932,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.5,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860114.946246,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.6,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860114.957071,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792860118.786908,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860118.787016,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860118.900446,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860119.786964,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860119.788555,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860119.788945,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860119.7889762,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860119.789071,"kind":"system","load":[3.39,2.81,2.23],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860124.80218,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.3,"err":null}
+{"ts":1792860124.842966,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860124.8884292,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":34.2,"firstByteMs":10.2,"code":404,"err":null}
+{"ts":1792860124.807381,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":16.6,"err":null}
+{"ts":1792860124.856538,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":44.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860124.928565,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":52.0,"firstByteMs":19.3,"code":200,"err":null}
+{"ts":1792860124.932231,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860124.936162,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860124.939744,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860124.949087,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860124.9589481,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860124.969366,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860128.792344,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860128.7923782,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860128.889934,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860129.799289,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5008.3,"err":"timeout: timed out"}
+{"ts":1792860129.800725,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.9,"err":"timeout: timed out"}
+{"ts":1792860129.800759,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.8,"err":"timeout: timed out"}
+{"ts":1792860129.801033,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5010.0,"err":"timeout: timed out"}
+{"ts":1792860129.801209,"kind":"system","load":[3.4,2.83,2.25],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860134.805302,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.6,"err":null}
+{"ts":1792860134.843489,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860134.892713,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.8,"firstByteMs":10.6,"code":404,"err":null}
+{"ts":1792860134.807897,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.2,"err":null}
+{"ts":1792860134.8535821,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":43.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860134.9246411,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":47.6,"firstByteMs":22.9,"code":200,"err":null}
+{"ts":1792860138.893835,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860138.9259121,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860138.930903,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.9,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860138.935561,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.6,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860138.9390452,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860138.948159,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860138.959539,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860138.9699898,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860139.797081,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860139.7989728,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.1,"err":"timeout: timed out"}
+{"ts":1792860139.79908,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860139.7991118,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860139.8045561,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792860139.804597,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792860142.894746,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.7,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860142.894925,"kind":"system","load":[3.39,2.86,2.26],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860144.810534,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.0,"err":null}
+{"ts":1792860144.849752,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860144.9046779,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":42.5,"firstByteMs":11.9,"code":404,"err":null}
+{"ts":1792860144.814486,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.0,"err":null}
+{"ts":1792860144.866036,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":48.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860144.925995,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":42.9,"firstByteMs":16.2,"code":200,"err":null}
+{"ts":1792860144.930113,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860144.935144,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":5.0,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860144.9389188,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860144.949672,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860144.960192,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860144.972024,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.7,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860148.802041,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860148.802151,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860148.905984,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860149.801394,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.8,"err":"timeout: timed out"}
+{"ts":1792860149.8083498,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860149.808394,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860149.809377,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.8,"err":"timeout: timed out"}
+{"ts":1792860149.809435,"kind":"system","load":[3.2,2.83,2.26],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860154.81135,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792860154.852865,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":38.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860154.901252,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.0,"firstByteMs":9.9,"code":404,"err":null}
+{"ts":1792860154.8144581,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.9,"err":null}
+{"ts":1792860154.855319,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":38.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860154.926404,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":48.3,"firstByteMs":22.2,"code":200,"err":null}
+{"ts":1792860154.929831,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860154.933671,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860154.937153,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860154.946492,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860154.957398,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860154.9677582,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860158.8020191,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860158.8020868,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860158.902515,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860159.801934,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860159.802746,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.1,"err":"timeout: timed out"}
+{"ts":1792860159.8037188,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792860159.803776,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792860159.803808,"kind":"system","load":[3.1,2.82,2.26],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860164.8174899,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.8,"err":null}
+{"ts":1792860164.859155,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860164.9083772,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.8,"firstByteMs":11.9,"code":404,"err":null}
+{"ts":1792860164.81756,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":11.9,"err":null}
+{"ts":1792860164.8662012,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860164.923454,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":40.5,"firstByteMs":16.2,"code":200,"err":null}
+{"ts":1792860164.9276779,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860164.9319959,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860164.936064,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860164.946862,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860164.957471,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860164.967075,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860168.807183,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860168.807279,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860168.9096599,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860169.807314,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860169.817298,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5011.3,"err":"timeout: timed out"}
+{"ts":1792860169.817367,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5011.5,"err":"timeout: timed out"}
+{"ts":1792860169.817378,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5011.5,"err":"timeout: timed out"}
+{"ts":1792860169.817547,"kind":"system","load":[3.25,2.86,2.28],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860174.819893,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.5,"err":null}
+{"ts":1792860174.858884,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860174.911339,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.7,"firstByteMs":11.4,"code":404,"err":null}
+{"ts":1792860174.8235111,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.1,"err":null}
+{"ts":1792860174.873375,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":45.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860174.930191,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":39.6,"firstByteMs":16.7,"code":200,"err":null}
+{"ts":1792860174.9342442,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860174.938744,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860174.942091,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.3,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860174.9530098,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860174.963802,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860174.974046,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["104.244.42.197"],"err":null}
+{"ts":1792860178.811924,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860178.811998,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860178.9120169,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.5,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860179.811815,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860179.8137228,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860179.813819,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860179.813888,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860179.8139179,"kind":"system","load":[3.14,2.84,2.28],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860184.823029,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.8,"err":null}
+{"ts":1792860184.864326,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860184.911807,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.7,"firstByteMs":10.3,"code":404,"err":null}
+{"ts":1792860184.828588,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.4,"err":null}
+{"ts":1792860184.8759098,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860184.9370801,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":42.3,"firstByteMs":18.0,"code":200,"err":null}
+{"ts":1792860184.9406521,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860184.9446888,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860184.948171,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860184.9578931,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860184.969447,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860184.9790761,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["157.240.7.20"],"err":null}
+{"ts":1792860188.8147268,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860188.814768,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860188.913297,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860189.814813,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860189.8218591,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860189.82272,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.3,"err":"timeout: timed out"}
+{"ts":1792860189.822808,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.3,"err":"timeout: timed out"}
+{"ts":1792860189.822895,"kind":"system","load":[3.19,2.86,2.29],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860194.8264918,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.4,"err":null}
+{"ts":1792860194.8691862,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":38.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860194.91971,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.9,"firstByteMs":11.5,"code":404,"err":null}
+{"ts":1792860194.830824,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.8,"err":null}
+{"ts":1792860194.883479,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":48.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860194.950944,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":49.7,"firstByteMs":16.7,"code":200,"err":null}
+{"ts":1792860198.9211981,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860198.952387,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860198.956505,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860198.961508,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.9,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860198.966274,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860198.977513,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860198.988912,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860198.999125,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860199.817597,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860199.818967,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.8,"err":"timeout: timed out"}
+{"ts":1792860199.8203368,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5004.0,"err":"timeout: timed out"}
+{"ts":1792860199.8209112,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5004.7,"err":"timeout: timed out"}
+{"ts":1792860199.8244932,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5008.2,"err":"timeout: timed out"}
+{"ts":1792860199.8246982,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860202.921928,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.6,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860202.922147,"kind":"system","load":[2.86,2.81,2.28],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860204.8317041,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792860204.868961,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860204.915393,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":35.6,"firstByteMs":10.5,"code":404,"err":null}
+{"ts":1792860204.834613,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.7,"err":null}
+{"ts":1792860204.875766,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":38.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860204.929085,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":38.8,"firstByteMs":14.0,"code":200,"err":null}
+{"ts":1792860204.932537,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.3,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860204.936379,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860204.939884,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860204.9517179,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860204.962158,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860204.9722502,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860208.822398,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860208.8225012,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860208.916626,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860209.8224041,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860209.828667,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860209.828789,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860209.828887,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.8,"err":"timeout: timed out"}
+{"ts":1792860209.828937,"kind":"system","load":[2.95,2.83,2.29],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860214.837169,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.3,"err":null}
+{"ts":1792860214.875527,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860214.9289181,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":42.7,"firstByteMs":10.1,"code":404,"err":null}
+{"ts":1792860214.841732,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.9,"err":null}
+{"ts":1792860214.886194,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860214.955914,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":51.5,"firstByteMs":17.5,"code":200,"err":null}
+{"ts":1792860214.960487,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860214.964573,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860214.96768,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.0,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860214.978385,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860214.9894662,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860215.000223,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860218.826964,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.7,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860218.827026,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860218.930214,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860219.827521,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860219.8289542,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.1,"err":"timeout: timed out"}
+{"ts":1792860219.829058,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792860219.829608,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.6,"err":"timeout: timed out"}
+{"ts":1792860219.829661,"kind":"system","load":[3.02,2.85,2.31],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860224.840222,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.7,"err":null}
+{"ts":1792860224.875639,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":32.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860224.9267578,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.6,"firstByteMs":12.9,"code":404,"err":null}
+{"ts":1792860224.842807,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.2,"err":null}
+{"ts":1792860224.896843,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":50.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860224.95276,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":40.3,"firstByteMs":15.1,"code":200,"err":null}
+{"ts":1792860224.9564512,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860224.960139,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860224.9653,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":5.1,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860224.974868,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860224.9854798,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860224.994849,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860228.831721,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860228.831827,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.0,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860228.928062,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860229.831628,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.0,"err":"timeout: timed out"}
+{"ts":1792860229.837913,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.3,"err":"timeout: timed out"}
+{"ts":1792860229.838134,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.2,"err":"timeout: timed out"}
+{"ts":1792860229.83825,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860229.838329,"kind":"system","load":[3.17,2.88,2.32],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860234.844737,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.8,"err":null}
+{"ts":1792860234.882646,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":32.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860234.930218,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":35.9,"firstByteMs":11.1,"code":404,"err":null}
+{"ts":1792860234.8500328,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.2,"err":null}
+{"ts":1792860234.9013739,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":46.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860234.9721029,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":48.0,"firstByteMs":22.1,"code":200,"err":null}
+{"ts":1792860234.975801,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860234.979399,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860234.982827,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860234.992287,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.4,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860235.003066,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860235.014567,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.4,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860238.8358212,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.7,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860238.836233,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860238.931693,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860239.836386,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860239.837664,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860239.837698,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.6,"err":"timeout: timed out"}
+{"ts":1792860239.838356,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860239.838481,"kind":"system","load":[2.91,2.84,2.31],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860244.848883,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.0,"err":null}
+{"ts":1792860244.888226,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860244.9449868,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":44.7,"firstByteMs":11.4,"code":404,"err":null}
+{"ts":1792860244.8520582,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.2,"err":null}
+{"ts":1792860244.909324,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":54.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860244.975927,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":50.8,"firstByteMs":15.0,"code":200,"err":null}
+{"ts":1792860244.9815192,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":5.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860244.9860249,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860244.989701,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860245.009415,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":19.6,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860245.0189,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.4,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860245.02854,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.6,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860248.840294,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860248.8403468,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860248.946336,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860249.840363,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860249.848285,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.2,"err":"timeout: timed out"}
+{"ts":1792860249.848324,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.3,"err":"timeout: timed out"}
+{"ts":1792860249.848332,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.2,"err":"timeout: timed out"}
+{"ts":1792860249.8484511,"kind":"system","load":[2.91,2.84,2.32],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860254.852897,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.3,"err":null}
+{"ts":1792860254.892276,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860254.945482,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.2,"firstByteMs":12.4,"code":404,"err":null}
+{"ts":1792860254.859346,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.8,"err":null}
+{"ts":1792860254.913633,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":51.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860254.978088,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":42.9,"firstByteMs":21.1,"code":200,"err":null}
+{"ts":1792860258.946791,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860258.978477,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860258.9826062,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860258.986339,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860258.989975,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860259.00122,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860259.0126011,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860259.0231209,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860259.844358,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.6,"err":"timeout: timed out"}
+{"ts":1792860259.8457332,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.1,"err":"timeout: timed out"}
+{"ts":1792860259.8464692,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860259.847148,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.4,"err":"timeout: timed out"}
+{"ts":1792860259.850508,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5006.7,"err":"timeout: timed out"}
+{"ts":1792860259.851018,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5007.1,"err":"timeout: timed out"}
+{"ts":1792860262.948113,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860262.948276,"kind":"system","load":[3.01,2.87,2.34],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860264.859808,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.0,"err":null}
+{"ts":1792860264.902039,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860264.950203,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.6,"firstByteMs":10.0,"code":404,"err":null}
+{"ts":1792860264.86481,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":16.1,"err":null}
+{"ts":1792860264.909142,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860264.976612,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":50.0,"firstByteMs":16.5,"code":200,"err":null}
+{"ts":1792860264.9800801,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860264.983616,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860264.987521,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860264.998017,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860265.0081458,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860265.019549,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.2,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860268.849905,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860268.850024,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.0,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860268.950578,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860269.8497012,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.8,"err":"timeout: timed out"}
+{"ts":1792860269.856193,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.4,"err":"timeout: timed out"}
+{"ts":1792860269.857335,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860269.857429,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.4,"err":"timeout: timed out"}
+{"ts":1792860269.857488,"kind":"system","load":[3.09,2.88,2.35],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860274.864994,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.3,"err":null}
+{"ts":1792860274.9064388,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":38.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860274.958484,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.7,"firstByteMs":11.0,"code":404,"err":null}
+{"ts":1792860274.867678,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.0,"err":null}
+{"ts":1792860274.910038,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":39.4,"ver":"TLSv1.2","err":null}
+{"ts":1792860274.9606001,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":37.1,"firstByteMs":13.0,"code":200,"err":null}
+{"ts":1792860274.964963,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.3,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860274.9683719,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.3,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860274.972119,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860274.981948,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860274.992943,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860275.003818,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860278.855021,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860278.8550699,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860278.959751,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860279.8550148,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860279.855842,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.0,"err":"timeout: timed out"}
+{"ts":1792860279.856564,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860279.8566241,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.8,"err":"timeout: timed out"}
+{"ts":1792860279.8566668,"kind":"system","load":[3.0,2.87,2.35],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860284.868984,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.5,"err":null}
+{"ts":1792860284.906563,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":32.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860284.959465,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":41.0,"firstByteMs":11.3,"code":404,"err":null}
+{"ts":1792860284.873425,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.9,"err":null}
+{"ts":1792860284.920625,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":43.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860284.985742,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":47.9,"firstByteMs":16.6,"code":200,"err":null}
+{"ts":1792860284.989467,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860284.993268,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860285.005305,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":12.0,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860285.015645,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860285.026579,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860285.038399,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.6,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860288.8600209,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860288.860061,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860288.959857,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860289.860117,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860289.867209,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860289.867257,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.6,"err":"timeout: timed out"}
+{"ts":1792860289.867272,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860289.8674319,"kind":"system","load":[3.09,2.89,2.36],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860294.8739781,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.3,"err":null}
+{"ts":1792860294.911427,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860294.9604921,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.4,"firstByteMs":11.0,"code":404,"err":null}
+{"ts":1792860294.878314,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.7,"err":null}
+{"ts":1792860294.9202611,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":39.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860294.9850502,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":47.4,"firstByteMs":16.3,"code":200,"err":null}
+{"ts":1792860294.989225,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860294.992717,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860294.9964,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860295.00655,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860295.017768,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860295.026849,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.0,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792860298.864584,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860298.865358,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860298.961478,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860299.864494,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.8,"err":"timeout: timed out"}
+{"ts":1792860299.866493,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860299.867064,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860299.867083,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.4,"err":"timeout: timed out"}
+{"ts":1792860299.867147,"kind":"system","load":[3.16,2.91,2.38],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860304.8796859,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.9,"err":null}
+{"ts":1792860304.919059,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860304.9683142,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.0,"firstByteMs":10.7,"code":404,"err":null}
+{"ts":1792860304.883894,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.1,"err":null}
+{"ts":1792860304.936678,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":48.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860304.999276,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":43.0,"firstByteMs":18.7,"code":200,"err":null}
+{"ts":1792860305.003645,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860305.007614,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860305.011434,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860305.0237691,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":12.2,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860305.034508,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.6,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860305.045044,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860308.870163,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860308.870281,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860308.969617,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860309.870398,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860309.875802,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.0,"err":"timeout: timed out"}
+{"ts":1792860309.876541,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860309.876601,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860309.876833,"kind":"system","load":[3.14,2.91,2.38],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860314.89985,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":28.8,"err":null}
+{"ts":1792860314.988563,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":79.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860315.229056,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":211.9,"firstByteMs":28.2,"code":404,"err":null}
+{"ts":1792860314.8999848,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":28.9,"err":null}
+{"ts":1792860314.9895308,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":84.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860315.229428,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":210.9,"firstByteMs":28.3,"code":200,"err":null}
+{"ts":1792860319.230689,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.5,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860319.230769,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860319.2387578,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":7.8,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860319.242581,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860319.246293,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860319.257096,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860319.26796,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860319.278209,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792860319.872618,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860319.8741791,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860319.8750699,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.8,"err":"timeout: timed out"}
+{"ts":1792860319.87536,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5004.3,"err":"timeout: timed out"}
+{"ts":1792860319.9097788,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5038.4,"err":"timeout: timed out"}
+{"ts":1792860319.9098141,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5038.4,"err":"timeout: timed out"}
+{"ts":1792860323.232037,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860323.232182,"kind":"system","load":[3.24,2.95,2.4],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860324.885945,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.8,"err":null}
+{"ts":1792860324.9225972,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":32.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860324.976176,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.7,"firstByteMs":12.3,"code":404,"err":null}
+{"ts":1792860324.890081,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.0,"err":null}
+{"ts":1792860324.929485,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":36.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860324.9900951,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":45.4,"firstByteMs":14.7,"code":200,"err":null}
+{"ts":1792860324.993875,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860324.997503,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860325.001337,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860325.011509,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860325.022057,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860325.031369,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.2,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860328.877473,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860328.877632,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860328.9775949,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860329.877601,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860329.884385,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.2,"err":"timeout: timed out"}
+{"ts":1792860329.8844411,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.0,"err":"timeout: timed out"}
+{"ts":1792860329.8845801,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.3,"err":"timeout: timed out"}
+{"ts":1792860329.884665,"kind":"system","load":[3.54,3.02,2.43],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860334.888823,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.5,"err":null}
+{"ts":1792860334.9267042,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860334.974954,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.5,"firstByteMs":11.2,"code":404,"err":null}
+{"ts":1792860334.894037,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.8,"err":null}
+{"ts":1792860334.944903,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":46.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860335.0040572,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":41.8,"firstByteMs":16.7,"code":200,"err":null}
+{"ts":1792860335.0080261,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860335.011529,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860335.015913,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.3,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860335.025708,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860335.0369868,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860335.047189,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["69.171.235.22"],"err":null}
+{"ts":1792860338.880626,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860338.880681,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860338.976001,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860339.88061,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860339.882182,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860339.882988,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.5,"err":"timeout: timed out"}
+{"ts":1792860339.883085,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.7,"err":"timeout: timed out"}
+{"ts":1792860339.8832052,"kind":"system","load":[3.31,2.98,2.43],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860344.893586,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.9,"err":null}
+{"ts":1792860344.931648,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860344.985277,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.8,"firstByteMs":12.4,"code":404,"err":null}
+{"ts":1792860344.8988879,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.2,"err":null}
+{"ts":1792860344.939847,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":38.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860344.991415,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":38.3,"firstByteMs":12.7,"code":200,"err":null}
+{"ts":1792860344.995308,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860344.998701,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.3,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860345.0018282,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.1,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860345.011241,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860345.021433,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860345.031438,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860348.885123,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860348.885203,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860348.9865332,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860349.885115,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860349.889715,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5005.9,"err":"timeout: timed out"}
+{"ts":1792860349.889747,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5006.0,"err":"timeout: timed out"}
+{"ts":1792860349.8900359,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5006.2,"err":"timeout: timed out"}
+{"ts":1792860349.8900821,"kind":"system","load":[3.26,2.98,2.43],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860354.900188,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.2,"err":null}
+{"ts":1792860354.939958,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860354.991904,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.6,"firstByteMs":10.8,"code":404,"err":null}
+{"ts":1792860354.905071,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":16.1,"err":null}
+{"ts":1792860354.9591198,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":49.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860355.020192,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":42.2,"firstByteMs":18.0,"code":200,"err":null}
+{"ts":1792860355.024441,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860355.0282502,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.7,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860355.0322108,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860355.043,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860355.0527291,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.6,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860355.062892,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.0,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860358.890599,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860358.89065,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860358.993176,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860359.8907242,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860359.893078,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.7,"err":"timeout: timed out"}
+{"ts":1792860359.893106,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.9,"err":"timeout: timed out"}
+{"ts":1792860359.8932118,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5004.1,"err":"timeout: timed out"}
+{"ts":1792860359.8932638,"kind":"system","load":[3.23,2.98,2.44],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860364.900363,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792860364.9372501,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":33.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860364.987082,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":39.0,"firstByteMs":10.4,"code":404,"err":null}
+{"ts":1792860364.903937,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.3,"err":null}
+{"ts":1792860364.945816,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":39.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860365.014852,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":49.8,"firstByteMs":18.1,"code":200,"err":null}
+{"ts":1792860365.0190191,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860365.022727,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860365.026623,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860365.036674,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860365.047521,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860365.057847,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860368.8910232,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860368.8910751,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860368.987948,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.7,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860369.89101,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860369.8990889,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.3,"err":"timeout: timed out"}
+{"ts":1792860369.899128,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.4,"err":"timeout: timed out"}
+{"ts":1792860369.899138,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.4,"err":"timeout: timed out"}
+{"ts":1792860369.8992472,"kind":"system","load":[3.11,2.97,2.44],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860374.901435,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.5,"err":null}
+{"ts":1792860374.937442,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":31.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860374.98668,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.5,"firstByteMs":12.4,"code":404,"err":null}
+{"ts":1792860374.905324,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.4,"err":null}
+{"ts":1792860374.9486568,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":40.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860375.002167,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":39.3,"firstByteMs":13.3,"code":200,"err":null}
+{"ts":1792860378.987964,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860379.0034502,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860379.0074282,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860379.0110002,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860379.0146859,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860379.025821,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860379.0367832,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860379.047533,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860379.8922439,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860379.893715,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860379.894409,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.4,"err":"timeout: timed out"}
+{"ts":1792860379.8944352,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.5,"err":"timeout: timed out"}
+{"ts":1792860379.9012659,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5010.1,"err":"timeout: timed out"}
+{"ts":1792860379.901748,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5010.6,"err":"timeout: timed out"}
+{"ts":1792860382.98877,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.6,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860382.98914,"kind":"system","load":[3.06,2.97,2.45],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860384.9053838,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.9,"err":null}
+{"ts":1792860384.941282,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":30.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860384.9890509,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.9,"firstByteMs":10.1,"code":404,"err":null}
+{"ts":1792860384.910094,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.6,"err":null}
+{"ts":1792860384.968203,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":54.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860385.025593,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":42.4,"firstByteMs":14.4,"code":200,"err":null}
+{"ts":1792860385.029334,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860385.033164,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860385.036732,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.5,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860385.047557,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860385.058146,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860385.06943,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860388.8971179,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860388.897155,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860388.9900951,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860389.8972359,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.5,"err":"timeout: timed out"}
+{"ts":1792860389.9029062,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.3,"err":"timeout: timed out"}
+{"ts":1792860389.903271,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.5,"err":"timeout: timed out"}
+{"ts":1792860389.903425,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.7,"err":"timeout: timed out"}
+{"ts":1792860389.9034612,"kind":"system","load":[3.14,2.98,2.45],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860394.911967,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.8,"err":null}
+{"ts":1792860394.951964,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860395.008301,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":41.2,"firstByteMs":14.3,"code":404,"err":null}
+{"ts":1792860394.915185,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.1,"err":null}
+{"ts":1792860394.9548428,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":37.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860395.008964,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":35.6,"firstByteMs":17.1,"code":200,"err":null}
+{"ts":1792860395.01266,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.6,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860395.017112,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860395.021077,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860395.0322719,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860395.042211,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860395.053547,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860398.90157,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860398.90176,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860399.01025,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.8,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860399.901566,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860399.903144,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.9,"err":"timeout: timed out"}
+{"ts":1792860399.9034271,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860399.9034681,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860399.9034932,"kind":"system","load":[2.96,2.95,2.45],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860404.9154382,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.1,"err":null}
+{"ts":1792860404.961118,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":41.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860405.02426,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":51.4,"firstByteMs":11.2,"code":404,"err":null}
+{"ts":1792860404.91971,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.4,"err":null}
+{"ts":1792860404.9654741,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":41.7,"ver":"TLSv1.2","err":null}
+{"ts":1792860405.031299,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":48.3,"firstByteMs":16.8,"code":200,"err":null}
+{"ts":1792860405.03558,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860405.0394702,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860405.042996,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860405.0542479,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.2,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860405.064181,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860405.074705,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860408.905904,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860408.90595,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4000.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860409.025567,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860409.9067478,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860409.913168,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.8,"err":"timeout: timed out"}
+{"ts":1792860409.913823,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5008.3,"err":"timeout: timed out"}
+{"ts":1792860409.914065,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.7,"err":"timeout: timed out"}
+{"ts":1792860409.914329,"kind":"system","load":[3.12,2.98,2.47],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860414.9200199,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":12.0,"err":null}
+{"ts":1792860414.960372,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":36.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860415.0122612,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.3,"firstByteMs":13.1,"code":404,"err":null}
+{"ts":1792860414.9201689,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.2,"err":null}
+{"ts":1792860414.967359,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":41.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860415.0307531,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":45.1,"firstByteMs":17.6,"code":200,"err":null}
+{"ts":1792860415.0346198,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860415.038812,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860415.041688,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":2.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860415.050721,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":8.9,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860415.06131,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.5,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860415.070665,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860418.908664,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860418.909386,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860419.013268,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.9,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860419.9094698,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.4,"err":"timeout: timed out"}
+{"ts":1792860419.9113631,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.2,"err":"timeout: timed out"}
+{"ts":1792860419.911393,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.4,"err":"timeout: timed out"}
+{"ts":1792860419.911461,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.3,"err":"timeout: timed out"}
+{"ts":1792860419.911529,"kind":"system","load":[3.17,3.0,2.48],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860424.920088,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.0,"err":null}
+{"ts":1792860424.9585128,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":34.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860425.004833,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":34.7,"firstByteMs":11.2,"code":404,"err":null}
+{"ts":1792860424.924004,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.9,"err":null}
+{"ts":1792860424.969352,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860425.037923,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":49.9,"firstByteMs":17.8,"code":200,"err":null}
+{"ts":1792860425.041976,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860425.0460968,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.0,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860425.0494661,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.2,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860425.05939,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.8,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860425.070478,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860425.080472,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.9,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860428.9104981,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860428.9105542,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860429.0052779,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860429.910532,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860429.916356,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5007.1,"err":"timeout: timed out"}
+{"ts":1792860429.916764,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.5,"err":"timeout: timed out"}
+{"ts":1792860429.916793,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860429.916872,"kind":"system","load":[3.16,3.0,2.48],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860434.9252732,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.7,"err":null}
+{"ts":1792860434.959064,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":28.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860435.015757,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":42.8,"firstByteMs":13.4,"code":404,"err":null}
+{"ts":1792860434.9304051,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.9,"err":null}
+{"ts":1792860434.977379,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860435.051083,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":48.8,"firstByteMs":24.1,"code":200,"err":null}
+{"ts":1792860439.0170581,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860439.052433,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860439.060504,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":8.0,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860439.064039,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860439.068326,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.2,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860439.079113,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.7,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860439.088416,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.2,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860439.098729,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860439.915336,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.6,"err":"timeout: timed out"}
+{"ts":1792860439.918837,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5004.2,"err":"timeout: timed out"}
+{"ts":1792860439.919391,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5004.6,"err":"timeout: timed out"}
+{"ts":1792860439.9201438,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5005.4,"err":"timeout: timed out"}
+{"ts":1792860439.924557,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5009.7,"err":"timeout: timed out"}
+{"ts":1792860439.92459,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5009.6,"err":"timeout: timed out"}
+{"ts":1792860443.0183759,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860443.018551,"kind":"system","load":[3.18,3.02,2.5],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860444.926472,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.2,"err":null}
+{"ts":1792860444.9674492,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":37.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860445.015624,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.5,"firstByteMs":10.2,"code":404,"err":null}
+{"ts":1792860444.929947,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.7,"err":null}
+{"ts":1792860444.9749088,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860445.035936,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":43.3,"firstByteMs":17.2,"code":200,"err":null}
+{"ts":1792860445.040558,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.5,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860445.044724,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":4.1,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860445.048202,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860445.057662,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":9.4,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860445.06784,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860445.0787761,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["174.132.167.252"],"err":null}
+{"ts":1792860448.916678,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860448.916724,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860449.0169442,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860449.916623,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860449.921982,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5006.6,"err":"timeout: timed out"}
+{"ts":1792860449.922017,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5006.6,"err":"timeout: timed out"}
+{"ts":1792860449.92242,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5007.0,"err":"timeout: timed out"}
+{"ts":1792860449.9224699,"kind":"system","load":[3.08,3.0,2.5],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860454.927435,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.5,"err":null}
+{"ts":1792860454.971252,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":39.3,"ver":"TLSv1.2","err":null}
+{"ts":1792860455.021622,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.1,"firstByteMs":9.5,"code":404,"err":null}
+{"ts":1792860454.931447,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":14.6,"err":null}
+{"ts":1792860454.975085,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":39.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860455.0365188,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":44.1,"firstByteMs":16.6,"code":200,"err":null}
+{"ts":1792860455.041274,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.7,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860455.0447009,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860455.0486221,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860455.0597591,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860455.0716429,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.8,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860455.082797,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860458.91771,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4000.5,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860458.9182122,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860459.022021,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860459.918284,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860459.920108,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.1,"err":"timeout: timed out"}
+{"ts":1792860459.9209678,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.9,"err":"timeout: timed out"}
+{"ts":1792860459.921031,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5004.1,"err":"timeout: timed out"}
+{"ts":1792860459.921081,"kind":"system","load":[3.24,3.03,2.51],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860464.931633,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.9,"err":null}
+{"ts":1792860464.9785979,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":41.5,"ver":"TLSv1.2","err":null}
+{"ts":1792860465.0261471,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":37.4,"firstByteMs":9.8,"code":404,"err":null}
+{"ts":1792860464.931746,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":11.0,"err":null}
+{"ts":1792860464.978003,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":43.1,"ver":"TLSv1.2","err":null}
+{"ts":1792860465.044582,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":46.8,"firstByteMs":19.0,"code":200,"err":null}
+{"ts":1792860465.0485609,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860465.052649,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860465.05723,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860465.068435,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":11.0,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860465.07802,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":9.5,"server":"223.5.5.5","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860465.0883899,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.3,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860468.9226182,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.5,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860468.922796,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860469.026667,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4000.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860469.922278,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.3,"err":"timeout: timed out"}
+{"ts":1792860469.929379,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5008.4,"err":"timeout: timed out"}
+{"ts":1792860469.929427,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5008.5,"err":"timeout: timed out"}
+{"ts":1792860469.93038,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.4,"err":"timeout: timed out"}
+{"ts":1792860469.930447,"kind":"system","load":[3.35,3.06,2.53],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860474.93116,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":10.4,"err":null}
+{"ts":1792860474.969811,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.2,"ver":"TLSv1.2","err":null}
+{"ts":1792860475.017021,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":36.6,"firstByteMs":10.2,"code":404,"err":null}
+{"ts":1792860474.9344,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":13.6,"err":null}
+{"ts":1792860474.980045,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":42.8,"ver":"TLSv1.2","err":null}
+{"ts":1792860475.0391412,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":41.5,"firstByteMs":17.1,"code":200,"err":null}
+{"ts":1792860475.0431209,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860475.046599,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860475.05007,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.4,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860475.060304,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.2,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860475.071279,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.9,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860475.080582,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.2,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860478.922133,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.1,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860478.922187,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860479.018313,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860479.921489,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.5,"err":"timeout: timed out"}
+{"ts":1792860479.923624,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860479.923786,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5002.7,"err":"timeout: timed out"}
+{"ts":1792860479.9238021,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5003.0,"err":"timeout: timed out"}
+{"ts":1792860479.9238532,"kind":"system","load":[3.29,3.06,2.53],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860484.937351,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":11.6,"err":null}
+{"ts":1792860484.9775932,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":35.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860485.0289989,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":40.2,"firstByteMs":10.7,"code":404,"err":null}
+{"ts":1792860484.94132,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":15.6,"err":null}
+{"ts":1792860484.988653,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":43.6,"ver":"TLSv1.2","err":null}
+{"ts":1792860485.0533278,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":46.6,"firstByteMs":17.5,"code":200,"err":null}
+{"ts":1792860485.0578501,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":4.4,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860485.061043,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.1,"server":"192.168.1.1","ips":["104.16.123.96","104.16.124.96"],"err":null}
+{"ts":1792860485.064903,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860485.075424,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.4,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860485.08636,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":10.8,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860485.095775,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":9.3,"server":"223.5.5.5","ips":["31.13.92.37"],"err":null}
+{"ts":1792860488.92724,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860488.927391,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860489.03029,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860489.926829,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5000.9,"err":"timeout: timed out"}
+{"ts":1792860489.935405,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5009.5,"err":"timeout: timed out"}
+{"ts":1792860489.935454,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5009.5,"err":"timeout: timed out"}
+{"ts":1792860489.935607,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5009.8,"err":"timeout: timed out"}
+{"ts":1792860489.935678,"kind":"system","load":[3.09,3.02,2.53],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860494.9406679,"tag":"mac","target":"cn-ali","layer":"l1","ok":true,"ms":9.9,"err":null}
+{"ts":1792860494.970486,"tag":"mac","target":"cn-ali","layer":"l2","ok":true,"ms":27.0,"ver":"TLSv1.2","err":null}
+{"ts":1792860495.0196428,"tag":"mac","target":"cn-ali","layer":"l3","ok":false,"connMs":38.2,"firstByteMs":10.4,"code":404,"err":null}
+{"ts":1792860494.943456,"tag":"mac","target":"cn-baidu","layer":"l1","ok":true,"ms":12.8,"err":null}
+{"ts":1792860494.98822,"tag":"mac","target":"cn-baidu","layer":"l2","ok":true,"ms":41.9,"ver":"TLSv1.2","err":null}
+{"ts":1792860495.055385,"tag":"mac","target":"cn-baidu","layer":"l3","ok":true,"connMs":52.0,"firstByteMs":14.5,"code":200,"err":null}
+{"ts":1792860499.021149,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":false,"ms":4001.2,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860499.0568252,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":false,"ms":4001.3,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860499.0608268,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":3.9,"server":"192.168.1.1","ips":["183.2.172.177"],"err":null}
+{"ts":1792860499.064749,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860499.068776,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":3.8,"server":"192.168.1.1","ips":["174.132.167.252"],"err":null}
+{"ts":1792860499.0790012,"tag":"mac","target":"dns:www.baidu.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["183.2.172.177"],"err":null}
+{"ts":1792860499.090435,"tag":"mac","target":"dns:www.cloudflare.com","layer":"l4","ok":true,"ms":11.3,"server":"223.5.5.5","ips":["104.16.124.96","104.16.123.96"],"err":null}
+{"ts":1792860499.100616,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":true,"ms":10.1,"server":"223.5.5.5","ips":["185.45.5.35"],"err":null}
+{"ts":1792860499.932001,"tag":"mac","target":"global-1111","layer":"l1","ok":false,"ms":5001.2,"err":"timeout: timed out"}
+{"ts":1792860499.9335968,"tag":"mac","target":"global-cf","layer":"l1","ok":false,"ms":5002.8,"err":"timeout: timed out"}
+{"ts":1792860499.934674,"tag":"mac","target":"global-google","layer":"l1","ok":false,"ms":5003.9,"err":"timeout: timed out"}
+{"ts":1792860499.9346938,"tag":"mac","target":"global-ytb","layer":"l1","ok":false,"ms":5003.8,"err":"timeout: timed out"}
+{"ts":1792860499.937662,"tag":"mac","target":"sub-link","layer":"l1","ok":false,"ms":5006.8,"err":"timeout: timed out"}
+{"ts":1792860499.938455,"tag":"mac","target":"sub-s3","layer":"l1","ok":false,"ms":5007.6,"err":"timeout: timed out"}
+{"ts":1792860503.022717,"tag":"mac","target":"dns:www.youtube.com","layer":"l4","ok":false,"ms":4001.4,"server":"127.0.0.1","ips":[],"err":"timeout: timed out"}
+{"ts":1792860503.0229309,"kind":"system","load":[3.05,3.02,2.53],"daeRunning":false,"daeRssMB":0}
+{"ts":1792860504.934437,"kind":"stop","tag":"mac","rounds":60}
