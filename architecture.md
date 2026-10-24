@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.26  
+> **文档版本：** v0.27  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -29,6 +29,7 @@
 > **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
+> **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1428,7 +1429,67 @@ routing {
 **坑**：通过 `/api/passwd` 改密成功会清除 `MustChange`，做回归测试把密码改回原值时也会顺手清掉标记——验证完要重新跑一次 `setpass --must-change`。
 
 
-## 15. 本版（v0.26）变更清单
+
+## 14.21 转发开关的归属与 Clash 行内映射 / ssr 支持（v0.27）
+
+### 14.21.1 现象与根因（2026-10-24）
+
+用户在把网关切到 192.168.1.85 后反馈卡顿。排查发现一个更硬的故障：**任何 `dae reload` 都失败**，
+
+```text
+reload failed: publish staged reload candidate: bind LAN interface ens2:
+attach interface ens2: ipforward on ens2 is off: /proc/sys/net/ipv4/conf/ens2/forwarding
+```
+
+根因链：
+
+| 环节 | 事实 |
+| --- | --- |
+| 内核默认 | `net.ipv4.ip_forward = 0`；本机 `/etc/sysctl.conf` 为空、`/etc/sysctl.d/` 只有 README.sysctl，从未持久化 |
+| 谁开过 | dae 仅在配置含 `auto_config_kernel_parameter: true` 时自己写 `/proc/sys` |
+| 10-23 22:33 | 接入向导 apply 写出的片段含该选项 + `lan_interface: ens2`（备份 `/var/lib/homenet-panel/backups/access-20261023-223350.756.dae`），转发被 dae 打开 |
+| 之后 | 该片段被整份核心配置覆盖/回滚，`config.d/` 只剩 `panel-core.dae`（global 无该选项） |
+| 10-24 01:41 | dae 重启读到新配置 → 转发退回 0；journal 里 `ipforward on ens2 is off` 仅 7 次，全在 11:33（即首次 reload 尝试时） |
+
+为什么转发关着 LAN 仍能上网：本机只有一块物理网卡 `ens2`，既当 LAN 又当 WAN（`wan_interface: auto` 命中的就是它），dae 在 ens2 上做 tproxy 拦截，被接管的 TCP/UDP 本地终结，不需要转发；但**未被接管的包**（ICMP、部分 UDP/QUIC、客户端 IPv6）需要转发才能过，关着就被静默丢弃——这是「有的网站能开、有的转圈」的一个真实来源。
+
+### 14.21.2 面板侧实现：转发由面板负责到底（internal/access/sysctl.go）
+
+用户口径：转发是必须的，那就要在面板或 dae 层面持久化，只有关闭服务/回滚时才回到默认关闭。因此面板不再依赖 dae 的 `auto_config_kernel_parameter`：
+
+| 位置 | 行为 |
+| --- | --- |
+| `EnableForwarding(ifaces)` | `sysctl -w net.ipv4.ip_forward=1`、`conf.all.forwarding=1`、逐接口 `conf.<iface>.forwarding=1`，并写 `/etc/sysctl.d/99-homenet-panel.conf`（0644，含生成说明与撤回方法） |
+| `DisableForwarding(st)` | 按应用前基线还原：原来有文件就逐字写回，没有就删除自有文件；只有应用前是 0 才把转发关回去（原值 1 说明系统本来开着，不动） |
+| `Applier.Apply` | 顺序改为 **0) 记基线 → 0.5) 开转发并持久化 → 1) 写片段+validate+reload → 2/3) nft**；reload 或 nft 失败时一并回滚转发 |
+| `accessState` | 新增 `hadSysctlFile` / `originalSysctl`，与既有 `originalIpForward` 一起构成回滚依据 |
+| `Applier.Rollback` | 删表 → 移除片段 → `DisableForwarding` 还原转发与持久化文件 |
+
+要注意的点：sysctl 文件路径与 `/proc/sys` 根都是包级变量，测试里注入临时目录，避免在开发机写 `/etc`。
+
+### 14.21.3 clashconv：行内映射 + ssr（61/61 实测）
+
+用户决定「把 OpenWrt 那边的机场拿到 dae 来测」，而那条机场是 SSR（61 个节点，`aes-256-cfb`），且 Clash YAML 用的是**行内映射**写法：
+
+```yaml
+proxies:
+    - {name: 🇨🇳 【隧道】台湾 P1, server: so260520-cn-27v3.sonlodd365.com, port: 42345, type: ssr, cipher: aes-256-cfb, password: H6JmjL, protocol: auth_aes128_sha1, obfs: tls1.2_ticket_auth, protocol-param: 25164:hvF4PIxq, obfs-param: 2fc6925164.microsoft.com, udp: true}
+```
+
+改动：
+
+1. `ParseProxies` 支持 `- {k: v, k2: {k3: v3}}`：`parseFlowItem` 递归展开成 `a.b` 扁平键，`splitTopLevel` 按顶层逗号切分（忽略引号与花括号内的分隔符），与块状写法共用 `Proxy.Get`。
+2. 新增 `ssrLink`：`ssr://base64url(host:port:protocol:method:obfs:base64url(password)/?obfsparam=&protoparam=&remarks=)`，缺 `protocol` 补 `origin`、缺 `obfs` 补 `plain`，缺 cipher/password 进 Skipped（不静默丢弃）。
+3. dae 侧验证：把 ssr 链接塞进 `file://` 订阅 + `dae validate` 得 EXIT=0（把订阅内容换成垃圾串则 EXIT=1，证明订阅确实被解析）。
+4. 回归：`SUMMER_SAMPLE=/tmp/summer.yaml go test ./internal/clashconv -run Summer` → **61 个代理，转出 61 条，跳过 0 个，类型 map[ssr:61]**。
+
+### 14.21.4 当前状态与待办
+
+- 代码已合入并部署（二进制 12,912,377 B，2026-10-24 15:16；panel 与 dae 均 active），**live 系统参数未改**：真正打开转发要等用户在面板里 apply 接入，或明确授权后手工 `sysctl -w`。
+- `summer` 订阅尚未接入 dae 配置（需要先打开转发，reload 才不会失败）。
+- OpenWrt 侧当前仍跑旧机场 `summer.yaml`（`enabled=0` 的订阅条目并未参与下载），与 .85 不构成同机场对比。
+
+## 15. 本版（v0.27）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1448,3 +1509,4 @@ routing {
 16. **首次登录强制改密**：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` + 口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均已验证（§14.20）。
 17. 登录与改密表单语义化（form + name + autocomplete=username/current-password/new-password），恢复浏览器「保存密码/自动填充」；初始密码可设为 10086（setpass 不做强度校验）。
 18. 登录/改密改原生表单提交（`/login`、`/passwd` + 303），并把 `/passwd` 加入 mustChange 白名单；临时实例实测四类跳转码。
+19. **新增 §14.21（v0.27）**：转发开关改由面板持久化（`internal/access/sysctl.go`：应用时 `sysctl -w` 打开转发 + 写 `/etc/sysctl.d/99-homenet-panel.conf`，回滚按应用前基线还原或删除自有文件；`accessState` 增 `hadSysctlFile`/`originalSysctl`，apply/reload 失败路径一并回滚）+ clashconv 支持 Clash **行内映射** `- {k: v}` 与 **ssr** 链接转换（`parseFlowItem`/`splitTopLevel`/`ssrLink`），真实样本 61/61 转换、dae `validate` 接受 ssr 订阅。
