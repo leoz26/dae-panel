@@ -141,6 +141,11 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 
 	// 0) 记录改动机器前的内核基线（dae 的 auto_config_kernel_parameter 会把 ip_forward 置 1）
 	ipFwdBefore := readIPForward()
+	sysctlBefore, hadSysctlFile := readSysctlConf()
+
+	// 0.5) 先打开转发并持久化：dae 绑定 lan_interface 时要求 ipforward 为 1，
+	//      否则下面的 reload 会直接失败（ipforward on <iface> is off）。
+	res.Steps = append(res.Steps, a.EnableForwarding(plan.LanIfaces)...)
 
 	// 1) 写片段 + validate + reload（失败由配置事务自动回滚文件）
 	tx := configtx.New(a.Dae, a.BackupDir)
@@ -152,6 +157,8 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 	if err != nil {
 		res.RolledBack = txr.RolledBack
 		res.Message = "片段写入/校验/reload 失败，已回滚文件"
+		rbSt := accessState{OriginalIPForward: ipFwdBefore, HadSysctlFile: hadSysctlFile, OriginalSysctl: sysctlBefore}
+		res.Steps = append(res.Steps, a.DisableForwarding(&rbSt)...)
 		return res, err
 	}
 
@@ -165,6 +172,8 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 		if _, e := a.Runner.Run("nft", c...); e != nil {
 			a.DeleteTables()
 			_, rbErr := a.RestoreAccess()
+			rbSt := accessState{OriginalIPForward: ipFwdBefore, HadSysctlFile: hadSysctlFile, OriginalSysctl: sysctlBefore}
+			res.Steps = append(res.Steps, a.DisableForwarding(&rbSt)...)
 			res.RolledBack = true
 			res.Steps = append(res.Steps, ApplyStep{Name: "nft", OK: false, Detail: e.Error(), Command: cmdText})
 			if rbErr != nil {
@@ -182,6 +191,8 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 	st := a.readState()
 	if st.OriginalIPForward == "" {
 		st.OriginalIPForward = ipFwdBefore
+		st.HadSysctlFile = hadSysctlFile
+		st.OriginalSysctl = sysctlBefore
 	}
 	st.AppliedAt = time.Now().Format(time.RFC3339)
 	st.Fingerprint = plan.Fingerprint
@@ -193,11 +204,13 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 	return res, nil
 }
 
-// accessState 记录应用前的系统基线，回滚时据此还原（目前只记 ip_forward）。
+// accessState 记录应用前的系统基线，回滚时据此还原（ip_forward 与面板自有的 sysctl 持久化文件）。
 type accessState struct {
 	AppliedAt         string `json:"appliedAt"`
 	Fingerprint       string `json:"fingerprint"`
 	OriginalIPForward string `json:"originalIpForward,omitempty"`
+	HadSysctlFile     bool   `json:"hadSysctlFile,omitempty"`
+	OriginalSysctl    string `json:"originalSysctl,omitempty"`
 }
 
 func (a *Applier) statePath() string { return filepath.Join(a.BackupDir, "access-state.json") }
@@ -320,7 +333,7 @@ func (a *Applier) Rollback(confirm bool) (ApplyResult, error) {
 		return res, fmt.Errorf("回滚失败: %w", err)
 	}
 	st := a.readState()
-	res.Steps = append(res.Steps, a.restoreSysctl(st)...)
+	res.Steps = append(res.Steps, a.DisableForwarding(&st)...)
 	_ = os.Remove(a.statePath())
 
 	res.Applied = true

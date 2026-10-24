@@ -104,6 +104,11 @@ func ParseProxies(b []byte) ([]Proxy, error) {
 		if len(out) == 0 {
 			continue // proxies 段里第一个元素之前的内容，忽略
 		}
+		if strings.HasPrefix(trimmed, "{") {
+			// 行内映射（Clash 常见紧凑写法）：- {name: x, type: ssr, ...}
+			parseFlowItem(trimmed, "", out[len(out)-1].F)
+			continue
+		}
 		for len(stack) > 0 && stack[len(stack)-1].indent >= ind {
 			stack = stack[:len(stack)-1]
 		}
@@ -127,6 +132,65 @@ func ParseProxies(b []byte) ([]Proxy, error) {
 		out[i].Name = out[i].Get("name")
 	}
 	return out, nil
+}
+
+// parseFlowItem 解析 "{k: v, k2: {k3: v3}}" 形式的行内映射，展开成 "a.b" 扁平键，
+// 与块状写法共用同一套取值方式（Proxy.Get）。
+func parseFlowItem(s, prefix string, dst map[string]string) {
+	s = strings.TrimSpace(stripComment(s))
+	if !strings.HasPrefix(s, "{") {
+		return
+	}
+	s = strings.TrimSuffix(s, "}")
+	s = strings.TrimPrefix(s, "{")
+	for _, part := range splitTopLevel(s, ',') {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		k, v, ok := splitKV(part)
+		if !ok {
+			continue
+		}
+		if strings.HasPrefix(strings.TrimSpace(v), "{") {
+			parseFlowItem(v, prefix+k+".", dst)
+			continue
+		}
+		dst[prefix+k] = v
+	}
+}
+
+// splitTopLevel 按分隔符切分，忽略引号内与花括号内的分隔符。
+func splitTopLevel(s string, sep rune) []string {
+	var out []string
+	var b strings.Builder
+	quote := rune(0)
+	depth := 0
+	for _, r := range s {
+		switch {
+		case quote != 0:
+			b.WriteRune(r)
+			if r == quote {
+				quote = 0
+			}
+		case r == '"' || r == '\'':
+			quote = r
+			b.WriteRune(r)
+		case r == '{' || r == '[':
+			depth++
+			b.WriteRune(r)
+		case r == '}' || r == ']':
+			depth--
+			b.WriteRune(r)
+		case r == sep && depth == 0:
+			out = append(out, b.String())
+			b.Reset()
+		default:
+			b.WriteRune(r)
+		}
+	}
+	out = append(out, b.String())
+	return out
 }
 
 // Convert 把 Clash YAML 转换为 dae 可消费的节点链接（ss/vmess/trojan/vless/hysteria2/tuic）。
@@ -164,6 +228,8 @@ func toLink(p Proxy) (string, string) {
 		return vlessLink(p)
 	case "ss":
 		return ssLink(p)
+	case "ssr":
+		return ssrLink(p)
 	case "trojan":
 		return trojanLink(p)
 	case "hysteria2", "hy2":
@@ -317,6 +383,45 @@ func ssLink(p Proxy) (string, string) {
 	}
 	userinfo := base64.RawURLEncoding.EncodeToString([]byte(method + ":" + pass))
 	return "ss://" + userinfo + "@" + server + ":" + port + fragment(p.Name), ""
+}
+
+// ssrLink 输出 SSR 链接（dae 的订阅解析器认识 ssr://）。
+// 链接主体是 base64url( host:port:protocol:method:obfs:base64url(password)/?参数 )，
+// 参数里的 obfsparam/protoparam/remarks 也各自再做一次 base64url。
+func ssrLink(p Proxy) (string, string) {
+	server, port, reason := hostPort(p)
+	if reason != "" {
+		return "", reason
+	}
+	method := p.Get("cipher", "method")
+	pass := p.Get("password")
+	if method == "" || pass == "" {
+		return "", "缺少 cipher/password"
+	}
+	proto := p.Get("protocol")
+	if proto == "" {
+		proto = "origin"
+	}
+	obfs := p.Get("obfs")
+	if obfs == "" {
+		obfs = "plain"
+	}
+	enc := func(s string) string { return base64.RawURLEncoding.EncodeToString([]byte(s)) }
+	q := []string{}
+	if v := p.Get("obfs-param"); v != "" {
+		q = append(q, "obfsparam="+enc(v))
+	}
+	if v := p.Get("protocol-param"); v != "" {
+		q = append(q, "protoparam="+enc(v))
+	}
+	if p.Name != "" {
+		q = append(q, "remarks="+enc(p.Name))
+	}
+	main := server + ":" + port + ":" + proto + ":" + method + ":" + obfs + ":" + enc(pass) + "/"
+	if len(q) > 0 {
+		main += "?" + strings.Join(q, "&")
+	}
+	return "ssr://" + enc(main), ""
 }
 
 func trojanLink(p Proxy) (string, string) {

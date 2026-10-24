@@ -270,3 +270,78 @@ func TestApplyRecordsIPForwardAndRollbackRestores(t *testing.T) {
 		t.Fatal("回滚后应删除状态文件")
 	}
 }
+
+func TestApplyPersistsForwardingAndRollbackRemovesIt(t *testing.T) {
+	a, r, _, dir := newTestApplier(t)
+	conf := filepath.Join(dir, "sysctl.d", "99-homenet-panel.conf")
+	oldConf := sysctlConfPath
+	sysctlConfPath = conf
+	defer func() { sysctlConfPath = oldConf }()
+
+	opt := PlanOptions{}
+	fp := PlanFor(testProbe(), opt).Fingerprint
+	res, err := a.Apply(opt, fp, true)
+	if err != nil {
+		t.Fatalf("apply 应成功: %v", err)
+	}
+	if !r.saw("net.ipv4.ip_forward=1") {
+		t.Fatalf("apply 应先打开转发（dae 绑定 lan_interface 的前置条件）: %v", r.calls)
+	}
+	if !r.saw("net.ipv4.conf.en0.forwarding=1") {
+		t.Fatalf("apply 应打开 LAN 接口转发: %v", r.calls)
+	}
+	b, err := os.ReadFile(conf)
+	if err != nil {
+		t.Fatalf("应写入持久化文件: %v", err)
+	}
+	if !strings.Contains(string(b), "net.ipv4.ip_forward = 1") || !strings.Contains(string(b), "net.ipv4.conf.en0.forwarding = 1") {
+		t.Fatalf("持久化文件内容不对: %s", string(b))
+	}
+	found := false
+	for _, s := range res.Steps {
+		if s.Name == "sysctl-persist" && s.OK {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("结果里应有 sysctl-persist 步骤")
+	}
+
+	if _, err := a.Rollback(true); err != nil {
+		t.Fatalf("回滚应成功: %v", err)
+	}
+	if _, err := os.Stat(conf); !os.IsNotExist(err) {
+		t.Fatalf("回滚应删除自有持久化文件: %v", err)
+	}
+}
+
+func TestApplyRestoresPreexistingSysctlFile(t *testing.T) {
+	a, _, _, dir := newTestApplier(t)
+	conf := filepath.Join(dir, "sysctl.d", "99-homenet-panel.conf")
+	if err := os.MkdirAll(filepath.Dir(conf), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := "net.ipv4.tcp_syncookies = 1\n"
+	if err := os.WriteFile(conf, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	oldConf := sysctlConfPath
+	sysctlConfPath = conf
+	defer func() { sysctlConfPath = oldConf }()
+
+	opt := PlanOptions{}
+	fp := PlanFor(testProbe(), opt).Fingerprint
+	if _, err := a.Apply(opt, fp, true); err != nil {
+		t.Fatalf("apply 应成功: %v", err)
+	}
+	if _, err := a.Rollback(true); err != nil {
+		t.Fatalf("回滚应成功: %v", err)
+	}
+	b, err := os.ReadFile(conf)
+	if err != nil {
+		t.Fatalf("回滚应写回应用前的文件: %v", err)
+	}
+	if string(b) != original {
+		t.Fatalf("应逐字还原原文件，实际 %q", string(b))
+	}
+}

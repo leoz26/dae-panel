@@ -277,3 +277,66 @@ func linkKey(link string) (string, string) {
 	sort.Strings(ps)
 	return body, strings.Join(ps, "&")
 }
+
+const ssrYAML = `
+proxies:
+    - {name: 🇨🇳 【隧道】台湾 P1, server: so260520-cn-27v3.example.com, port: 42345, type: ssr, cipher: aes-256-cfb, password: H6JmjL, protocol: auth_aes128_sha1, obfs: tls1.2_ticket_auth, protocol-param: "25164:hvF4PIxq", obfs-param: 2fc6925164.microsoft.com, udp: true}
+    - {name: 无密码, server: n2.example.com, port: 443, type: ssr, cipher: aes-128-cfb}
+proxy-groups:
+    - {name: auto, type: url, proxies: [}}
+`
+
+func TestConvertSSR(t *testing.T) {
+	res, err := Convert([]byte(ssrYAML))
+	if err != nil {
+		t.Fatalf("Convert: %v", err)
+	}
+	if len(res.Links) != 1 {
+		t.Fatalf("应转出 1 条 ssr 链接，实际 %d（跳过 %v）", len(res.Links), res.Skipped)
+	}
+	if len(res.Skipped) != 1 {
+		t.Fatalf("缺密码的节点应被跳过并报告，实际 %v", res.Skipped)
+	}
+	if !strings.HasPrefix(res.Links[0], "ssr://") {
+		t.Fatalf("前缀不对: %s", res.Links[0])
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(res.Links[0], "ssr://"))
+	if err != nil {
+		t.Fatalf("链接主体应是 base64url: %v", err)
+	}
+	body := string(raw)
+	for _, want := range []string{"so260520-cn-27v3.example.com:42345:auth_aes128_sha1:aes-256-cfb:tls1.2_ticket_auth:", "obfsparam=", "protoparam=", "remarks="} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("主体缺少 %q: %s", want, body)
+		}
+	}
+	// 密码应再做一次 base64url 编码
+	if !strings.Contains(body, base64.RawURLEncoding.EncodeToString([]byte("H6JmjL"))) {
+		t.Fatalf("密码未编码: %s", body)
+	}
+}
+
+// TestRealSummerSample 用一台真实机场的 Clash YAML 回归（默认跳过，靠环境变量启用）。
+func TestRealSummerSample(t *testing.T) {
+	path := os.Getenv("SUMMER_SAMPLE")
+	if path == "" {
+		t.Skip("设置 SUMMER_SAMPLE 指向真实 Clash YAML 才跑")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := Convert(data)
+	if err != nil {
+		t.Fatalf("Convert: %v", err)
+	}
+	t.Logf("真实样本：共 %d 个代理，转出 %d 条，跳过 %d 个，类型 %v", res.Total, len(res.Links), len(res.Skipped), res.ByType)
+	if len(res.Links) == 0 {
+		t.Fatal("应转出链接")
+	}
+	for _, l := range res.Links {
+		if !strings.HasPrefix(l, "ssr://") {
+			t.Fatalf("该样本应全是 ssr 链接: %s", l)
+		}
+	}
+}
