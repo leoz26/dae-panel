@@ -83,6 +83,9 @@ func ParseProxies(b []byte) ([]Proxy, error) {
 		prefix string
 	}
 	var stack []frame
+	// itemIndent 是节点列表项自身的缩进；更深的 "- xxx" 属于节点内部的嵌套列表
+	// （例如 anytls 的 alpn: [- h2, - http/1.1]），不能当成新节点。
+	itemIndent := -1
 	for i := start + 1; i < len(lines); i++ {
 		raw := lines[i]
 		trimmed := strings.TrimSpace(raw)
@@ -94,6 +97,12 @@ func ParseProxies(b []byte) ([]Proxy, error) {
 			break // 离开 proxies 段
 		}
 		if strings.HasPrefix(trimmed, "- ") || trimmed == "-" {
+			if itemIndent < 0 {
+				itemIndent = ind
+			}
+			if ind != itemIndent {
+				continue // 节点内部的嵌套列表项（如 alpn），跳过
+			}
 			out = append(out, Proxy{F: map[string]string{}})
 			stack = stack[:0]
 			trimmed = strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
@@ -236,11 +245,43 @@ func toLink(p Proxy) (string, string) {
 		return hysteria2Link(p)
 	case "tuic":
 		return tuicLink(p)
+	case "anytls":
+		return anytlsLink(p)
 	case "":
 		return "", "缺少 type 字段"
 	default:
 		return "", "暂不支持该协议，需人工处理"
 	}
+}
+
+// anytlsLink 生成 dae 可消费的 anytls 链接。
+// 依据 dae 依赖的 outbound 实现 dialer/anytls/anytls.go 的 parseAnytlsURL：
+// Auth=userinfo 用户名、Sni=query peer→sni→host、Insecure=query insecure=="1"。
+func anytlsLink(p Proxy) (string, string) {
+	server, port, reason := hostPort(p)
+	if reason != "" {
+		return "", reason
+	}
+	pass := p.Get("password", "auth")
+	if pass == "" {
+		return "", "缺少 password 字段"
+	}
+	var q []string
+	if sni := p.Get("sni", "servername", "server-name"); sni != "" {
+		q = append(q, "sni="+url.QueryEscape(sni))
+	}
+	if insecure := p.Get("skip-cert-verify", "insecure", "allowInsecure"); insecure == "true" || insecure == "1" {
+		q = append(q, "insecure=1")
+	}
+	host := server
+	if strings.Contains(host, ":") && !strings.HasPrefix(host, "[") {
+		host = "[" + host + "]" // IPv6 字面量
+	}
+	link := "anytls://" + url.User(pass).String() + "@" + host + ":" + port
+	if len(q) > 0 {
+		link += "?" + strings.Join(q, "&")
+	}
+	return link + fragment(p.Name), ""
 }
 
 func hostPort(p Proxy) (string, string, string) {

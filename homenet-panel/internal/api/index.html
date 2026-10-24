@@ -109,11 +109,18 @@ td input,td select{width:100%}
         </div>
         <div class="card">
           <h2>订阅 (subscription)</h2>
+          <div class="muted" style="margin-bottom:8px">推荐先到「订阅源更新」把上游拉成镜像（<code>file://subs/xxx.sub</code>），再在这里用下拉选择——dae 只读本地文件，不会重复消耗上游 token。</div>
           <table>
             <tr><th style="width:160px">名称</th><th>来源 (file://subs/xxx.sub 或 https://...)</th><th style="width:70px"></th></tr>
             <tr v-for="(s,i) in model.subscriptions" :key="&#39;s&#39;+i">
               <td><input v-model="s.name"/></td>
-              <td><input v-model="s.source"/></td>
+              <td>
+                <select @change="pickSrc(s, $event.target.value)" style="margin-bottom:4px">
+                  <option value="">从订阅源选（已登记 {{subsrcItems.length}} 个）…</option>
+                  <option v-for="it in subsrcItems" :key="&#39;pk&#39;+it.name" :value="it.source">{{it.name}}{{it.localCount?&#39;（&#39;+it.localCount+&#39; 节点）&#39;:&#39;&#39;}} · {{it.source}}</option>
+                </select>
+                <input v-model="s.source" placeholder="file://subs/xxx.sub（推荐，本地镜像） 或 https://...（dae 每次 reload 都会自己拉）"/>
+              </td>
               <td><button class="danger sm" @click="model.subscriptions.splice(i,1)">删除</button></td>
             </tr>
           </table>
@@ -831,12 +838,13 @@ createApp({
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
     async doRawApply(){ this.applyText="应用中…"; const r=await this.api("/api/apply","POST",{target:this.target,content:this.content,allowGoose:this.allowGoose}); this.applyText=this.pretty(r.data); this.refreshStatus(); },
     pretty(d){ try{ return typeof d==="string"?d:JSON.stringify(d,null,2); }catch(e){ return String(d); } },
-    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; } },
+    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; if(!this.subsrcItems||!this.subsrcItems.length) this.loadSubsrc(); } },
     async previewModel(){ this.modelMsg="生成中…"; const r=await this.api("/api/model/preview","POST",{model:this.model}); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; this.modelMsg="已生成预览(未应用)"; } else this.modelMsg="预览失败: "+this.pretty(r.data); },
     async applyModel(){ this.modelMsg="应用中…"; const r=await this.api("/api/model/apply","POST",{model:this.model}); this.modelMsg=(r.code===200 && r.data.result && r.data.result.applied) ? "已应用并重载成功" : ("应用失败: "+this.pretty(r.data.error||r.data)); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; } this.refreshStatus(); },
     async loadSubs(){ this.subMsg="加载中…"; const r=await this.api("/api/subs/nodes"); if(r.code===200){ this.subsData=r.data; this.subMsg=""; } else { this.subMsg="加载失败"; } const g=await this.api("/api/subs/groups"); if(g.code===200){ this.groupsData=g.data; } },
     async runSpeedAll(){ this.subMsg="测速中…"; const r=await this.api("/api/subs/speedtest","POST",{timeoutMs:3000}); if(r.code===200){ const m={}; r.data.results.forEach(function(x){ m[x.host+"|"+x.port]={ms:x.ms,error:x.error}; }); this.latency=m; this.subMsg="测速完成"; } else this.subMsg="测速失败"; },
     async speedOne(n){ const r=await this.api("/api/subs/speedtest","POST",{nodes:[{host:n.host,port:n.port}],timeoutMs:3000}); if(r.code===200 && r.data.results && r.data.results[0]){ const x=r.data.results[0]; this.latency[this.key(n)]={ms:x.ms,error:x.error}; } },
+    pickSrc(s, v){ if(!v) return; s.source=v; if(!s.name){ const m=String(v).match(/^file:\/\/subs\/(.+)\.sub$/); s.name=m?m[1]:""; } },
     async loadSubsrc(){ this.subsrcMsg="加载中…"; const r=await this.api("/api/subsrc"); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcHours=r.data.checkHours||6; this.subsrcLastRun=r.data.lastRun||""; this.subsrcMsg=""; } else this.subsrcMsg="加载失败 (HTTP "+r.code+")"; },
     async removeSrc(it){ if(it.inModel){ this.subsrcMsg="该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用"; return; } if(!confirm("删除订阅源登记「"+it.name+"」？只删登记（上游 URL/UA），不删磁盘镜像。")) return; this.subsrcMsg="删除中…"; const r=await this.api("/api/subsrc/remove","POST",{name:it.name}); await this.loadSubsrc(); this.subsrcMsg=(r.code===200)?("已删除登记 "+it.name):("删除失败: "+this.pretty(r.data&&r.data.error||r.data)); },
     async addSrc(){ const n=(this.newSrc.name||"").trim(); if(!n){ this.subsrcMsg="请先填名称"; return; } if(!/^[A-Za-z0-9._-]+$/.test(n)){ this.subsrcMsg="名称只能用字母/数字/点/下划线/短横线"; return; } if(!(this.newSrc.url||"").trim()){ this.subsrcMsg="请填上游 URL"; return; } await this.saveSrc({name:n,url:this.newSrc.url,ua:this.newSrc.ua}); if(this.subsrcMsg.indexOf("已保存")>=0){ this.newSrc={name:"",url:"",ua:""}; this.subsrcMsg="订阅源 "+n+" 已新增，可点它的「拉取并应用」生成镜像"; } },

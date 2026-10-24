@@ -340,3 +340,47 @@ func TestRealSummerSample(t *testing.T) {
 		}
 	}
 }
+
+func TestConvertAnytlsAndNestedLists(t *testing.T) {
+	raw := []byte(`proxies:
+  - name: "F3"
+    type: anytls
+    server: "at.example.com"
+    port: 7002
+    password: "9a03ef3c"
+    client-fingerprint: chrome
+    udp: true
+    alpn:
+      - h2
+      - http/1.1
+    sni: "cdn.example.com"
+    skip-cert-verify: true
+`)
+	px, err := ParseProxies(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// alpn 的 "- h2"、"- http/1.1" 属于节点内部嵌套列表，不能变成新节点
+	if len(px) != 1 {
+		t.Fatalf("应只解析出 1 个节点，得到 %d 个: %+v", len(px), px)
+	}
+	res, err := Convert(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Links) != 1 || res.ByType["anytls"] != 1 || len(res.Skipped) != 0 {
+		t.Fatalf("转换结果不符: %+v", res)
+	}
+	link := res.Links[0]
+	if !strings.HasPrefix(link, "anytls://9a03ef3c@at.example.com:7002?") {
+		t.Fatalf("链接前缀不对: %s", link)
+	}
+	for _, want := range []string{"sni=cdn.example.com", "insecure=1"} {
+		if !strings.Contains(link, want) {
+			t.Fatalf("链接缺少 %s: %s", want, link)
+		}
+	}
+	if strings.Count(link, "#") != 1 {
+		t.Fatalf("fragment 只能有一个 #: %s", link)
+	}
+}

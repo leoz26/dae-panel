@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.30  
+> **文档版本：** v0.31  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -30,6 +30,7 @@
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
 > **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
+> **修订（v0.31）：** 修两个订阅转换缺陷（alpn 嵌套列表被当作节点 → 40 个幽灵；anytls 协议未转换 → 20 个真节点丢失，已按 dae 的 outbound 解析实现补齐）；内容层订阅来源改为下拉选择。详见 §14.24。
 > **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
@@ -1581,7 +1582,47 @@ Clash 转换只覆盖 `vmess/vless/ss/ssr/trojan/hysteria2/tuic`，其余类型�
 
 实机验证（临时实例，独立 subsrc 副本，未动生产登记表）：列表 `[('CF',True),('dual',True),('summer',False,skipped=60)]`；删除 summer → 200；删除 CF → 409；删除后列表只剩 CF/dual。
 
-## 15. 本版（v0.30）变更清单
+## 14.24 订阅再拉取后的两个转换缺陷 + 内容层订阅选择器（v0.31）
+
+### 14.24.1 现场数据（summer 上游，2026-10-24 23:03 留档）
+
+`/var/lib/homenet-panel/backups/subs-raw/summer.20261024-230349.yaml`（1,105,734 B / 21,360 行）实测：`type: anytls` 20 个、`type: ssr` 61 个、`type: select` 12 个（分组）。而上游返回后，面板记录的 `skipped=60`、镜像只有 **61** 个 ssr。
+
+### 14.24.2 缺陷一：alpn 列表项被当成新节点（真 bug）
+
+anytls 节点带 `alpn:` 嵌套列表：
+
+```yaml
+  - name: "【专线】台湾F3"
+    type: anytls
+    alpn:
+      - h2
+      - http/1.1
+```
+
+`ParseProxies` 原先对任何 `- ` 开头的行都开一个新 `Proxy`，于是每个 `- h2`/`- http/1.1` 都变成 type 为空、无 server 的「幽灵节点」。20 个 anytls × 2 行 = **40 个幽灵**，加上 20 个真 anytls，正好 60 = `skipped` 的数字。
+
+修复：记录**节点列表项自身的缩进**（`itemIndent`，取 proxies 段里第一个 `- ` 的缩进），只有缩进等于 `itemIndent` 的 `- ` 才开新节点，更深的 `- ` 视为节点内部嵌套列表跳过。实测 121 → 81 个代理，幽灵归零。
+
+### 14.24.3 缺陷二：anytls 不被转换（dae 其实支持）
+
+- 依据 dae 依赖的 `github.com/olicesx/outbound` 的 `dialer/anytls/anytls.go` `parseAnytlsURL`：链接形如 `anytls://<password>@host:port?sni=...&insecure=1#name`；`Auth=userinfo 用户名`、`Sni` 依次取 query 的 `peer`→`sni`→hostname、`Insecure` 只认 `insecure=1`。
+- 新增 `anytlsLink(p Proxy)`，字段映射：`password`→userinfo、`sni/servername/server-name`→`sni`、`skip-cert-verify|insecure|allowInsecure`→`insecure=1`、`name`→fragment。
+- 真实样本回归：`proxies=81 types=map[anytls:20 ssr:61] links=81 skipped=0`（`/tmp/summer81.sub` 20,125 B，20 条 anytls + 61 条 ssr）。
+- 单测 `TestConvertAnytlsAndNestedLists` 同时锁住两件事：alpn 不产生幽灵节点、anytls 链接字段与「只能有一个 #」。
+
+### 14.24.4 内容层订阅：从手输入改成下拉选择
+
+用户原话（要点）：「这里我没加，这里应该做成选项，勾取或者拖动，不然要手动输入实在太糟糕了。」
+
+「内容层 → 订阅」的来源栏新增下拉：列出「订阅源更新」里已登记的镜像（`file://subs/<name>.sub`，带节点数），选中后自动填 `source` 并在名称为空时按文件名补 `name`；仍保留文本框以支持自定义/直连 URL。标题下加说明：推荐先用镜像，dae 只读本地文件、不会重复消耗上游 token。
+
+### 14.24.5 待办
+
+- 服务器上的 `/etc/dae/subs/summer.sub` 仍是旧的 61 节点版本（新代码只影响「下一次 apply」）；上游 token 一次性，重拉可能 404，可用留档的原始 YAML 离线重转（`/tmp/summer81.sub` 已生成待用户批准写入）。
+- `summer` 尚未被 `/etc/dae/config.dae` 引用，dae 实际上还没用到它。
+
+## 15. 本版（v0.31）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1605,3 +1646,4 @@ Clash 转换只覆盖 `vmess/vless/ss/ssr/trojan/hysteria2/tuic`，其余类型�
 20. **转发改「有条件才开」（v0.28）**：`internal/access/ensure.go`（`EnsureForwardingForConfig` / `EnsureForwardingForInterfaces`，幂等且只补缺失项）+ `internal/dae` 的 `BeforeReload` / `OnReloadError`（reload 报 `ipforward on <iface> is off` 时按接口开转发并自动重试一次）+ `internal/api/forward.go` 接线；实机验证「改不动配置」死结解除，内核仅在 dae 要求时被改动（§14.21.4/14.21.5）。
 21. **面板 UI 两处「看起来没反应」（v0.29）**：补 `EntryPath` 传递（`--c` 真正生效）；内容层顶部新增应用条 + 明确「没有单独保存按钮」；「订阅源更新」页支持新增订阅源（名称白名单 `validSubName`），后端对尚未进入模型的上游自动分配默认镜像 `subs/<name>.sub` 并在 apply 时 0600 原子写入（§14.22）。
 22. **一次性 token 与登记项管理（v0.30）**：明确「上游只由面板拉一次并镜像，dae 只读 file://」；apply 时把 Clash 原始 YAML 留档到 `backups/subs-raw/`（便于补齐被跳过的节点类型）；新增 `POST /api/subsrc/remove` 与「删除」按钮，仍被内容层引用的登记项 409 拒绝（§14.23）。
+23. **订阅转换两项修复 + 订阅选择器（v0.31）**：`ParseProxies` 按 `itemIndent` 区分节点与节点内嵌套列表（修掉 alpn 产生的 40 个幽灵节点）；新增 anytls 链接转换（依据 outbound 的 `parseAnytlsURL`），真实样本 81/81 全转、skipped 0；「内容层 → 订阅」来源改为下拉选择已登记镜像（§14.24）。
