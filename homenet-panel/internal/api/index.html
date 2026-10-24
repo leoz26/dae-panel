@@ -260,6 +260,7 @@ td input,td select{width:100%}
             <button @click="saveSrc(it)">保存</button>
             <button @click="checkSrc(it.name)">检查差异</button>
             <button class="primary" @click="applySrc(it)">拉取并应用</button>
+            <button class="danger" @click="removeSrc(it)" :disabled="it.inModel" :title="it.inModel?'该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用':'从订阅源登记表删除（不删磁盘镜像）'">删除</button>
           </div>
           <div class="warn" v-if="it.err" style="font-size:12px">{{it.err}}</div>
           <div class="muted" style="font-size:12px" v-if="it.lastCheck">
@@ -267,6 +268,7 @@ td input,td select{width:100%}
             <span v-if="it.format"> · 上游格式 {{it.format==='clash'?'Clash YAML（已转节点链接）':'节点链接'}}</span>
             <span v-if="it.skipped"> · 跳过 {{it.skipped}} 个不支持的代理</span>
             <span v-if="it.lastApplied"> · 上次应用 {{it.lastApplied}}</span>
+            <span v-if="it.inModel"> · 内容层已引用</span>
           </div>
           <div class="muted" style="font-size:12px" v-if="it.addedKeys && it.addedKeys.length">
             新增节点：<span class="mono">{{it.addedKeys.join(&#39;, &#39;)}}</span>
@@ -836,6 +838,7 @@ createApp({
     async runSpeedAll(){ this.subMsg="测速中…"; const r=await this.api("/api/subs/speedtest","POST",{timeoutMs:3000}); if(r.code===200){ const m={}; r.data.results.forEach(function(x){ m[x.host+"|"+x.port]={ms:x.ms,error:x.error}; }); this.latency=m; this.subMsg="测速完成"; } else this.subMsg="测速失败"; },
     async speedOne(n){ const r=await this.api("/api/subs/speedtest","POST",{nodes:[{host:n.host,port:n.port}],timeoutMs:3000}); if(r.code===200 && r.data.results && r.data.results[0]){ const x=r.data.results[0]; this.latency[this.key(n)]={ms:x.ms,error:x.error}; } },
     async loadSubsrc(){ this.subsrcMsg="加载中…"; const r=await this.api("/api/subsrc"); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcHours=r.data.checkHours||6; this.subsrcLastRun=r.data.lastRun||""; this.subsrcMsg=""; } else this.subsrcMsg="加载失败 (HTTP "+r.code+")"; },
+    async removeSrc(it){ if(it.inModel){ this.subsrcMsg="该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用"; return; } if(!confirm("删除订阅源登记「"+it.name+"」？只删登记（上游 URL/UA），不删磁盘镜像。")) return; this.subsrcMsg="删除中…"; const r=await this.api("/api/subsrc/remove","POST",{name:it.name}); await this.loadSubsrc(); this.subsrcMsg=(r.code===200)?("已删除登记 "+it.name):("删除失败: "+this.pretty(r.data&&r.data.error||r.data)); },
     async addSrc(){ const n=(this.newSrc.name||"").trim(); if(!n){ this.subsrcMsg="请先填名称"; return; } if(!/^[A-Za-z0-9._-]+$/.test(n)){ this.subsrcMsg="名称只能用字母/数字/点/下划线/短横线"; return; } if(!(this.newSrc.url||"").trim()){ this.subsrcMsg="请填上游 URL"; return; } await this.saveSrc({name:n,url:this.newSrc.url,ua:this.newSrc.ua}); if(this.subsrcMsg.indexOf("已保存")>=0){ this.newSrc={name:"",url:"",ua:""}; this.subsrcMsg="订阅源 "+n+" 已新增，可点它的「拉取并应用」生成镜像"; } },
     async saveSrc(it){ this.subsrcMsg="保存中…"; const r=await this.api("/api/subsrc/url","POST",{name:it.name,url:(it.url||"").trim(),ua:(it.ua||"").trim()}); const ok=(r.code===200); const err=r.data&&r.data.error||r.code; if(ok) await this.loadSubsrc(); this.subsrcMsg=ok?"上游设置已保存":("保存失败: "+err); return ok; },
     async checkSrc(name){ this.subsrcMsg="检查中…"; const r=await this.api("/api/subsrc/check","POST",{name:name}); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcMsg="检查完成"; } else this.subsrcMsg="检查失败: "+this.pretty(r.data&&r.data.error||r.data); },

@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.29  
+> **文档版本：** v0.30  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -30,6 +30,7 @@
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
 > **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
+> **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
 > **建议路径：** `docs/architecture.md`  
@@ -1552,7 +1553,35 @@ CDP 实测：点「+ 添加订阅」表格行 2 → 3；填入 `summer` / `file:
 
 `syncEntries()` 只把**模型里已有的订阅**合并进登记表，所以「还没进模型」的上游（例如想先接 summer）无处登记。改动：
 
-- 前端「订阅源更新」页新增「新增订阅源」卡片（名称 / 上游 URL / UA + 新增按钮），名称限 `^[A-Za-z0-9._-]+## 15. 本版（v0.29）变更清单
+- 前端「订阅源更新」页新增「新增订阅源」卡片（名称 / 上游 URL / UA + 新增按钮），名称限 `^[A-Za-z0-9._-]+## 14.23 一次性订阅 token、跳过节点留档与登记项删除（v0.30）
+
+### 14.23.1 现场反馈
+
+用户原话（要点）：「是 dae 自己无法加载这个订阅，且这个订阅被一个设备读取后 token 就会失效；我把 dae 的删除了以后，重新在服务端生成一个订阅并在订阅源导入了；还有订阅源更新那里没有删除的按钮。」
+
+### 14.23.2 一次性 token 改变了「订阅源」的默认姿势
+
+- **不要在「内容层 → 订阅」里填 http(s) 上游**：dae 每次 reload 都会自己拉一次，token 一次性 ⇒ 第二次就是 404/空订阅，且 dae 对拉不到的订阅**不报错**（静默 0 节点），面板也看不到原因。
+- **正确姿势 = 镜像**：面板「订阅源更新 → 拉取并应用」只在人工点击时拉一次 → 解析校验（0 节点拒绝覆盖）→ 备份旧镜像 → 0600 写 `/etc/dae/subs/<name>.sub` → reload；dae 只读 `file://` 本地文件，reload 多少次都不会消耗 token。
+- 所以 `--subsrc-check-hours` 自动巡检对一次性 token 的上游也应谨慎：巡检会再拉一次并可能把 token 烧掉。当前默认 6 小时（只报告差异），对一次性 token 上游建议在面板把该订阅的巡检关掉（后续可做 per-entry 开关）。
+
+### 14.23.3 跳过节点的留档（新增）
+
+Clash 转换只覆盖 `vmess/vless/ss/ssr/trojan/hysteria2/tuic`，其余类型进 `Skipped`。现场数据：summer 上游 121 个代理 → 转出 **61 个 ssr**、**跳过 60 个**（类型当时未留档，无法回溯）。
+
+改动：`internal/subsrc` 增 `FetchPayloadForceRaw` / `FetchPayloadRaw`（缓存里一并保存原始内容）；`handleSubsrcApply` 在 `format=clash` 时把上游原始 YAML 落到 `<backup-dir>/subs-raw/<name>.<时间戳>.yaml`（0600），响应里带 `rawPath`。这样即使 token 一次性，也能事后按真实字段补转换（例如 anytls）。
+
+### 14.23.4 登记项删除
+
+「订阅源更新」页此前只能新增/修改，不能删除。新增 `POST /api/subsrc/remove`：
+
+- 只删**登记**（上游 URL/UA/检查结果），**不删磁盘镜像**，也不碰 dae 配置；
+- 仍被「内容层 → 订阅」引用的登记项拒绝删除（409，提示先去内容层删除并应用），避免出现「模型引用一个没有上游的订阅」；
+- `syncEntries` 给模型里的订阅打 `inModel:true`，前端据此把「删除」按钮置灰并显示「内容层已引用」。
+
+实机验证（临时实例，独立 subsrc 副本，未动生产登记表）：列表 `[('CF',True),('dual',True),('summer',False,skipped=60)]`；删除 summer → 200；删除 CF → 409；删除后列表只剩 CF/dual。
+
+## 15. 本版（v0.30）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1575,3 +1604,4 @@ CDP 实测：点「+ 添加订阅」表格行 2 → 3；填入 `summer` / `file:
 19. **新增 §14.21（v0.27）**：转发开关改由面板持久化（`internal/access/sysctl.go`：应用时 `sysctl -w` 打开转发 + 写 `/etc/sysctl.d/99-homenet-panel.conf`，回滚按应用前基线还原或删除自有文件；`accessState` 增 `hadSysctlFile`/`originalSysctl`，apply/reload 失败路径一并回滚）+ clashconv 支持 Clash **行内映射** `- {k: v}` 与 **ssr** 链接转换（`parseFlowItem`/`splitTopLevel`/`ssrLink`），真实样本 61/61 转换、dae `validate` 接受 ssr 订阅。
 20. **转发改「有条件才开」（v0.28）**：`internal/access/ensure.go`（`EnsureForwardingForConfig` / `EnsureForwardingForInterfaces`，幂等且只补缺失项）+ `internal/dae` 的 `BeforeReload` / `OnReloadError`（reload 报 `ipforward on <iface> is off` 时按接口开转发并自动重试一次）+ `internal/api/forward.go` 接线；实机验证「改不动配置」死结解除，内核仅在 dae 要求时被改动（§14.21.4/14.21.5）。
 21. **面板 UI 两处「看起来没反应」（v0.29）**：补 `EntryPath` 传递（`--c` 真正生效）；内容层顶部新增应用条 + 明确「没有单独保存按钮」；「订阅源更新」页支持新增订阅源（名称白名单 `validSubName`），后端对尚未进入模型的上游自动分配默认镜像 `subs/<name>.sub` 并在 apply 时 0600 原子写入（§14.22）。
+22. **一次性 token 与登记项管理（v0.30）**：明确「上游只由面板拉一次并镜像，dae 只读 file://」；apply 时把 Clash 原始 YAML 留档到 `backups/subs-raw/`（便于补齐被跳过的节点类型）；新增 `POST /api/subsrc/remove` 与「删除」按钮，仍被内容层引用的登记项 409 拒绝（§14.23）。

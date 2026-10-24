@@ -134,13 +134,14 @@ func (s *Server) syncEntries() (*subsrc.Store, []subsrc.Entry) {
 			mp := s.mirrorPath(sub.Source)
 			if e := st.Find(sub.Name); e != nil {
 				e.Source = sub.Source
+				e.InModel = true
 				if mp != "" {
 					e.File = mp
 				}
 				out = append(out, *e)
 				continue
 			}
-			out = append(out, subsrc.Entry{Name: sub.Name, Source: sub.Source, File: mp})
+			out = append(out, subsrc.Entry{Name: sub.Name, Source: sub.Source, File: mp, InModel: true})
 		}
 	}
 	for _, e := range st.Items {
@@ -204,6 +205,41 @@ func (s *Server) handleSubsrcSetURL(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, "subsrc.seturl", name, true, "url 已更新")
 	writeJSON(w, 200, map[string]any{"ok": true, "item": e})
+}
+
+// handleSubsrcRemove 从登记表里删除一条上游（不删磁盘镜像；仍被内容层引用的拒绝删除）。
+func (s *Server) handleSubsrcRemove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		writeJSON(w, 400, map[string]any{"error": "bad json"})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		writeJSON(w, 400, map[string]any{"error": "缺少订阅名"})
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, items := s.syncEntries()
+	for _, it := range items {
+		if it.Name == name && it.InModel {
+			writeJSON(w, 409, map[string]any{"error": "该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用，再来删除登记"})
+			return
+		}
+	}
+	if !st.Delete(name) {
+		writeJSON(w, 404, map[string]any{"error": "登记表里没有该订阅: " + name})
+		return
+	}
+	if err := st.Save(); err != nil {
+		writeJSON(w, 500, map[string]any{"error": err.Error()})
+		return
+	}
+	s.audit(r, "subsrc.remove", name, true, "已从订阅源登记表删除")
+	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
 // handleSubsrcCheck 只拉取上游做差异比对，不写任何文件（可全量或指定 name）。
@@ -304,7 +340,7 @@ func (s *Server) handleSubsrcApply(w http.ResponseWriter, r *http.Request) {
 		entry.Source = "file://subs/" + name + ".sub"
 	}
 	base := s.baseDir()
-	data, format, skipped, err := subsrc.FetchPayload(&entry, base)
+	data, rawUpstream, format, skipped, err := subsrc.FetchPayloadRaw(&entry, base)
 	if err != nil {
 		e := st.Upsert(entry)
 		e.LastCheck = time.Now().UTC().Format(time.RFC3339)
@@ -362,6 +398,16 @@ func (s *Server) handleSubsrcApply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out["backupPath"] = backupPath
+	// 上游原始内容留档（部分机场的 token 一次性，重拉拿不到；便于事后排查被跳过的节点类型）
+	if len(rawUpstream) > 0 && format == "clash" {
+		rawDir := filepath.Join(s.BackupDir, "subs-raw")
+		if err := os.MkdirAll(rawDir, 0o700); err == nil {
+			rawPath := filepath.Join(rawDir, name+"."+time.Now().Format("20060102-150405")+".yaml")
+			if werr := os.WriteFile(rawPath, rawUpstream, 0o600); werr == nil {
+				out["rawPath"] = rawPath
+			}
+		}
+	}
 	if err := subsrc.WriteFileAtomic(entry.File, data, 0o600); err != nil {
 		s.audit(r, "subsrc.apply", name, false, "写入失败: "+err.Error())
 		writeJSON(w, 500, map[string]any{"error": "写入镜像失败: " + err.Error()})

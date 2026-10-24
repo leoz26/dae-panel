@@ -309,3 +309,26 @@ func TestLooksLikeHTML(t *testing.T) {
 		t.Fatal("HTML 应被识别")
 	}
 }
+
+func TestStoreDelete(t *testing.T) {
+	dir := t.TempDir()
+	st := &Store{Path: filepath.Join(dir, "subsrc.json"), CheckHours: 6}
+	st.Upsert(Entry{Name: "a", URL: "https://x/a"})
+	st.Upsert(Entry{Name: "b", URL: "https://x/b"})
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if !st.Delete("a") {
+		t.Fatal("删除已存在项应返回 true")
+	}
+	if st.Delete("a") {
+		t.Fatal("重复删除应返回 false")
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	back := Load(filepath.Join(dir, "subsrc.json"))
+	if back.Find("a") != nil || back.Find("b") == nil {
+		t.Fatalf("删除后应有 b、无 a，实际 %+v", back.Items)
+	}
+}

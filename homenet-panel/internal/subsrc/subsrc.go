@@ -37,6 +37,8 @@ type Entry struct {
 	AddedKeys   []string `json:"addedKeys,omitempty"`
 	RemovedKeys []string `json:"removedKeys,omitempty"`
 	LastApplied string   `json:"lastApplied,omitempty"`
+	// InModel 表示该订阅仍被配置（内容层）引用；只有未引用的登记项才允许从登记表删除。
+	InModel bool `json:"inModel,omitempty"`
 }
 
 // Store 是订阅源登记表，持久化为 JSON（0600）。
@@ -86,6 +88,17 @@ func (s *Store) Find(name string) *Entry {
 		}
 	}
 	return nil
+}
+
+// Delete 从登记表里移除一条登记项（不动磁盘上的镜像文件）。返回是否确有该条。
+func (s *Store) Delete(name string) bool {
+	for i := range s.Items {
+		if s.Items[i].Name == name {
+			s.Items = append(s.Items[:i], s.Items[i+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 // Upsert 新增或更新一条登记（按 Name 匹配）。
@@ -138,6 +151,7 @@ var fetchCacheTTL = 120 * time.Second
 
 type cachedPayload struct {
 	data    []byte
+	raw     []byte
 	format  string
 	skipped []string
 	at      time.Time
@@ -188,28 +202,44 @@ func FetchPayload(e *Entry, baseDir string) (data []byte, format string, skipped
 	return FetchPayloadForce(e, baseDir)
 }
 
+// FetchPayloadRaw 与 FetchPayload 相同，但额外返回上游原始内容（留档用）；命中缓存时也能拿到原始内容。
+func FetchPayloadRaw(e *Entry, baseDir string) (data, raw []byte, format string, skipped []string, err error) {
+	if fetchCacheTTL > 0 {
+		if c, ok := fetchCache[cacheKey(e)]; ok && time.Since(c.at) < fetchCacheTTL {
+			return c.data, c.raw, c.format, c.skipped, nil
+		}
+	}
+	return FetchPayloadForceRaw(e, baseDir)
+}
+
 // FetchPayloadForce 忽略缓存强制拉取上游，成功后刷新缓存。
 func FetchPayloadForce(e *Entry, baseDir string) (data []byte, format string, skipped []string, err error) {
-	raw, err := subs.FetchRawUA(baseDir, strings.TrimSpace(e.URL), e.UA)
+	data, _, format, skipped, err = FetchPayloadForceRaw(e, baseDir)
+	return data, format, skipped, err
+}
+
+// FetchPayloadForceRaw 同 FetchPayloadForce，另外返回上游原始内容（用于留档，便于排查被跳过的节点类型）。
+func FetchPayloadForceRaw(e *Entry, baseDir string) (data, raw []byte, format string, skipped []string, err error) {
+	raw, err = subs.FetchRawUA(baseDir, strings.TrimSpace(e.URL), e.UA)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, "", nil, err
 	}
 	if lookLikeHTML(raw) {
-		return nil, "html", nil, fmt.Errorf("上游返回的是网页（HTML）而不是订阅内容：该地址多半不是订阅链接，或链接已失效/需要浏览器登录，也可能要换 User-Agent")
+		return nil, raw, "html", nil, fmt.Errorf("上游返回的是网页（HTML）而不是订阅内容：该地址多半不是订阅链接，或链接已失效/需要浏览器登录，也可能要换 User-Agent")
 	}
 	if !clashconv.LooksLikeClash(raw) {
 		data, format, skipped = raw, "links", nil
 	} else {
 		res, cerr := clashconv.Convert(raw)
 		if cerr != nil {
-			return nil, "clash", res.Skipped, cerr
+			return nil, raw, "clash", res.Skipped, cerr
 		}
 		data, format, skipped = []byte(strings.Join(res.Links, "\n")), "clash", res.Skipped
 	}
 	if fetchCacheTTL > 0 {
-		fetchCache[cacheKey(e)] = cachedPayload{data: data, format: format, skipped: skipped, at: time.Now()}
+		fetchCache[cacheKey(e)] = cachedPayload{data: data, raw: raw, format: format, skipped: skipped, at: time.Now()}
 	}
-	return data, format, skipped, nil
+	return data, raw, format, skipped, nil
 }
 
 // lookLikeHTML 判断上游是不是返回了一个网页（404 页、登录页、面板首页等）。

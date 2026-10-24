@@ -1124,6 +1124,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/subsrc/url", s.auth(s.handleSubsrcSetURL))
 	mux.HandleFunc("/api/subsrc/check", s.auth(s.handleSubsrcCheck))
 	mux.HandleFunc("/api/subsrc/apply", s.auth(s.handleSubsrcApply))
+	mux.HandleFunc("/api/subsrc/remove", s.auth(s.handleSubsrcRemove))
 	// 网络接入向导（P-A 只读探测）
 	mux.HandleFunc("/api/access/probe", s.auth(s.handleAccessProbe))
 	mux.HandleFunc("/api/access/recommend", s.auth(s.handleAccessRecommend))
