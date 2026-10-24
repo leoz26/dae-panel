@@ -278,3 +278,34 @@ func TestSummaryAndCapKeys(t *testing.T) {
 		t.Fatalf("capKeys 截断异常: len=%d", len(got))
 	}
 }
+
+func TestFetchPayloadRejectsHTML(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html><head><title>404 Not Found</title></head><body>nope</body></html>"))
+	}))
+	defer srv.Close()
+	e := &Entry{Name: "x", URL: srv.URL}
+	_, format, _, err := FetchPayloadForce(e, t.TempDir())
+	if err == nil {
+		t.Fatal("网页响应应报错")
+	}
+	if format != "html" {
+		t.Fatalf("format 应为 html，得到 %q", format)
+	}
+	if !strings.Contains(err.Error(), "网页") {
+		t.Fatalf("错误信息应提示返回网页: %v", err)
+	}
+}
+
+func TestLooksLikeHTML(t *testing.T) {
+	if lookLikeHTML([]byte("vless://a@b:443#n")) {
+		t.Fatal("链接不应判为 HTML")
+	}
+	if !lookLikeHTML([]byte("  <!DOCTYPE html><html></html>")) {
+		t.Fatal("HTML 应被识别")
+	}
+	if !lookLikeHTML([]byte("<html><body>x</body></html>")) {
+		t.Fatal("HTML 应被识别")
+	}
+}

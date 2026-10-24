@@ -2,6 +2,7 @@ package subsrc
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -193,6 +194,9 @@ func FetchPayloadForce(e *Entry, baseDir string) (data []byte, format string, sk
 	if err != nil {
 		return nil, "", nil, err
 	}
+	if lookLikeHTML(raw) {
+		return nil, "html", nil, fmt.Errorf("上游返回的是网页（HTML）而不是订阅内容：该地址多半不是订阅链接，或链接已失效/需要浏览器登录，也可能要换 User-Agent")
+	}
 	if !clashconv.LooksLikeClash(raw) {
 		data, format, skipped = raw, "links", nil
 	} else {
@@ -206,6 +210,22 @@ func FetchPayloadForce(e *Entry, baseDir string) (data []byte, format string, sk
 		fetchCache[cacheKey(e)] = cachedPayload{data: data, format: format, skipped: skipped, at: time.Now()}
 	}
 	return data, format, skipped, nil
+}
+
+// lookLikeHTML 判断上游是不是返回了一个网页（404 页、登录页、面板首页等）。
+func lookLikeHTML(raw []byte) bool {
+	s := strings.TrimSpace(string(raw))
+	if s == "" {
+		return false
+	}
+	lower := strings.ToLower(s)
+	if strings.HasPrefix(lower, "<!doctype") || strings.HasPrefix(lower, "<html") {
+		return true
+	}
+	if strings.HasPrefix(s, "<") && strings.Contains(lower, "</") {
+		return true
+	}
+	return false
 }
 
 // Fetch 拉取上游订阅并解析为节点（只读，不写盘）。
