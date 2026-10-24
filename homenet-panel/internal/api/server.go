@@ -134,6 +134,11 @@ func New(c Config) *Server {
 	}
 	s.Sessions.SetPath(sessPath)
 	_ = s.Sessions.Load()
+	if s.Dae != nil {
+		s.Dae.BeforeReload = s.ensureForwarding
+		s.Dae.OnReloadError = s.healForwarding
+		s.ensureForwarding()
+	}
 	if c.TrafficIface != "" {
 		if src, err := traffic.NewDNSSource(c.TrafficIface); err != nil {
 			s.TrafficErr = err

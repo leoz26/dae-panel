@@ -53,7 +53,7 @@ func readSysctlConf() (string, bool) {
 
 // forwardingNow 读接口当前 forwarding 值（读不到返回空串）。
 func forwardingNow(iface string) string {
-	b, err := os.ReadFile(filepath.Join(sysctlProcDir, "ipv4", "conf", iface, "forwarding"))
+	b, err := os.ReadFile(filepath.Join(sysctlProcDir, "net", "ipv4", "conf", iface, "forwarding"))
 	if err != nil {
 		return ""
 	}

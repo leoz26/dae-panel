@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.27  
+> **文档版本：** v0.28  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -29,6 +29,7 @@
 > **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
+> **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
@@ -1430,7 +1431,7 @@ routing {
 
 
 
-## 14.21 转发开关的归属与 Clash 行内映射 / ssr 支持（v0.27）
+## 14.21 转发的条件触发、归属与 Clash 行内映射 / ssr 支持（v0.27/v0.28）
 
 ### 14.21.1 现象与根因（2026-10-24）
 
@@ -1483,13 +1484,43 @@ proxies:
 3. dae 侧验证：把 ssr 链接塞进 `file://` 订阅 + `dae validate` 得 EXIT=0（把订阅内容换成垃圾串则 EXIT=1，证明订阅确实被解析）。
 4. 回归：`SUMMER_SAMPLE=/tmp/summer.yaml go test ./internal/clashconv -run Summer` → **61 个代理，转出 61 条，跳过 0 个，类型 map[ssr:61]**。
 
-### 14.21.4 当前状态与待办
+### 14.21.4 产品口径（v0.28 定稿）：转发必须「有条件才开」
 
-- 代码已合入并部署（二进制 12,912,377 B，2026-10-24 15:16；panel 与 dae 均 active），**live 系统参数未改**：真正打开转发要等用户在面板里 apply 接入，或明确授权后手工 `sysctl -w`。
-- `summer` 订阅尚未接入 dae 配置（需要先打开转发，reload 才不会失败）。
-- OpenWrt 侧当前仍跑旧机场 `summer.yaml`（`enabled=0` 的订阅条目并未参与下载），与 .85 不构成同机场对比。
+用户口径（原话）：「应该是满足一个条件，设置为旁路由或者分配了 lan 输出的时候，打开转发」。
 
-## 15. 本版（v0.27）变更清单
+面板据此改成两条触发路径，**两条都以 dae 真的需要为前提**，只代理本机时绝不碰内核参数：
+
+| 触发 | 条件 | 动作 |
+| --- | --- | --- |
+| ① 配置声明 | 渲染后的 live 配置（含 include 展开）里有 `lan_interface: <ifaces>` | 面板启动时与**每次 reload 前**（`dae.Adapter.BeforeReload`）检查该接口与 `ip_forward`，缺什么补什么，并写 `/etc/sysctl.d/99-homenet-panel.conf` |
+| ② 运行时要求 | reload 报 `ipforward on <iface> is off` | `dae.Adapter.OnReloadError` 用正则取出接口名，只对该接口开转发并持久化，然后**自动重试一次 reload** |
+
+②这条是实机逼出来的：live 配置里**没有** `lan_interface`（`wan_interface: auto` 把 ens2 当 WAN，dae 仍绑定它并要求转发），所以只看配置会漏——「条件」应当以 dae 的实际要求为准，而不是只看有没有那行声明。
+
+配套实现：
+- `internal/access/ensure.go`：`EnsureForwardingForConfig(configPath)`（路径①）、`EnsureForwardingForInterfaces(ifaces)`（路径②），核心 `ensureForwardingFor` 先读当前值、只补缺失项；无改动时不写持久化文件（幂等）。顺带修掉旧 `forwardingNow` 少一层 `net/` 的路径 bug。
+- `internal/dae/dae.go`：`Adapter.BeforeReload func()` 与 `Adapter.OnReloadError func(code int, out string) bool`（返回 true 才重试一次），`Reload` 拆出 `reloadOnce`。
+- `internal/api/forward.go`：`ensureForwarding` / `healForwarding` / `forwardIfaceFromError`；在 `api.New` 里挂到 `s.Dae` 上，并在启动时先自检一次。
+
+## 14.21.5 实机验证（2026-10-24 16:02，192.168.1.85）
+
+| 项 | 结果 |
+| --- | --- |
+| 部署 | 二进制 12,924,989 B（16:02）→ stop/mv/chmod755/start；panel 与 dae 均 `active` |
+| 启动自检 | 日志无「转发自检」行 —— live 配置没声明 `lan_interface`，路径①按设计不动内核（`ip_forward` 仍是 0） |
+| 触发路径② | 用临时实例（127.0.0.1:8899，`/tmp` 下的 auth/session/audit）做一次「内容未改」的 `/api/model/apply`：先失败于 `ipforward on ens2 is off` → 面板日志「转发自检: dae 要求接口 ens2 的转发…已打开并持久化，重试 reload」→ **apply 返回 200**，`/var/run/dae.progress` = `2\nOK` |
+| 内核结果 | `net.ipv4.ip_forward = 1`、`net.ipv4.conf.ens2.forwarding = 1`；`/etc/sysctl.d/99-homenet-panel.conf`（302B）已写入 |
+| 只读不变量 | `/etc/dae/config.dae` md5 `7de9781a07f51041bb9ce866228baf2e`、`config.d/panel-core.dae` md5 `4ef4d2a0b73b325882c7044ea53da6d7` 均未变；改动前已自动备份 `/var/lib/homenet-panel/backups/config-20261024-160236.549.dae` |
+| 撤回 | `sysctl -w net.ipv4.ip_forward=0 net.ipv4.conf.ens2.forwarding=0` 并删 `/etc/sysctl.d/99-homenet-panel.conf`；或走面板「接入向导 → 回滚」 |
+
+结论：**「改不动配置」的死结已解开** —— 之后任何模型/订阅/子订阅变更都能 reload 成功；且内核只在 dae 真的要求时才被改动。
+
+14.21.6 待办
+- `summer`（SSR，61 节点）尚未接入 dae 配置：转换能力已具备，等用户确认后再写 `/etc/dae/subs/summer.sub` 并在模型里加 `subscription summer`。
+- OpenWrt 侧当前仍跑旧机场 `summer.yaml`（uci 里该订阅 `enabled=0`，未参与下载），与 .85 不构成同机场对比。
+
+
+## 15. 本版（v0.28）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1510,3 +1541,4 @@ proxies:
 17. 登录与改密表单语义化（form + name + autocomplete=username/current-password/new-password），恢复浏览器「保存密码/自动填充」；初始密码可设为 10086（setpass 不做强度校验）。
 18. 登录/改密改原生表单提交（`/login`、`/passwd` + 303），并把 `/passwd` 加入 mustChange 白名单；临时实例实测四类跳转码。
 19. **新增 §14.21（v0.27）**：转发开关改由面板持久化（`internal/access/sysctl.go`：应用时 `sysctl -w` 打开转发 + 写 `/etc/sysctl.d/99-homenet-panel.conf`，回滚按应用前基线还原或删除自有文件；`accessState` 增 `hadSysctlFile`/`originalSysctl`，apply/reload 失败路径一并回滚）+ clashconv 支持 Clash **行内映射** `- {k: v}` 与 **ssr** 链接转换（`parseFlowItem`/`splitTopLevel`/`ssrLink`），真实样本 61/61 转换、dae `validate` 接受 ssr 订阅。
+20. **转发改「有条件才开」（v0.28）**：`internal/access/ensure.go`（`EnsureForwardingForConfig` / `EnsureForwardingForInterfaces`，幂等且只补缺失项）+ `internal/dae` 的 `BeforeReload` / `OnReloadError`（reload 报 `ipforward on <iface> is off` 时按接口开转发并自动重试一次）+ `internal/api/forward.go` 接线；实机验证「改不动配置」死结解除，内核仅在 dae 要求时被改动（§14.21.4/14.21.5）。

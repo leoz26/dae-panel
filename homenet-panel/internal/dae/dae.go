@@ -22,6 +22,12 @@ type Adapter struct {
 	ConfigPath   string
 	PidFile      string
 	ProgressFile string
+
+	// BeforeReload 可选回调：每次 reload 前先执行（面板用它做"条件转发"自检）。
+	BeforeReload func()
+
+	// OnReloadError 可选回调：reload 返回非 0 时被调用；返回 true 表示已修复环境，重试一次。
+	OnReloadError func(code int, out string) bool
 }
 
 func New() *Adapter {
@@ -73,6 +79,18 @@ func (a *Adapter) Validate(path string) ValidateResult {
 }
 
 func (a *Adapter) Reload(pid int) (int, string) {
+	if a.BeforeReload != nil {
+		a.BeforeReload()
+	}
+	code, out := a.reloadOnce(pid)
+	if code != 0 && a.OnReloadError != nil && a.OnReloadError(code, out) {
+		code, out = a.reloadOnce(pid)
+	}
+	return code, out
+}
+
+// reloadOnce 执行一次 dae reload，不做任何修复。
+func (a *Adapter) reloadOnce(pid int) (int, string) {
 	args := []string{"reload"}
 	if pid > 0 {
 		args = append(args, strconv.Itoa(pid))
