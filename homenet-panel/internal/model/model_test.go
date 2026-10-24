@@ -106,6 +106,18 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
+func TestEssentialRulesCoverDHCPBroadcast(t *testing.T) {
+	found := false
+	for _, r := range EssentialRules {
+		if strings.Contains(r.Matcher, "255.255.255.255") && r.Out == "direct" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("DHCP 广播 255.255.255.255/32 必须直连，实际 %+v", EssentialRules)
+	}
+}
+
 func TestEnsureEssentials(t *testing.T) {
 	// 缺失时前置补入
 	rules := []Rule{{Matcher: "domain(geosite:youtube)", Out: "hk"}}

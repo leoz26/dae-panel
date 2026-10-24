@@ -36,6 +36,9 @@ type Rule struct {
 var EssentialRules = []Rule{
 	{Matcher: "dip(192.168.0.0/16)", Out: "direct"},
 	{Matcher: "dip(127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4)", Out: "direct"},
+	// DHCP DISCOVER/REQUEST 的源地址是 0.0.0.0、目的地址是 255.255.255.255，
+	// 不在内网网段里；实测漏掉它时广播仍被塞进 proxy 组（lAddr=0.0.0.0:68）。
+	{Matcher: "dip(255.255.255.255/32)", Out: "direct"},
 	{Matcher: "pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd)", Out: "direct"},
 }
 
