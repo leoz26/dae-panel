@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.28  
+> **文档版本：** v0.29  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -30,6 +30,7 @@
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
 > **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
+> **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
@@ -1520,7 +1521,38 @@ proxies:
 - OpenWrt 侧当前仍跑旧机场 `summer.yaml`（uci 里该订阅 `enabled=0`，未参与下载），与 .85 不构成同机场对比。
 
 
-## 15. 本版（v0.28）变更清单
+## 14.22 面板 UI 两处「看起来没反应」的真因（v0.29）
+
+用户反馈截图（自家面板，不是 OpenClash）：「内容层」点了「+ 添加订阅」像没生效，「订阅源更新」页没有新增入口。
+
+### 14.22.1 真因一：`--c` 没有传进 Server（真 bug，已修）
+
+`cmd/homenet-panel/main.go` 里 `--c` 只被 preflight / validate 用到，构造 `api.Config` 时**漏了 EntryPath**：
+
+```go
+srv := api.New(api.Config{
+    Dae:       a,
+    EntryPath: *cfg,   // v0.29 补上
+    ...
+})
+```
+
+生产上 `--c /etc/dae/config.dae` 与默认值相同，所以一直没暴露；一旦指向别的路径（本地联调、OpenWrt 上换路径），面板读的还是 `/etc/dae/config.dae`，模型会 fallback 成空（`parseError: 未解析出任何配置块`）。本地复现：`/api/model` 返回 `entryPath=/etc/dae/config.dae` 而不是 `--c` 的值；修复后返回正确路径且订阅被解析出来。
+
+### 14.22.2 真因二：「添加订阅」其实生效了，只是没有保存入口提示
+
+`model.subscriptions.push(...)` 会立刻多出一行空行，但页面只有**最底部**一个「校验+备份+reload 应用」按钮，用户以为没有保存按钮。改动：
+
+- 内容层顶部新增操作条：**「校验+备份+reload 应用」+「预览生成结果（不写盘）」**，与底部按钮等价；
+- info 文案明写「本页没有单独的『保存』按钮：改完必须点应用才写盘生效（输入框里的改动只是暂存在浏览器里）」。
+
+CDP 实测：点「+ 添加订阅」表格行 2 → 3；填入 `summer` / `file://subs/summer.sub` 后点「预览生成结果」，渲染出的`subscription {}` 包含 summer。
+
+### 14.22.3 真因三：订阅源登记表只能改不能加
+
+`syncEntries()` 只把**模型里已有的订阅**合并进登记表，所以「还没进模型」的上游（例如想先接 summer）无处登记。改动：
+
+- 前端「订阅源更新」页新增「新增订阅源」卡片（名称 / 上游 URL / UA + 新增按钮），名称限 `^[A-Za-z0-9._-]+## 15. 本版（v0.29）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1542,3 +1574,4 @@ proxies:
 18. 登录/改密改原生表单提交（`/login`、`/passwd` + 303），并把 `/passwd` 加入 mustChange 白名单；临时实例实测四类跳转码。
 19. **新增 §14.21（v0.27）**：转发开关改由面板持久化（`internal/access/sysctl.go`：应用时 `sysctl -w` 打开转发 + 写 `/etc/sysctl.d/99-homenet-panel.conf`，回滚按应用前基线还原或删除自有文件；`accessState` 增 `hadSysctlFile`/`originalSysctl`，apply/reload 失败路径一并回滚）+ clashconv 支持 Clash **行内映射** `- {k: v}` 与 **ssr** 链接转换（`parseFlowItem`/`splitTopLevel`/`ssrLink`），真实样本 61/61 转换、dae `validate` 接受 ssr 订阅。
 20. **转发改「有条件才开」（v0.28）**：`internal/access/ensure.go`（`EnsureForwardingForConfig` / `EnsureForwardingForInterfaces`，幂等且只补缺失项）+ `internal/dae` 的 `BeforeReload` / `OnReloadError`（reload 报 `ipforward on <iface> is off` 时按接口开转发并自动重试一次）+ `internal/api/forward.go` 接线；实机验证「改不动配置」死结解除，内核仅在 dae 要求时被改动（§14.21.4/14.21.5）。
+21. **面板 UI 两处「看起来没反应」（v0.29）**：补 `EntryPath` 传递（`--c` 真正生效）；内容层顶部新增应用条 + 明确「没有单独保存按钮」；「订阅源更新」页支持新增订阅源（名称白名单 `validSubName`），后端对尚未进入模型的上游自动分配默认镜像 `subs/<name>.sub` 并在 apply 时 0600 原子写入（§14.22）。

@@ -239,6 +239,20 @@ func (s *Server) handleSubsrcCheck(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "checked": checked, "items": after})
 }
 
+// validSubName 限制订阅名可安全用作文件名（避免 ../ 之类的路径穿越）。
+func validSubName(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 // handleSubsrcApply 拉取上游并覆盖本地镜像，随后 dae reload；失败自动恢复旧文件并再次 reload。
 // 未带 confirm 时只做 dryRun（返回差异）。
 func (s *Server) handleSubsrcApply(w http.ResponseWriter, r *http.Request) {
@@ -275,8 +289,19 @@ func (s *Server) handleSubsrcApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if entry.File == "" {
-		writeJSON(w, 422, map[string]any{"error": "该订阅引用的不是本地镜像文件（" + entry.Source + "），无法由面板更新"})
-		return
+		// 新登记的上游还没有镜像（模型里也还没引用它）：给它一个默认镜像路径，
+		// 应用时把转换结果写到 subs/<name>.sub，之后在「内容层」加订阅 file://subs/<name>.sub 即可。
+		if !validSubName(name) {
+			writeJSON(w, 422, map[string]any{"error": "订阅名只能包含字母、数字、点、下划线和短横线"})
+			return
+		}
+		subDir := filepath.Join(s.baseDir(), "subs")
+		if err := os.MkdirAll(subDir, 0o755); err != nil {
+			writeJSON(w, 500, map[string]any{"error": err.Error()})
+			return
+		}
+		entry.File = filepath.Join(subDir, name+".sub")
+		entry.Source = "file://subs/" + name + ".sub"
 	}
 	base := s.baseDir()
 	data, format, skipped, err := subsrc.FetchPayload(&entry, base)

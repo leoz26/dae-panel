@@ -234,6 +234,7 @@ func main() {
 		tlsOn := *tlsCert != "" && *tlsKey != ""
 		srv := api.New(api.Config{
 			Dae:          a,
+			EntryPath:    *cfg,
 			BackupDir:    *backupDir,
 			Token:        *token,
 			AuthPath:     *authPath,

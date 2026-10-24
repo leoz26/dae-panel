@@ -101,7 +101,12 @@ td input,td select{width:100%}
       <!-- 内容层 -->
       <div v-if="tab===&#39;content&#39;">
         <div v-if="modelErr" class="banner">模型解析告警: {{modelErr}}</div>
-        <div class="info">结构化编辑订阅 / 分组 / 分流规则，应用时自动渲染为 dae 配置并做 校验+备份+reload+失败回滚。全局(global)与 DNS 为高级原文编辑。</div>
+        <div class="info">结构化编辑订阅 / 分组 / 分流规则，应用时自动渲染为 dae 配置并做 校验+备份+reload+失败回滚。全局(global)与 DNS 为高级原文编辑。<b>本页没有单独的「保存」按钮：改完必须点下面或底部的「校验+备份+reload 应用」才写盘生效</b>（输入框里的改动只是暂存在浏览器里）。</div>
+        <div class="row" style="margin-bottom:10px">
+          <button class="primary" @click="applyModel">校验+备份+reload 应用</button>
+          <button @click="previewModel">预览生成结果（不写盘）</button>
+          <span class="muted" v-if="modelMsg">{{modelMsg}}</span>
+        </div>
         <div class="card">
           <h2>订阅 (subscription)</h2>
           <table>
@@ -232,6 +237,16 @@ td input,td select{width:100%}
             <span class="muted" v-if="subsrcMsg">{{subsrcMsg}}</span>
             <span class="pill" v-if="subsrcLastRun">上次巡检 {{subsrcLastRun}}</span>
           </div>
+        </div>
+        <div class="card">
+          <h2>新增订阅源</h2>
+          <div class="row" style="margin-bottom:8px">
+            <input style="width:150px" v-model="newSrc.name" placeholder="名称（如 summer）">
+            <input style="flex:1;min-width:260px" v-model="newSrc.url" placeholder="上游订阅 URL（https://...，含 token）">
+            <input style="width:210px" v-model="newSrc.ua" placeholder="User-Agent（留空=默认）">
+            <button class="primary" @click="addSrc">新增</button>
+          </div>
+          <div class="muted" style="font-size:12px">新增后先在这里「拉取并应用」生成镜像 subs/&lt;名称&gt;.sub，再到「内容层 → 订阅」添加一行 <span class="mono">file://subs/&lt;名称&gt;.sub</span> 并应用，dae 才会真正用上它。名称只能用字母/数字/点/下划线/短横线。</div>
         </div>
         <div class="card" v-for="(it,i) in subsrcItems" :key="&#39;src&#39;+i">
           <h2>订阅 {{it.name}}
@@ -727,7 +742,7 @@ createApp({
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
     modelSource:"", modelErr:"", previewEntry:"", previewCore:"", modelMsg:"",
     subsData:null, subMsg:"", groupsData:null, latency:{},
-    subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, auditData:null, auditMsg:"",
+    subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
     aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
     routeDomain:"", routeRes:null, routeMsg:"",
     ruleProbeDomain:"", ruleProbe:null,
@@ -821,7 +836,8 @@ createApp({
     async runSpeedAll(){ this.subMsg="测速中…"; const r=await this.api("/api/subs/speedtest","POST",{timeoutMs:3000}); if(r.code===200){ const m={}; r.data.results.forEach(function(x){ m[x.host+"|"+x.port]={ms:x.ms,error:x.error}; }); this.latency=m; this.subMsg="测速完成"; } else this.subMsg="测速失败"; },
     async speedOne(n){ const r=await this.api("/api/subs/speedtest","POST",{nodes:[{host:n.host,port:n.port}],timeoutMs:3000}); if(r.code===200 && r.data.results && r.data.results[0]){ const x=r.data.results[0]; this.latency[this.key(n)]={ms:x.ms,error:x.error}; } },
     async loadSubsrc(){ this.subsrcMsg="加载中…"; const r=await this.api("/api/subsrc"); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcHours=r.data.checkHours||6; this.subsrcLastRun=r.data.lastRun||""; this.subsrcMsg=""; } else this.subsrcMsg="加载失败 (HTTP "+r.code+")"; },
-    async saveSrc(it){ this.subsrcMsg="保存中…"; const r=await this.api("/api/subsrc/url","POST",{name:it.name,url:(it.url||"").trim(),ua:(it.ua||"").trim()}); this.subsrcMsg=(r.code===200)?"上游设置已保存":("保存失败: "+(r.data&&r.data.error||r.code)); if(r.code===200) this.loadSubsrc(); },
+    async addSrc(){ const n=(this.newSrc.name||"").trim(); if(!n){ this.subsrcMsg="请先填名称"; return; } if(!/^[A-Za-z0-9._-]+$/.test(n)){ this.subsrcMsg="名称只能用字母/数字/点/下划线/短横线"; return; } if(!(this.newSrc.url||"").trim()){ this.subsrcMsg="请填上游 URL"; return; } await this.saveSrc({name:n,url:this.newSrc.url,ua:this.newSrc.ua}); if(this.subsrcMsg.indexOf("已保存")>=0){ this.newSrc={name:"",url:"",ua:""}; this.subsrcMsg="订阅源 "+n+" 已新增，可点它的「拉取并应用」生成镜像"; } },
+    async saveSrc(it){ this.subsrcMsg="保存中…"; const r=await this.api("/api/subsrc/url","POST",{name:it.name,url:(it.url||"").trim(),ua:(it.ua||"").trim()}); const ok=(r.code===200); const err=r.data&&r.data.error||r.code; if(ok) await this.loadSubsrc(); this.subsrcMsg=ok?"上游设置已保存":("保存失败: "+err); return ok; },
     async checkSrc(name){ this.subsrcMsg="检查中…"; const r=await this.api("/api/subsrc/check","POST",{name:name}); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcMsg="检查完成"; } else this.subsrcMsg="检查失败: "+this.pretty(r.data&&r.data.error||r.data); },
     async checkAllSrc(){ this.subsrcMsg="检查全部上游…"; const r=await this.api("/api/subsrc/check","POST",{}); if(r.code===200){ this.subsrcItems=r.data.items||[]; this.subsrcMsg="检查完成（"+r.data.checked+" 个）"; } else this.subsrcMsg="检查失败: "+this.pretty(r.data&&r.data.error||r.data); },
     async applySrc(it){ if(!(it.url||"").trim()){ this.subsrcMsg="请先保存上游 URL"; return; } const r1=await this.api("/api/subsrc/apply","POST",{name:it.name}); if(r1.code!==200){ this.subsrcMsg="预览失败: "+this.pretty(r1.data&&r1.data.error||r1.data); return; } const d=r1.data; const fmt=(d.format==='clash')?"上游为 Clash YAML，已转为节点链接。":"上游为节点链接。"; const msg=fmt+"上游 "+d.remoteNodes+" 节点（本地 "+d.localNodes+"），新增 "+d.added+"、移除 "+d.removed+"。\n确认覆盖本地镜像并 reload dae？（失败会自动恢复旧文件）"; if(!confirm(msg)) { this.subsrcMsg="已取消"; return; } this.subsrcMsg="应用中…"; const r2=await this.api("/api/subsrc/apply","POST",{name:it.name,confirm:true}); this.subsrcMsg=(r2.code===200)?("已应用: "+(r2.data.message||"OK")):("应用失败: "+this.pretty(r2.data&&r2.data.error||r2.data)); this.loadSubsrc(); this.refreshStatus(); },
