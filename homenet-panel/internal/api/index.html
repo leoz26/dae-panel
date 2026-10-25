@@ -94,6 +94,7 @@ td input,td select{width:100%}
         <button :class="{active:tab===&#39;probe&#39;}" @click="tab=&#39;probe&#39;">运行探测</button>
         <button :class="{active:tab===&#39;bytes&#39;}" @click="tab=&#39;bytes&#39;;loadBytes()">字节统计</button>
         <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
+        <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
         <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
         <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
       </div>
@@ -108,6 +109,10 @@ td input,td select{width:100%}
           <b>面板模型与线上配置不一致</b>（线上可能被手工改过，或面板模型比线上旧）。此时点「应用」会用面板模型<b>覆盖</b>线上改动。
           <div v-for="(d,i) in modelDrift" :key="'df'+i" style="font-size:12px;color:#ffcc66">{{d}}</div>
           <button class="sm" style="margin-top:6px" @click="resyncModel">从线上重新解析（覆盖面板模型，不改线上）</button>
+        </div>
+        <div v-if="modelIssues && modelIssues.length" class="banner" style="border-color:#ff6655">
+          <b>模型检查发现 {{modelIssues.length}} 个问题</b>（不阻断保存，但这些问题会让规则失效或 reload 失败）：
+          <div v-for="(it,i) in modelIssues" :key="'mi'+i" style="font-size:12px;color:#ff9999">{{it.where}}：{{it.message}}</div>
         </div>
         <div class="info">结构化编辑订阅 / 分组 / 分流规则，应用时自动渲染为 dae 配置并做 校验+备份+reload+失败回滚。全局(global)与 DNS 为高级原文编辑。<b>本页没有单独的「保存」按钮：改完必须点下面或底部的「校验+备份+reload 应用」才写盘生效</b>（输入框里的改动只是暂存在浏览器里）。</div>
         <div class="row" style="margin-bottom:10px">
@@ -153,6 +158,8 @@ td input,td select{width:100%}
             <option v-for="g in model.groups" :value="g.name"></option>
             <option value="direct"></option>
             <option value="block"></option>
+            <option value="must_direct"></option>
+            <option value="must_block"></option>
           </datalist>
           <div class="muted" style="font-size:12px;margin-bottom:6px">规则自上而下首条命中即生效（顺序敏感，可调序）。出站可从下拉选分组或 direct。</div>
           <div class="muted" style="font-size:12px;margin-bottom:6px;color:#ffcc66">系统安全规则（自动前置注入，不在此表内、删不掉）：内网/回环/组播目标直连 + 本机进程（面板本身、dae、dhcpcd、systemd-resolved、sshd 等）直连。这样 DHCP 与面板自身的出站请求不会被丢进代理组。</div>
@@ -483,6 +490,44 @@ td input,td select{width:100%}
       </div>
 
       <!-- 审计日志 -->
+      <div v-if="tab===&#39;geo&#39;">
+        <div class="info">dae 的 <code>geoip.dat</code>/<code>geosite.dat</code> 决定 <code>geosite:*</code>、<code>geoip:*</code> 规则能否命中。数据源默认用 Loyalsoldier 的 v2ray-rules-dat（与 goose 时代一致）。更新流程：下载 → 校验（大小 / 必须含 <code>cn</code> tag）→ 备份旧文件到 <code>geo/</code> → 原子替换 → reload dae；任一步失败都不动现有文件。</div>
+        <div class="card">
+          <div class="row">
+            <button @click="loadGeo">刷新</button>
+            <button @click="checkGeo">检查更新（dry-run，不写盘）</button>
+            <button class="primary" @click="updateGeo">下载并更新（会 reload dae）</button>
+            <span class="muted" v-if="geoMsg">{{geoMsg}}</span>
+          </div>
+          <div v-if="geoData">
+            <div class="muted" style="margin:8px 0">目录 <code>{{geoData.dir}}</code>，每个文件保留 {{geoData.keep}} 份历史备份 → <code>{{geoData.backupDir}}</code></div>
+            <table class="tbl">
+              <tr><th>文件</th><th>大小</th><th>修改时间</th><th>可识别字符串</th></tr>
+              <tr v-for="(f,i) in geoData.files" :key="'gf'+i">
+                <td>{{f.name}}<span v-if="!f.exists" style="color:#ff8888"> （不存在）</span><div v-if="f.managed" style="font-size:11px;color:#ffcc66">由系统包管理：{{f.managed}}（用 apt 更新，面板不覆盖）</div></td>
+                <td>{{f.bytes?fmtBytes(f.bytes):'-'}}</td>
+                <td>{{f.modTime?f.modTime.replace('T',' ').slice(0,19):'-'}}</td>
+                <td>{{f.tags||'-'}}</td>
+              </tr>
+            </table>
+            <div class="muted" style="margin-top:10px">数据源</div>
+            <div style="margin:8px 0">
+              <div class="muted" style="font-size:12px">数据源（可改成镜像/自建地址；留空用默认）</div>
+              <input v-model="geoSrc.geoip" placeholder="geoip.dat 地址" style="width:100%;margin-top:4px">
+              <input v-model="geoSrc.geosite" placeholder="geosite.dat 地址" style="width:100%;margin-top:4px">
+              <button class="ghost" style="margin-top:4px" @click="geoSrc={geoip:'',geosite:''}">恢复默认</button>
+            </div>
+            <div class="muted" style="margin-top:10px">历史备份（{{(geoData.backups||[]).length}} 份）</div>
+            <div class="muted" style="font-size:12px" v-for="(b,i) in geoData.backups" :key="'gb'+i">{{b.name}} · {{fmtBytes(b.bytes)}}</div>
+          </div>
+        </div>
+        <div class="card" v-if="geoResult">
+          <h2>操作结果</h2>
+          <div v-for="(u,i) in geoResult.updated" :key="'ok'+i" style="font-size:12px">已更新 {{u.name}} · {{fmtBytes(u.bytes)}}<span v-if="u.tags"> · {{u.tags}} tag</span><span v-if="u.backup"> · 备份 {{u.backup}}</span></div>
+          <div v-for="(e,i) in geoResult.errors" :key="'ge'+i" style="font-size:12px;color:#ff8888">{{e}}</div>
+          <div class="muted" v-if="geoResult.dryRun" style="font-size:12px">（dry-run：只下载校验，未写盘、未 reload）</div>
+        </div>
+      </div>
       <div v-if="tab===&#39;audit&#39;">
         <div class="info">记录登录、配置应用/回滚、聚合切换、订阅源更新等操作的 JSONL 审计日志（默认 /var/lib/homenet-panel/audit.log，0600）。<span v-if="auditData && auditData.retention">保留策略：{{auditData.retention.desc}}，更早的自动删除；按大小轮转，不需要定时清理。</span></div>
         <div class="card">
@@ -760,6 +805,7 @@ createApp({
     modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], modelLayout:"", modelLayoutNote:"", previewEntry:"", previewCore:"", modelMsg:"",
     subsData:null, subMsg:"", groupsData:null, latency:{},
     subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
+    geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""},
     aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
     routeDomain:"", routeRes:null, routeMsg:"",
     ruleProbeDomain:"", ruleProbe:null,
@@ -817,7 +863,7 @@ createApp({
     latText(n){ var e=this.latency[this.key(n)]; if(!e) return "—"; if(e.error) return "✗"; return e.ms+"ms"; },
     latClass(n){ var e=this.latency[this.key(n)]; if(!e) return "muted"; if(e.error) return "err"; if(e.ms<300) return "ok"; if(e.ms<800) return "warn"; return "err"; },
     moveRule(i,d){ const j=i+d; const a=this.model.rules; if(j<0||j>=a.length) return; const t=a[i]; a[i]=a[j]; a[j]=t; },
-    outInvalid(o){ if(!o) return false; if(o==='direct'||o==='block'||o==='reject') return false; return !(this.model.groups||[]).some(function(g){return g.name===o;}); },
+    outInvalid(o){ if(!o) return false; if(o==='direct'||o==='block'||o==='must_direct'||o==='must_block') return false; return !(this.model.groups||[]).some(function(g){return g.name===o;}); },
     ruleHitIndex(){ if(!this.ruleProbe||!this.ruleProbe.rules) return -1; for(const rr of this.ruleProbe.rules){ if(rr.result==='match') return rr.index; } return -1; },
     async probeRules(){ const d=(this.ruleProbeDomain||"").trim(); if(!d){ return; } const res=await this.api("/api/route/test","POST",{domain:d, model:this.model}); if(res.code!==200){ this.ruleProbe=null; return; } this.ruleProbe=res.data.result; },
     async routeTest(){
@@ -846,7 +892,7 @@ createApp({
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
     async doRawApply(){ this.applyText="应用中…"; const r=await this.api("/api/apply","POST",{target:this.target,content:this.content,allowGoose:this.allowGoose}); this.applyText=this.pretty(r.data); this.refreshStatus(); },
     pretty(d){ try{ return typeof d==="string"?d:JSON.stringify(d,null,2); }catch(e){ return String(d); } },
-    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; this.modelDiverged=!!r.data.diverged; this.modelDrift=r.data.drift||[]; this.modelLayout=r.data.layout||""; this.modelLayoutNote=r.data.layoutNote||""; if(!this.subsrcItems||!this.subsrcItems.length) this.loadSubsrc(); } },
+    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; this.modelDiverged=!!r.data.diverged; this.modelDrift=r.data.drift||[]; this.modelLayout=r.data.layout||""; this.modelLayoutNote=r.data.layoutNote||""; this.modelIssues=r.data.issues||[]; if(!this.subsrcItems||!this.subsrcItems.length) this.loadSubsrc(); } },
     async resyncModel(){
       if(!confirm('用线上配置文件重建面板模型？会覆盖浏览器里的未保存改动（不修改线上配置）。')) return;
       const r=await this.api("/api/model/resync", {method:"POST", body:"{}"});
@@ -868,6 +914,17 @@ createApp({
     async applySrc(it){ if(!(it.url||"").trim()){ this.subsrcMsg="请先保存上游 URL"; return; } const r1=await this.api("/api/subsrc/apply","POST",{name:it.name}); if(r1.code!==200){ this.subsrcMsg="预览失败: "+this.pretty(r1.data&&r1.data.error||r1.data); return; } const d=r1.data; const fmt=(d.format==='clash')?"上游为 Clash YAML，已转为节点链接。":"上游为节点链接。"; const msg=fmt+"上游 "+d.remoteNodes+" 节点（本地 "+d.localNodes+"），新增 "+d.added+"、移除 "+d.removed+"。\n确认覆盖本地镜像并 reload dae？（失败会自动恢复旧文件）"; if(!confirm(msg)) { this.subsrcMsg="已取消"; return; } this.subsrcMsg="应用中…"; const r2=await this.api("/api/subsrc/apply","POST",{name:it.name,confirm:true}); this.subsrcMsg=(r2.code===200)?("已应用: "+(r2.data.message||"OK")):("应用失败: "+this.pretty(r2.data&&r2.data.error||r2.data)); this.loadSubsrc(); this.refreshStatus(); },
     goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
     exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
+    async loadGeo(){ this.geoMsg="加载中…"; const r=await this.api("/api/geo"); if(r.code===200){ this.geoData=r.data.data; this.geoData.keep=r.data.keep; this.geoMsg=""; if(!this.geoSrc.geoip&&r.data.data.urls) this.geoSrc.geoip=r.data.data.urls.geoip||""; if(!this.geoSrc.geosite&&r.data.data.urls) this.geoSrc.geosite=r.data.data.urls.geosite||""; } else this.geoMsg="加载失败 (HTTP "+r.code+")"; },
+    geoUrls(){ const u={}; if(this.geoSrc.geoip) u.geoip=this.geoSrc.geoip; if(this.geoSrc.geosite) u.geosite=this.geoSrc.geosite; return u; },
+    async checkGeo(){ this.geoMsg="检查中（要下载整个 dat；网络慢时会久一点）…"; const r=await this.api("/api/geo/update","POST",{dryRun:true,urls:this.geoUrls()}); this.geoResult=(r.data&&r.data.result)||null; if(r.code===200) this.geoMsg="检查完成（未写盘）"; else this.geoMsg="检查失败: "+this.pretty(r.data); },
+    async updateGeo(){
+      if(!confirm("下载并替换 geoip.dat/geosite.dat，然后 reload dae？旧文件会先备份到备份目录。")) return;
+      this.geoMsg="下载中（文件较大，约 10-30 秒）…";
+      const r=await this.api("/api/geo/update","POST",{urls:this.geoUrls()});
+      this.geoResult=(r.data&&r.data.result)||null;
+      if(r.code===200){ this.geoMsg="已更新并 reload"+(r.data.reloadCode===0?"成功":"（失败: "+r.data.reloadOut+"）"); await this.loadGeo(); await this.loadModel(); }
+      else this.geoMsg="更新失败: "+this.pretty(r.data);
+    },
     async loadAudit(){ this.auditMsg="加载中…"; const r=await this.api("/api/audit?limit=200"); if(r.code===200){ this.auditData=r.data; this.auditMsg=""; } else this.auditMsg="加载失败 (HTTP "+r.code+")"; },
     async loadAgg(){ this.aggMsg="合并中…"; const r=await this.api("/api/aggregate/preview"); if(r.code===200){ this.aggData=r.data; this.aggMsg=""; } else this.aggMsg="预览失败: "+this.pretty(r.data); },
     async buildAgg(){ this.aggMsg="生成中…"; const r=await this.api("/api/aggregate/build","POST",{}); if(r.code===200){ this.aggBuilt=r.data; this.aggMsg="已生成"; } else this.aggMsg="生成失败: "+this.pretty(r.data.error||r.data); },

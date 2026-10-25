@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.38  
+> **文档版本：** v0.39  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -1914,7 +1914,68 @@ n6 上退役 goose 后复查发现两个首次退役没覆盖到的点，已补�
 3. 安装脚本的幂等性要用「**再装一次**」验证，不能只看首次成功。
 4. 排查时注意 `/api/model` 里分组字段名是 `filters`（复数，`model.Group{Name,Policy,Filters}`），不是 `filter`——用错字段名会把正常数据误判为 None。
 
-## 15. 本版（v0.38）变更清单
+## 14.30 Geo 数据更新、出站白名单与「未找到该出站」（v0.39）
+
+### 14.30.1 现场问题的三个答案
+
+| 用户问题 | 结论 | 证据 |
+| --- | --- | --- |
+| 规则第 1 条的出站 `must_direct` 显示「未找到该出站」 | `must_direct`/`must_block` 是 **dae 内置出站**，面板前端白名单漏了；反过来 `reject` 面板当成合法、dae 却不认 | 逐个 `dae validate`：`-> direct/block/must_direct/must_block` 全部 rc=0；`-> reject` rc=1 `outbound (group) "reject" not found`；`grep -ac must_direct /usr/bin/dae` = 1 |
+| 这些规则是谁写的、用的哪个 geo 库 | 规则来自 goose/daed 时代；数据源是 **Loyalsoldier v2ray-rules-dat**（不是 v2fly 官方） | `/usr/share/dae/geoip.dat` 16,570,425B 与 Loyalsoldier 发布资产**逐字节同大小**；v2fly 官方 geoip.dat = 23,258,601B |
+| `geosite:steam@cn`、`geosite:microsoft@cn` 会不会命中 | 不会。geosite.dat 里没有这两个 tag ⇒ **死规则**（dae 不报错，静默不匹配） | 扫描 geosite.dat 可打印串：有 CN/APPLE-CN/GOOGLE-CN/GEOLOCATION-CN/TLD-CN/CATEGORY-ADS-ALL/CATEGORY-AI-!CN/YOUTUBE/PRIVATE/STEAM，无 STEAM@CN、MICROSOFT@CN；Loyalsoldier 最新 release 同样缺 |
+
+另：`dae --help` 的子命令只有 export / honk / reload / run / suspend / sysdump / trace / validate，**没有 update-geo**（那是 goose 自己的命令）⇒ geo 更新必须由面板提供。
+
+### 14.30.2 新包 internal/geodata（下载 → 校验 → 备份 → 原子替换）
+
+| 项 | 说明 |
+| --- | --- |
+| 默认源 | `DefaultURLs`：Loyalsoldier `releases/latest/download/{geoip,geosite}.dat`（tag 比 v2fly 全） |
+| 校验 | 小于 1MiB 直接判失败；geosite 必须能扫到 `cn` tag，否则视为「不是 geosite.dat」 |
+| 备份 | 替换前复制到 `<backupDir>/geo/<name>.<20060102-150405>`，按 `--geo-keep`（默认 3）轮转 |
+| 写入 | `writeAtomic`：同目录临时文件 + 0644 + rename |
+| 符号链接保护 | 目标若是符号链接（apt 装的 `v2ray-rules-dat` 会把 `/usr/share/dae/*.dat` 链到 `/usr/share/v2ray-rules-dat/*`）→ **下载前**就报错并提示用 apt 更新，绝不覆盖链接 |
+| dry-run | 只下载+校验，不写盘、不 reload |
+| reload | 真实更新成功后 `Dae.RunningPID()` + `Reload`，回填 `reloadCode`/`reloadOut`/`progress`；失败不静默 |
+
+`/api/geo`（GET，返回 `data` = 目录、文件表（含 symlink 指向、可识别字符串数）、备份表、默认 URL、`keep`）、`/api/geo/update`（POST `{targets,urls,dryRun}`；`urls` 支持换镜像）；`--geo-dir`（默认 `/usr/share/dae`）、`--geo-keep`（默认 3）。
+
+前端新增「Geo 数据」tab：文件表 + 可编辑数据源 + 历史备份 + 「刷新 / 检查更新（dry-run）/ 下载并更新（会 reload dae）」。
+
+### 14.30.3 出站白名单与模型检查（internal/model/lint.go）
+
+- `BuiltinOutbounds = direct / block / must_direct / must_block`；前端 `outInvalid()` 白名单与之对齐并**移除 reject**，datalist 补两个内置项。
+- `Lint(m)` 检查：出站未定义、`reject` 用法、出站为空、`fallback` 未定义；`LintGeo(m, tags)` 用 geosite 的真实 tag 集合判断 `geosite:xxx` 是否会命中，命中不了就提示「这条规则永远不会命中」。
+- `/api/model` 增 `issues` 与 `builtinOutbounds`；内容层顶部出现红框「模型检查发现 N 个问题」。
+
+### 14.30.4 模型漂移改为「语义比较」
+
+上一版 `normalizeConfig` 只去行尾空白/空行，导致手写的 `panel-core.dae`（换行、缩进、`tproxy_port: 12345` 的空格不同）被判成「模型与线上不一致」，n6 全新配置一上线就报 `diverged=true`。现改为：去空行 → 丢弃空 `subscription {}`/`group {}` → 折叠连续空白 → 去掉标点两侧空白 → 再逐字比较；`TestNormalizeIgnoresFormattingOnly` 覆盖「排版不同=一致、数值不同=不一致」。
+
+### 14.30.5 n6（Armbian aarch64）彻底重装 dae
+
+| 步骤 | 结果 |
+| --- | --- |
+| 备份 | `/root/dae-etc-backup-20261026-000532.tar.gz`（41,522B，含 `/etc/dae` 与 `/etc/daed`） |
+| 卸载 daed | `apt-get purge -y daed`；核对 `/usr/bin/daed`、`/etc/daed`、`daed.service` 均不存在 |
+| 加官方源 | `/etc/apt/sources.list.d/daeuniverse.sources` + `/usr/share/keyrings/daeuniverse-archive-goose.gpg` |
+| 装 dae | `apt-get install -y dae` → dae 2.1.1/arm64 由 dpkg 管理，附带 `v2ray-rules-dat`（该机带宽约 32kB/s，下载 7 分 58 秒） |
+| 副作用 | `/usr/share/dae/{geoip,geosite}.dat` 变成指向 `/usr/share/v2ray-rules-dat/` 的符号链接 ⇒ 面板 geo 更新按上表拒写并提示 apt 更新 |
+| 从头配置 | 旧 goose 配置存 `/root/config.dae.goose-backup-20261026-001713`；新写 split 布局（入口只 include `config.d/*.dae`，主体 4 条 essential 直连 + `fallback: direct`），`chmod 600`，`dae validate` rc=0，删除旧 `model.json`，`systemctl start dae` → active |
+| 面板 | arm64 二进制部署后 active；`/api/model` → `layout=split`、4 规则、`diverged=false`；`/api/geo/update` dry-run **0.0s** 返回符号链接说明 |
+
+### 14.30.6 .85 上的真实更新验证
+
+GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeout`，一次 dry-run 用掉 120s），因此用本机 HTTP 镜像做端到端验证：`/api/geo/update {urls:{geoip:http://127.0.0.1:8123/geoip.dat, ...}}` → 200、两文件替换成功、备份落到 `backups/geo/*`、`reloadCode=0`、`progress=2/OK`、dae 仍 active。失败态也验证过：dry-run 报错时返回 200 + `result.errors`，真实更新报错时 422 且不动现有文件。
+
+### 14.30.7 教训
+
+1. 新建 Go 包目录要先 `mkdir -p` 再写文件，否则 `fs.writeFile` 直接 `ENOENT`。
+2. `File.Tags` 带 `omitempty`，探针脚本用 `f["tags"]` 会 `KeyError`，要 `.get()`。
+3. 网络不稳的机器上「先下载再判符号链接」会让 dry-run 卡 2 分钟；判断顺序要按代价从低到高排。
+4. 漂移检测只比语义，不比排版，否则全新配置也会报「被手工改过」。
+
+## 15. 本版（v0.39）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1947,3 +2008,5 @@ n6 上退役 goose 后复查发现两个首次退役没覆盖到的点，已补�
 28. **单文件布局解析 + 空规则安全闸（v0.37）**：goose 遗留机（`/etc/dae/config.dae` 单文件、无 `config.d/`）上 `loadModel` 读不到主体配置 → 界面 0 规则且「应用」会静默清空路由规则。新增 `liveTexts()`/`coreExists()` 布局判定、`/api/model` 的 `layout`/`layoutNote`、以及「提交模型无规则且线上有 routing 时拒绝写入」的 422 安全闸；`.85`（split）与 `n6`（single，13 规则）双布局实测通过，发布 v0.35.4（§14.29）。
 
 29. **goose 完整残留面 + daed 告警（v0.38）**：`install.sh` 的 goose 检测扩到 `goose*.{service,timer}`（含 `/lib/systemd/system`，实测 n6 有 `goose-update-geo.timer` 指向已删二进制），退役时逐个 disable 并归档；新增 daed 检测（实测 n6 装着 daed 2.1.1，disabled/failed）只告警并给处置建议（§14.28.1）。
+
+30. **Geo 数据更新 + 出站白名单（v0.39）**：新增 `internal/geodata`（下载/校验/备份轮转/原子替换/符号链接保护/dry-run）与 `/api/geo`、`/api/geo/update`、`--geo-dir`/`--geo-keep`、前端「Geo 数据」tab；`internal/model/lint.go` 给出站白名单（补 `must_direct`/`must_block`、去掉 dae 不认的 `reject`）与 `LintGeo` 死规则检查，`/api/model` 增 `issues`；模型漂移改为语义比较（排版差异不再误报）；n6 上 purge daed + 官方源重装 dae 2.1.1 + 从零配置（§14.30）。

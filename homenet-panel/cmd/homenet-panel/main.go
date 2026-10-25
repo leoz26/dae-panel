@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -101,6 +102,8 @@ func main() {
 	auditMaxMB := fs.Int("audit-max-mb", 5, "审计日志单文件上限(MB)，超过后轮转")
 	auditKeep := fs.Int("audit-keep", 3, "审计日志保留几份历史(路由器建议 2)")
 	sessionPath := fs.String("session-path", "/var/lib/homenet-panel/sessions.json", "登录会话持久化文件(重启后不用重新登录；空=仅内存)")
+	geoDir := fs.String("geo-dir", "/usr/share/dae", "dae 的 geo 数据目录（geosite.dat/geoip.dat 所在处）")
+	geoKeep := fs.Int("geo-keep", 3, "geo 数据更新时保留几份历史备份")
 	allowPlain := fs.Bool("allow-plain-http", false, "TLS 开启时也允许明文 HTTP 访问(内网便利；默认只做 301 跳转到 https)")
 	userF := fs.String("user", "admin", "setpass 登录用户名")
 	passF := fs.String("password", "", "setpass 登录密码(留空则自动生成)")
@@ -244,6 +247,9 @@ func main() {
 			SubsrcPath:   *subsrcPath,
 			SessionPath:  *sessionPath,
 			CertPath:     *tlsCert,
+			GeoPath:      filepath.Join(*geoDir, "geosite.dat"),
+			GeoDir:       *geoDir,
+			GeoKeep:      *geoKeep,
 		})
 		mux := http.NewServeMux()
 		srv.Register(mux)

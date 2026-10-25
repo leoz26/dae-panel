@@ -43,7 +43,9 @@ type Config struct {
 	CorePath     string // 主体配置（global/group/dns/routing）
 	ModelPath    string // 结构化模型存储
 	TLS          bool   // 启用 HTTPS 时 cookie 置 Secure
-	GeoPath      string // geosite.dat 路径（分流命中调试）
+	GeoPath      string // geosite.dat 路径（分流命中调试 + geo tag 校验）
+	GeoDir       string // geo 数据目录（默认取 GeoPath 所在目录）
+	GeoKeep      int    // geo 数据保留几份历史备份（默认 3）
 	TrafficIface string // DNS 旁路统计抓包网卡（空=关闭流量统计）
 	AuditPath    string // 审计日志（JSONL）路径
 	SubsrcPath   string // 订阅源登记表路径
@@ -61,6 +63,8 @@ type Server struct {
 	ModelPath    string
 	TLS          bool
 	GeoPath      string
+	GeoDir       string
+	GeoKeep      int
 	TrafficIface string
 	AuditPath    string
 	SubsrcPath   string
@@ -73,6 +77,11 @@ type Server struct {
 	geoOnce sync.Once
 	geoDB   *geo.DB
 	geoErr  error
+
+	geoMu        sync.Mutex
+	geoTagsCache map[string]bool
+	geoMod       time.Time
+	geoSize      int64
 
 	Traffic    traffic.Source // 可插拔统计采集源（DNS 旁路；eBPF 预留）
 	TrafficErr error
@@ -104,6 +113,14 @@ func New(c Config) *Server {
 	if gp == "" {
 		gp = "/usr/share/dae/geosite.dat"
 	}
+	gd := c.GeoDir
+	if gd == "" {
+		gd = filepath.Dir(gp)
+	}
+	geoKeep := c.GeoKeep
+	if geoKeep <= 0 {
+		geoKeep = 3
+	}
 	apAudit := c.AuditPath
 	if apAudit == "" {
 		apAudit = "/var/lib/homenet-panel/audit.log"
@@ -126,6 +143,8 @@ func New(c Config) *Server {
 		ModelPath:    mp,
 		TLS:          c.TLS,
 		GeoPath:      gp,
+		GeoDir:       gd,
+		GeoKeep:      geoKeep,
 		TrafficIface: c.TrafficIface,
 		AuditPath:    apAudit,
 		SubsrcPath:   ssPath,
@@ -509,6 +528,11 @@ func (s *Server) handleGetModel(w http.ResponseWriter, r *http.Request) {
 	drift := s.modelDrift(m)
 	out["diverged"] = len(drift) > 0
 	out["drift"] = drift
+	// 静态检查：出站引用（must_direct/block/组名…）+ geosite tag 是否存在
+	issues := model.Lint(m)
+	issues = append(issues, model.LintGeo(m, s.geoTags())...)
+	out["issues"] = issues
+	out["builtinOutbounds"] = model.BuiltinOutbounds
 	writeJSON(w, 200, out)
 }
 
@@ -1170,6 +1194,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/access/apply", s.auth(s.handleAccessApply))
 	mux.HandleFunc("/api/access/rollback", s.auth(s.handleAccessRollback))
 
+	mux.HandleFunc("/api/geo", s.auth(s.handleGeo))
+	mux.HandleFunc("/api/geo/update", s.auth(s.handleGeoUpdate))
 	mux.HandleFunc("/api/audit", s.auth(s.handleAudit))
 	mux.HandleFunc("/api/audit/export", s.auth(s.handleAuditExport))
 

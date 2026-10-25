@@ -11,16 +11,33 @@ import (
 
 // normalizeConfig 去掉行尾空白与首尾空行，避免纯格式差异造成误报。
 func normalizeConfig(s string) string {
-	lines := strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n")
-	out := make([]string, 0, len(lines))
-	for _, ln := range lines {
-		out = append(out, strings.TrimRight(ln, " \t"))
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	var lines []string
+	for _, l := range strings.Split(s, "\n") {
+		t := strings.TrimSpace(l)
+		if t == "" {
+			continue
+		}
+		lines = append(lines, t)
 	}
-	return strings.TrimSpace(strings.Join(out, "\n"))
+	// 空块（subscription {} / group {}）与纯空白差异不算改过
+	var kept []string
+	for i := 0; i < len(lines); i++ {
+		if i+1 < len(lines) && lines[i+1] == "}" {
+			if head := strings.TrimSuffix(lines[i], "{"); head == "subscription " || head == "group " || head == "subscription" || head == "group" {
+				i++
+				continue
+			}
+		}
+		kept = append(kept, lines[i])
+	}
+	j := strings.Join(kept, "\n")
+	// 折叠连续空白，并去掉标点两侧的空白：语义不变，避免手工排版的假告警
+	j = strings.Join(strings.Fields(j), " ")
+	j = strings.NewReplacer(" {", "{", " }", "}", "( ", "(", " )", ")", " ,", ",", " -> ", "->", " :", ":", ": ", ":").Replace(j)
+	return j
 }
 
-// modelDrift 比较面板模型渲染结果与线上配置文件，返回差异说明（长度为 0 表示一致）。
-// 面板模型（model.json）是 UI 的真源，线上文件是 dae 的真源，两者可能被手工改动拉开。
 func (s *Server) modelDrift(m *model.Model) []string {
 	if m == nil {
 		return nil

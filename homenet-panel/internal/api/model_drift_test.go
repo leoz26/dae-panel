@@ -48,3 +48,15 @@ func TestModelDriftDetectsDifference(t *testing.T) {
 		t.Fatalf("nil 模型不应报漂移，got %v", d)
 	}
 }
+
+func TestNormalizeIgnoresFormattingOnly(t *testing.T) {
+	a := "global {\n  tproxy_port: 12345\n}\n\nsubscription {\n}\n"
+	b := "global {\ntproxy_port:12345\n}\n"
+	if normalizeConfig(a) != normalizeConfig(b) {
+		t.Fatalf("排版差异不应算作不一致：%q vs %q", normalizeConfig(a), normalizeConfig(b))
+	}
+	c := "global {\n  tproxy_port: 23456\n}\n"
+	if normalizeConfig(a) == normalizeConfig(c) {
+		t.Fatal("真实差异必须被检出")
+	}
+}

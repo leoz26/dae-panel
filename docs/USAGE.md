@@ -212,6 +212,23 @@ systemctl restart homenet-panel
 
 ---
 
+## 2.9 Geo 数据（geoip.dat / geosite.dat）
+
+`geosite:*`、`geoip:*` 规则能否命中，取决于 `/usr/share/dae` 下的 `geoip.dat` / `geosite.dat`。面板「Geo 数据」页可查看、检查（dry-run）、下载更新。
+
+- 默认源：Loyalsoldier `v2ray-rules-dat`（tag 比 v2fly 全，goose 时代用的就是它）。网络不好时可在页面上把数据源换成镜像地址。
+- 更新流程：下载 → 校验（大小 ≥1MiB、geosite 必须含 `cn` tag）→ 备份旧文件到 `<备份目录>/geo/`（默认保留 3 份）→ 原子替换 → `dae reload`。任一步失败都不改现有文件。
+- **符号链接会被拒绝**：若 `/usr/share/dae/*.dat` 是指向 `/usr/share/v2ray-rules-dat/` 的符号链接（apt 装的 `v2ray-rules-dat` 就是这样），面板不覆盖，请用 `apt update && apt install --only-upgrade v2ray-rules-dat`。
+- 相关参数：`--geo-dir`（默认 `/usr/share/dae`）、`--geo-keep`（默认 3）。
+
+## 2.10 出站写什么（direct / block / must_direct / must_block / 组名）
+
+规则右端只能是：`direct`、`block`、`must_direct`、`must_block`，或模型里已定义的组名（如 `hk`/`sg`/`proxy`）。
+
+- `must_direct` / `must_block` 是 dae 内置出站，**面板旧版本曾把它们误判为「未找到该出站」，已修**。
+- `reject` 不是合法出站（`dae validate` 会报 `outbound (group) "reject" not found`），请用 `block`。
+- 模型检查（内容层顶部红框）会提示：出站未定义、`fallback` 未定义、以及 `geosite:xxx` 在当前 geosite.dat 里不存在（这类规则永远不会命中，例如 `steam@cn`、`microsoft@cn`）。
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |
