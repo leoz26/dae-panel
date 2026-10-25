@@ -22,9 +22,10 @@ jobs:
       - name: 交叉编译
         run: |
           set -e
+          mkdir -p dist
           for arch in amd64 arm64; do
             ( cd homenet-panel && GOOS=linux GOARCH=$arch CGO_ENABLED=0 \
-                go build -trimpath -ldflags '-s -w' -o dist/homenet-panel-linux-$arch ./cmd/homenet-panel )
+                go build -trimpath -ldflags '-s -w' -o ../dist/homenet-panel-linux-$arch ./cmd/homenet-panel )
           done
           cp deploy/install.sh deploy/online-install.sh dist/
           ( cd dist && sha256sum homenet-panel-linux-* > sha256sums.txt && cat sha256sums.txt )
