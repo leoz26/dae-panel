@@ -26,6 +26,10 @@ func (s *Server) modelDrift(m *model.Model) []string {
 		return nil
 	}
 	var drift []string
+	if !s.coreExists() {
+		// 单文件布局：线上没有主体文件，无从比较（渲染结果天然不同），只提示不告警。
+		return nil
+	}
 	entry, core := model.Render(m)
 	if live, err := os.ReadFile(s.CorePath); err != nil {
 		drift = append(drift, fmt.Sprintf("读不到线上主体配置 %s：%v", s.CorePath, err))
@@ -42,9 +46,8 @@ func (s *Server) modelDrift(m *model.Model) []string {
 
 // handleResyncModel 用线上配置反向重建面板模型（覆盖 model.json），不改动线上文件。
 func (s *Server) handleResyncModel(w http.ResponseWriter, r *http.Request) {
-	entry, _ := os.ReadFile(s.EntryPath)
-	core, _ := os.ReadFile(s.CorePath)
-	m, perr := model.Parse(string(entry), string(core))
+	entry, core, _ := s.liveTexts()
+	m, perr := model.Parse(entry, core)
 	if perr != nil {
 		writeJSON(w, 422, map[string]any{"error": "解析线上配置失败: " + perr.Error()})
 		return

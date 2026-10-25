@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -446,6 +447,24 @@ func passwordWeakness(pw string) string {
 
 // ---- 模型（内容层） ----
 
+// liveTexts 读取线上入口配置与主体配置。主体文件不存在或为空时按「单文件布局」处理：
+// 此时入口文件本身就是全部配置（goose 等旧生成器、以及未拆分布的典型形态），
+// 直接把入口文本当作主体来解析，否则会得到「未解析出任何配置块」。
+func (s *Server) liveTexts() (entryText, coreText string, single bool) {
+	if b, err := os.ReadFile(s.EntryPath); err == nil {
+		entryText = string(b)
+	}
+	if b, err := os.ReadFile(s.CorePath); err == nil && len(bytes.TrimSpace(b)) > 0 {
+		return entryText, string(b), false
+	}
+	return entryText, entryText, true
+}
+
+func (s *Server) coreExists() bool {
+	b, err := os.ReadFile(s.CorePath)
+	return err == nil && len(bytes.TrimSpace(b)) > 0
+}
+
 func (s *Server) loadModel() (*model.Model, string, error) {
 	if b, err := os.ReadFile(s.ModelPath); err == nil {
 		var m model.Model
@@ -453,9 +472,8 @@ func (s *Server) loadModel() (*model.Model, string, error) {
 			return &m, "file", nil
 		}
 	}
-	entry, _ := os.ReadFile(s.EntryPath)
-	core, _ := os.ReadFile(s.CorePath)
-	m, err := model.Parse(string(entry), string(core))
+	entry, core, _ := s.liveTexts()
+	m, err := model.Parse(entry, core)
 	return m, "live", err
 }
 
@@ -479,6 +497,11 @@ func (s *Server) handleGetModel(w http.ResponseWriter, r *http.Request) {
 		"corePath":  s.CorePath,
 		// 面板强制注入的安全直连规则（界面上不可删，仅展示）
 		"essentialRules": model.EssentialRules,
+		"layout":         "split",
+	}
+	if !s.coreExists() {
+		out["layout"] = "single"
+		out["layoutNote"] = "线上是单文件布局（" + s.EntryPath + " 即全部配置，无 include）；本页按该文件解析。应用时会改写成 include + " + s.CorePath + "（自动备份，可回滚）。"
 	}
 	if err != nil {
 		out["parseError"] = err.Error()
@@ -824,6 +847,16 @@ func (s *Server) handleApplyModel(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &req); err != nil {
 		writeJSON(w, 400, map[string]any{"error": "bad json"})
 		return
+	}
+	// 安全闸：拒绝把空规则集写进本来有 routing 规则的线上配置（多半是模型解析失败后的误点）
+	if len(req.Model.Rules) == 0 {
+		_, liveCore, _ := s.liveTexts()
+		if strings.Contains(liveCore, "routing {") {
+			writeJSON(w, 422, map[string]any{
+				"error": "拒绝应用：提交的模型没有任何分流规则，而线上配置里有 routing 规则。若确实要清空，请先手工改配置再点「从线上重新解析」。",
+			})
+			return
+		}
 	}
 	entry, core := model.Render(&req.Model)
 	s.mu.Lock()
