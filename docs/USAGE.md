@@ -79,6 +79,19 @@ GH_TOKEN=$TOK sudo bash /tmp/oi.sh
 
 > 目标机没有 `curl` 时（Debian 最小安装、OpenWrt 常见），把上面两条改成 `wget -q --header="Authorization: Bearer $TOK" --header="Accept: application/octet-stream" -O /tmp/oi.sh <同一URL>`，或用 `python3 -c` 的 urllib 版本。脚本内部已自带 curl → wget → python3 三级回退，只有「取脚本本身」这一步需要你手动选工具。
 
+**依赖预检与前置组件（0/8 步）**：安装器会先检查 dae 是否安装/运行、以及是否存在 **goose**（旧配置生成器，会和面板双写同一份 dae 配置）：
+
+| 参数 | 作用 |
+| --- | --- |
+| （默认） | 只检测并提示；缺 dae 时面板以 degraded 只读模式运行 |
+| `--install-dae` | APT 系（Debian/Ubuntu/Armbian）自动添加 daeuniverse 官方仓库并 `apt install dae` |
+| `--retire-goose` | 停用 goose.service，把 `/usr/local/bin/goose*`、`/etc/goose`、unit 移到 `/root/goose-retired`（**移动不删除**），并写一份 README 说明如何恢复 |
+| `--goose-archive DIR` | 改归档目录（默认 `/root/goose-retired`） |
+
+```bash
+curl -fsSL .../online-install.sh | sudo bash -s -- --install-dae --retire-goose
+```
+
 安装完成后可用 `deploy/verify-install.sh` 做只读自检（6 组 20 项：BTF/memlock/ip_forward、目录与权限、服务定义与状态、端口、HTTPS 可达性、结论汇总）：
 
 ```bash

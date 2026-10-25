@@ -7,6 +7,7 @@ BIN_SRC=""; PORT=8787; TRAFFIC_IFACE="auto"
 STATE_DIR=/var/lib/homenet-panel; ETC_DIR=/etc/homenet-panel
 PANEL_USER=admin; PANEL_PASS=""; AUDIT_MAX_MB=5; AUDIT_KEEP=3
 DO_START=1; DRY=0; FORCE_CERT=0
+INSTALL_DAE=0; RETIRE_GOOSE=0; GOOSE_ARCHIVE=/root/goose-retired
 BIN_DST=/usr/local/bin/homenet-panel
 AUTH_FILE=/etc/homenet-panel.auth.json
 
@@ -30,6 +31,9 @@ while [ $# -gt 0 ]; do
     --no-start) DO_START=0; shift;;
     --dry-run) DRY=1; shift;;
     --force-cert) FORCE_CERT=1; shift;;
+    --install-dae) INSTALL_DAE=1; shift;;
+    --retire-goose) RETIRE_GOOSE=1; shift;;
+    --goose-archive) GOOSE_ARCHIVE="$2"; shift 2;;
     -h|--help) sed -n '2,3p' "$0"; exit 0;;
     *) die "未知参数：$1";;
   esac
@@ -41,6 +45,90 @@ done
 [ "$DRY" = 1 ] && info "DRY-RUN：只检查，不写任何文件"
 
 run() { if [ "$DRY" = 1 ]; then info "将执行: $*"; else "$@"; fi }
+
+
+fetch_to() { # fetch_to URL DEST —— curl → wget → python3 三级回退
+  local url=$1 dest=$2
+  if command -v curl >/dev/null 2>&1; then curl -fsSL -o "$dest" "$url" && return 0; fi
+  if command -v wget >/dev/null 2>&1; then wget -qO "$dest" "$url" && return 0; fi
+  if command -v python3 >/dev/null 2>&1; then python3 -c 'import sys,urllib.request;open(sys.argv[2],"wb").write(urllib.request.urlopen(sys.argv[1],timeout=60).read())' "$url" "$dest" && return 0; fi
+  return 1
+}
+
+step "0/8 依赖预检（dae / goose）"
+
+# --- dae ---
+DAE_BIN=$(command -v dae 2>/dev/null || true)
+if [ -n "$DAE_BIN" ]; then
+  DAE_VER=$("$DAE_BIN" --version 2>/dev/null | head -1)
+  ok "dae: ${DAE_VER:-$DAE_BIN}"
+  if pgrep -x dae >/dev/null 2>&1; then ok "dae 在运行"; else warn "dae 未运行：面板可打开，但应用配置会失败（reload 报错）"; fi
+else
+  warn "未安装 dae：面板将以 degraded 模式运行（只读，不能应用配置）"
+  APT=0; command -v apt-get >/dev/null 2>&1 && APT=1
+  if [ "$INSTALL_DAE" = 1 ]; then
+    [ "$APT" = 1 ] || die "--install-dae 目前只支持 APT 系（Debian/Ubuntu/Armbian）；其它发行版请按 https://github.com/daeuniverse/dae 安装"
+    APTMAJ=$(apt-get --version 2>/dev/null | head -1 | sed -n 's/.*apt \([0-9][0-9]*\).*/\1/p')
+    if [ "${APTMAJ:-2}" -ge 3 ]; then SRCFILE=daeuniverse.sources; else SRCFILE=daeuniverse.list; fi
+    info "添加 daeuniverse APT 仓库（$SRCFILE，APT 主版本 ${APTMAJ:-2}）"
+    if [ "$DRY" = 1 ]; then
+      info "将执行: 下载 https://daeuniverse.pages.dev/$SRCFILE → /etc/apt/sources.list.d/$SRCFILE"
+      info "将执行: 下载 https://daeuniverse.pages.dev/daeuniverse-archive-goose.gpg → /usr/share/keyrings/"
+      info "将执行: apt-get update && apt-get install -y dae"
+    else
+      fetch_to "https://daeuniverse.pages.dev/$SRCFILE" "/etc/apt/sources.list.d/$SRCFILE" || die "下载 APT 源失败（网络受限？）"
+      fetch_to "https://daeuniverse.pages.dev/daeuniverse-archive-goose.gpg" "/usr/share/keyrings/daeuniverse-archive-goose.gpg" || die "下载 GPG key 失败"
+      chmod 644 "/usr/share/keyrings/daeuniverse-archive-goose.gpg"
+      DEBIAN_FRONTEND=noninteractive apt-get update -q >/dev/null || die "apt-get update 失败"
+      DEBIAN_FRONTEND=noninteractive apt-get install -y -q dae >/dev/null || die "apt-get install dae 失败"
+      DAE_BIN=$(command -v dae 2>/dev/null || true)
+      if [ -n "$DAE_BIN" ]; then ok "dae 已安装：$("$DAE_BIN" --version 2>/dev/null | head -1)"; else die "安装后仍找不到 dae"; fi
+      warn "dae 还没配置：首次打开面板可生成初始配置，或自行放 /etc/dae/config.dae"
+    fi
+  else
+    info "要和面板一起装：加 --install-dae（APT 系自动添加官方仓库并安装）"
+  fi
+fi
+
+# --- goose（旧配置生成器，会与面板双写）---
+GOOSE_FOUND=""
+[ -n "$(command -v goose 2>/dev/null || true)" ] && GOOSE_FOUND=1
+[ -d /etc/goose ] && GOOSE_FOUND=1
+[ -f /etc/systemd/system/goose.service ] && GOOSE_FOUND=1
+pgrep -x goose >/dev/null 2>&1 && GOOSE_FOUND=1
+if [ -n "$GOOSE_FOUND" ]; then
+  warn "检测到 goose（旧配置生成器）：它和本面板都会写 dae 配置，可能互相覆盖"
+  if [ "$RETIRE_GOOSE" = 1 ]; then
+    info "退役 goose → $GOOSE_ARCHIVE（移动，不删除）"
+    run mkdir -p "$GOOSE_ARCHIVE/bin" "$GOOSE_ARCHIVE/etc" "$GOOSE_ARCHIVE/unit"
+    if [ -f /etc/systemd/system/goose.service ]; then
+      if [ "$DRY" = 1 ]; then info "将执行: systemctl disable --now goose.service"; else systemctl disable --now goose.service >/dev/null 2>&1 || true; fi
+    fi
+    if [ "$DRY" = 1 ]; then info "将移动 /usr/local/bin/goose* → $GOOSE_ARCHIVE/bin/"; else
+      for f in /usr/local/bin/goose /usr/local/bin/goose-0.5.*.bak; do
+        [ -e "$f" ] && mv "$f" "$GOOSE_ARCHIVE/bin/" 2>/dev/null || true
+      done
+    fi
+    if [ -d /etc/goose ]; then run mv /etc/goose "$GOOSE_ARCHIVE/etc/goose"; fi
+    if [ -f /etc/systemd/system/goose.service ]; then
+      run mv /etc/systemd/system/goose.service "$GOOSE_ARCHIVE/unit/"
+      if [ "$DRY" = 0 ]; then systemctl daemon-reload >/dev/null 2>&1 || true; fi
+    fi
+    if [ "$DRY" = 0 ]; then
+      {
+        echo "goose 已退役（$(date '+%Y-%m-%d %H:%M:%S')）——配置生成权已交给 HomeNet Panel。"
+        echo "- 这些文件只是被移动，未删除；确认面板稳定后可整目录删除。"
+        echo "- /etc/goose/config.yaml 含订阅 token，不要外传、不要提交到 git。"
+        echo "- 恢复：把需要的 goose 版本从 bin/ 拷回 /usr/local/bin/goose，再 systemctl enable --now goose.service。"
+      } > "$GOOSE_ARCHIVE/README.txt"
+      ok "goose 已归档到 $GOOSE_ARCHIVE"
+    fi
+  else
+    info "一并退役：加 --retire-goose（会停用并移动到 $GOOSE_ARCHIVE，不删除）"
+  fi
+else
+  ok "未发现 goose"
+fi
 
 # ---------- 1. 平台 ----------
 step "1/8 平台与能力探测"

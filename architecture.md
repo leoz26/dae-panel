@@ -1821,6 +1821,20 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 
 副作用说明：安装过程**只**替换面板自身二进制与 unit，不动 `/etc/dae/**`；实测安装前后 `panel-core.dae` 与 `config.dae` 的内容未变、dae 未重启。
 
+### 14.28 安装器补依赖预检：dae 一键装 + goose 退役（v0.36）
+
+目标机第一次装面板时，最常见的两个「装完不能用」来源是**没有 dae** 与**还留着 goose**（goose 是面板的前身，会和面板抢同一份 dae 配置）。`deploy/install.sh` 新增 0/8 步统一处理：
+
+| 检测项 | 判据 | 处置 |
+| --- | --- | --- |
+| dae 已装 | `command -v dae` | 打印版本；`pgrep -x dae` 不在则提示「应用配置会失败」 |
+| dae 未装 | 同上为空 | 提示 degraded；`--install-dae` 时自动加 daeuniverse APT 源并安装 |
+| goose 存在 | `command -v goose` / `/etc/goose` / goose.service / `pgrep -x goose` | 默认只告警；`--retire-goose` 退役到 `/root/goose-retired` |
+
+- **dae 自动安装**只走官方 APT 仓库（`https://daeuniverse.pages.dev`），按 APT 主版本选 `daeuniverse.sources`（APT ≥ 3）或 `daeuniverse.list`；同时下载 `daeuniverse-archive-goose.gpg` 到 `/usr/share/keyrings/`。三个 URL 实测 200（142B / 111B / 2275B）。非 APT 系统直接 `die` 并给文档链接，绝不瞎猜包管理器。
+- **goose 退役是「移动」不是删除**：先 `systemctl disable --now goose.service`，再把二进制、`/etc/goose`、unit 分别移到 `/root/goose-retired/{bin,etc,unit}`，写 `README.txt`（含「config.yaml 里有订阅 token，别外传」与恢复步骤），最后 `daemon-reload`。默认不执行，必须显式 `--retire-goose`。
+- 实机干跑（192.168.1.85，临时造 `/etc/goose` + 假 `/usr/local/bin/goose`）输出：默认 `[!] 检测到 goose … [=] 一并退役：加 --retire-goose`；加 `--retire-goose` 后打印 4 条「将执行/将移动」且**未真正移动**（dry-run 会跳过所有 mv），清理后 `/etc/goose` 与 `goose` 均不存在。
+
 ### 14.27.6 在线安装（v0.35 追加）
 
 `deploy/online-install.sh`（目标机侧）+ `.github/workflows/release.yml`（CI 侧）：
@@ -1837,7 +1851,7 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 2. `ssh host 'cmd'` 加 `-t` 会打印 `Pseudo-terminal will not be allocated`，无实际影响。
 3. 部署脚本在 macOS 上要显式给 `HOME` 与 `GOCACHE`，否则 Go 报 `GOCACHE is not defined and $HOME is not defined`。
 
-## 15. 本版（v0.35）变更清单
+## 15. 本版（v0.36）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
