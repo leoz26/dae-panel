@@ -132,6 +132,8 @@ Wants=network-online.target
 Type=simple
 $ENVLINE
 ExecStart=$BIN_DST $SERVE_ARGS
+# dae 要建大量 BPF map，默认 8MB memlock 会限制规模（E20）
+LimitMEMLOCK=infinity
 Restart=on-failure
 RestartSec=3
 
@@ -151,6 +153,7 @@ START=99
 start_service() {
 	procd_open_instance
 	procd_set_param command $BIN_DST $SERVE_ARGS
+	procd_set_param limits memlock=unlimited 2>/dev/null || true
 	procd_set_param respawn
 	procd_close_instance
 }
