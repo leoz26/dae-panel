@@ -15,6 +15,43 @@
 
 ## 2. 部署到新设备
 
+### 2.0 一条命令部署（推荐）
+
+在开发机上执行（会自动识别目标架构 → 交叉编译 → 上传 → 安装 → 起服务 → 自检）：
+
+```bash
+cd <仓库根>
+bash deploy/deploy.sh root@<目标IP> -i ~/.ssh/id_ed25519
+```
+
+输出结尾会直接给你访问地址、账号，以及（首次安装时）**只显示一次的随机密码**。
+
+它会做这 8 步，全部可重复执行（幂等，已有证书/账号/配置不会被覆盖）：
+
+| 步骤 | 内容 |
+|---|---|
+| 1 | 平台与能力探测（BTF、memlock、dae 版本、自动识别对外网卡） |
+| 2 | 建目录并收紧权限（`/var/lib/homenet-panel`、`/etc/homenet-panel`） |
+| 3 | 安装二进制（旧的自动备份成 `homenet-panel.bak`） |
+| 4 | 没有证书就生成自签证书（SAN 自动带上本机所有 IPv4） |
+| 5 | 没有凭证就生成随机密码并用 `setpass` 写入；已有凭证则保留 |
+| 6 | 生成服务定义（systemd unit 或 OpenWrt procd 脚本，旧文件备份到 `/root/`） |
+| 7 | 启用并启动，失败直接报日志定位命令 |
+| 8 | 自检（端口监听、dae 是否在跑、状态目录） |
+
+常用可选参数：
+
+```bash
+bash deploy/deploy.sh root@10.0.0.5 --port 9443 --traffic-iface eth1 -- --user admin --password 'Str0ngPass!'
+bash deploy/deploy.sh root@10.0.0.5 -- --dry-run      # 只检查，不写任何文件
+bash deploy/deploy.sh root@10.0.0.5 -- --force-cert   # 重签证书
+bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 flash 设备
+```
+
+不想用部署脚本、只想要“二进制已经传上去”的半自动方式：把 `deploy/install.sh` 和二进制拷到目标机，然后
+`bash install.sh --binary /tmp/homenet-panel`（参数同上，`--arch` 由 `uname -m` 决定）。
+
+
 ### 2.1 先核对设备能不能跑 dae
 
 dae 依赖内核 eBPF + BTF，**不是所有设备都能用**：
@@ -48,7 +85,7 @@ mkdir -p /etc/homenet-panel /var/lib/homenet-panel/backups
 | 路径 | 用途 |
 |---|---|
 | `/etc/homenet-panel/tls.crt` `tls.key` | HTTPS 证书（自签即可） |
-| `/etc/homenet-panel/auth.json` | 登录凭证（0600） |
+| `/etc/homenet-panel.auth.json` | 登录凭证（0600，**注意在 `/etc/` 下、不在子目录里**） |
 | `/var/lib/homenet-panel/model.json` | 面板模型（**UI 真源**） |
 | `/var/lib/homenet-panel/backups/` | 每次应用的配置备份 |
 | `/var/lib/homenet-panel/audit.log` | 审计日志（JSONL，自动轮转） |

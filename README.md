@@ -77,6 +77,14 @@ sudo /usr/local/bin/homenet-panel serve \
 - **可以直接输 `ip:8787` 吗？** 可以。同端口会识别明文 HTTP 并 **301 跳到 `https://`**；不想跳可加 `--allow-plain-http`（密码会明文过网）。
 - **每次都要重新登录？** 登录页勾「记住我」= 30 天免登录；会话写在 `--session-path`（默认 `/var/lib/homenet-panel/sessions.json`，0600，只存 token 的 SHA-256 摘要），面板重启也不会掉。
 
+## 一条命令部署
+
+```bash
+bash deploy/deploy.sh root@192.168.1.85 -i ~/.ssh/id_ed25519   # 自动交叉编译 + 上传 + 安装 + 起服务 + 自检
+```
+
+幂等可重复执行；已有证书、账号、配置不会被覆盖。详见 [docs/USAGE.md](docs/USAGE.md)。
+
 ## 目录结构
 
 ```

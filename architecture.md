@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.34  
+> **文档版本：** v0.35  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -34,6 +34,7 @@
 > **修订（v0.32）：** 组策略受控 A/B（同机场同机、只改 proxy 组、结束已恢复）：baseline(CF+dual 全节点) L3 成功 31%，只用香港 89%，香港固定节点 93%，`!日本` 8%；并确认 dae 的 `name(keyword: …)` 是**子串**不是正则（`'香港|新加坡'` 能过 validate 但匹配不到任何节点）。结论：延迟最小策略会被「端口开但数据面丢包」的远端节点骗到，组内混入远端节点是 69% 丢包的主因。详见 §14.25。  
 > **修订（v0.33）：** 按 A/B 结论把 `.85` 的 `proxy` 组正式改为「只用香港」（备份 `/root/ab/panel-core.dae.before-hkonly-20261025-152457`，md5 `393cc4f6db0abad99671522148b36d96`）；补测「reload 冷却期」——刚 reload 后立刻测是 0%，等 90 秒再测 baseline 28% / hk_only 92%，说明**应用配置后前几分钟的失败不能算进配置质量**。详见 §14.25.7。  
 > **修订（v0.34）：** v2rayN 规则集实测迁移（UDP443/广告拦截/AI 分组，见 §14.26）；发现并修复 model.json 与线上配置漂移，新增漂移检测与「从线上重新解析」；AI 规则实测由 sg（0/6）改为 hk（6/6）。
+> **修订（v0.35）：** 新增一条命令部署（`deploy/deploy.sh` 开发机侧 + `deploy/install.sh` 目标机侧，幂等、支持 --dry-run、systemd/procd 自动识别），实机验证见 §14.27。
 > **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
@@ -1774,7 +1775,59 @@ scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ss
 2. 规则语义迁移不能只看名字：`domain`+`ip` 在 v2rayN 是「或」、在 dae 同一行是「与」，拆行与否直接改变命中集合。
 3. 验证代理质量必须**等冷却期**（§14.25），否则会把「组还没测完速」误判成「节点坏了」。
 
-## 15. 本版（v0.34）变更清单
+## 14.27 一条命令部署（deploy/install.sh + deploy/deploy.sh，v0.35）
+
+### 14.27.1 目标
+
+把「交叉编译 → 上传 → 目录/证书/账号 → 服务定义 → 启动 → 自检」压成两条命令，且**幂等**：重复执行不覆盖已有证书、凭证与业务配置。
+
+### 14.27.2 两个脚本的分工
+
+| 脚本 | 运行位置 | 职责 |
+|---|---|---|
+| `deploy/deploy.sh` | 开发机 | 探测目标 `uname -m` → 交叉编译（`GOOS=linux GOARCH=<auto> CGO_ENABLED=0`，`-trimpath -ldflags "-s -w"`）→ scp 二进制与 install.sh 到 `/tmp/hnp-deploy` → 远程执行 → 清理 |
+| `deploy/install.sh` | 目标机（root） | 8 步安装：能力探测 / 目录 / 二进制 / 证书 / 账号 / 服务定义 / 启动 / 自检；`--dry-run` 只打印不写盘 |
+
+### 14.27.3 install.sh 的关键取舍
+
+1. **服务管理器自动识别**：`/etc/openwrt_release` 或 `/sbin/procd` → procd 的 `/etc/init.d/homenet-panel`；`/run/systemd/system` → systemd unit；都识别不到则不启动、只打印手动启动命令（fail-open，不猜）。
+2. **已有资源不覆盖**：证书存在则保留（`--force-cert` 才重签）；`/etc/homenet-panel.auth.json` 存在且没传 `--password` 则保留；旧二进制备份成 `homenet-panel.bak`，旧 unit/init 备份到 `/root/homenet-panel.{service,init}.bak.<时间戳>`。
+3. **密码只显示一次**：首次安装用 `openssl rand -base64 12` 生成 16 字符随机密码，经 `setpass` 写入后仅在末尾摘要里打印。
+4. **对外网卡自动识别**：取默认路由的 `dev`，识别不到再退到首个全局 IPv4 网卡；也可 `--traffic-iface` 指定。
+5. **EnvironmentFile 保留**：目标机存在 `/etc/homenet-panel.env` 时自动写入 `EnvironmentFile=-`（前导 `-` 保证文件缺失也不报错）。
+6. **自检走系统工具**：`ss -ltn` 看端口（服务器上没有 curl 也成立）、`pgrep -x dae`/`systemctl is-active dae` 看内核守护。
+
+### 14.27.4 实机验证（192.168.1.85，Debian 13 trixie）
+
+```
+[1/4] 目标 root@192.168.1.85 (x86_64) → 构建 linux/amd64
+[2/4] 交叉编译 → bin/homenet-panel-linux-amd64 （8.9MB，-s -w 后）
+[4/4] 远程安装
+  1/8 systemd / BTF 可用 / memlock 足够 / dae version v2.1.1 / 对外网卡 ens2
+  4/8 已有证书，保留        5/8 已有凭证，保留
+  6/8 旧 unit 备份 → /root/homenet-panel.service.bak.20261025-220402，写入新 unit
+  7/8 homenet-panel 运行中    8/8 端口 8787 已监听 / dae 运行中
+部署完成 → https://192.168.1.85:8787  admin
+```
+
+安装后 unit 实际内容（保留 `EnvironmentFile=-`，ExecStart 调成与原手工版等价的参数）：
+
+```ini
+ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
+  --backup-dir /var/lib/homenet-panel/backups --audit-path /var/lib/homenet-panel/audit.log \
+  --audit-max-mb 5 --audit-keep 3 --traffic-iface ens2 \
+  --tls-cert /etc/homenet-panel/tls.crt --tls-key /etc/homenet-panel/tls.key
+```
+
+副作用说明：安装过程**只**替换面板自身二进制与 unit，不动 `/etc/dae/**`；实测安装前后 `panel-core.dae` 与 `config.dae` 的内容未变、dae 未重启。
+
+### 14.27.5 坑
+
+1. 早期版本用 `"$BIN" --print-version` 判架构，二进制没有该 flag 会误报「架构不匹配」；改为「执行它、只看 126/127 退出码（exec format error / not found）」。
+2. `ssh host 'cmd'` 加 `-t` 会打印 `Pseudo-terminal will not be allocated`，无实际影响。
+3. 部署脚本在 macOS 上要显式给 `HOME` 与 `GOCACHE`，否则 Go 报 `GOCACHE is not defined and $HOME is not defined`。
+
+## 15. 本版（v0.35）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1802,3 +1855,4 @@ scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ss
 24. **组策略受控 A/B（v0.32）**：同机场同机只改 `proxy` 组，实测 baseline 31% / 只用香港 89% / 香港固定节点 93% / `!日本` 8%；查清 `name(keyword:)` 是子串非正则（`'香港|新加坡'` 能过 validate 但零匹配）、多行 `filter` 是 AND、`(a || b)` 语法被拒；结论是把远端节点赶出 fallback 组，归因需固定单节点而不能靠「最近一次选择」（§14.25）。
 25. **组策略落地（v0.33）**：`.85` 的 `proxy` 组改为只用香港并实机验证（28% → 92%）；补记「reload 冷却期」（刚 reload 立刻测是 0%，静置 90 秒后才有参考价值），据此要求面板在应用成功提示里写明「等 1–3 分钟再看效果」（§14.25.7）。
 26. **v2rayN 规则迁移 + 模型漂移防护（v0.34）**：7 条 v2rayN 规则全部翻译为 dae 语法并上线（UDP443 阻断、广告拦截、YouTube/AI 分组、国内拆两行直连、端口区间改 fallback），`/api/route/test` 命中与连通性双向验证；受控对照证明 `sg` 组 0/6、`hk` 组 6/6，AI 规则最终改走香港；发现 `model.json` 与线上配置漂移（点「应用」会覆盖手工改动），新增漂移检测 `diverged`/`drift` 与 `POST /api/model/resync`（§14.26）。另新增 `docs/USAGE.md`（部署到新设备的完整说明）（§14.26）。
+27. **一条命令部署（v0.35）**：`deploy/deploy.sh`（开发机）探测架构→交叉编译→上传→远程安装→自检；`deploy/install.sh`（目标机）8 步幂等安装，自动识别 systemd/procd、保留已有证书与凭证、首次安装打印一次性随机密码；`--dry-run` 全链路试运行；实机在 .85 验证通过且未触碰 `/etc/dae/**`（§14.27）。
