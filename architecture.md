@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.37  
+> **文档版本：** v0.38  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -37,6 +37,7 @@
 > **修订（v0.35）：** 新增一条命令部署（`deploy/deploy.sh` 开发机侧 + `deploy/install.sh` 目标机侧，幂等、支持 --dry-run、systemd/procd 自动识别），实机验证见 §14.27。
 > **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
 > **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
+> **修订（v0.38）：** 补齐 goose 的完整残留面（`goose-update-geo.{service,timer}` 这类额外 unit 也会被检测并退役）+ 新增 daed（第三个写 dae 配置的面板）告警；n6 的 `/root/goose-retired` 已在留档后整目录删除，详见 §14.28.1。  
 > **整理日期：** 2026-10-23  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
@@ -1863,6 +1864,18 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 - **goose 退役是「移动」不是删除**：先 `systemctl disable --now goose.service`，再把二进制、`/etc/goose`、unit 分别移到 `/root/goose-retired/{bin,etc,unit}`，写 `README.txt`（含「config.yaml 里有订阅 token，别外传」与恢复步骤），最后 `daemon-reload`。默认不执行，必须显式 `--retire-goose`。
 - 实机干跑（192.168.1.85，临时造 `/etc/goose` + 假 `/usr/local/bin/goose`）输出：默认 `[!] 检测到 goose … [=] 一并退役：加 --retire-goose`；加 `--retire-goose` 后打印 4 条「将执行/将移动」且**未真正移动**（dry-run 会跳过所有 mv），清理后 `/etc/goose` 与 `goose` 均不存在。
 
+### 14.28.1 goose 的「完整残留面」（v0.38 补）
+
+n6 上退役 goose 后复查发现两个首次退役没覆盖到的点，已补进 `install.sh` 的 0/8 依赖预检：
+
+| 残留形态 | 实际情况（n6） | 处置 |
+| --- | --- | --- |
+| 额外 systemd unit | `/lib/systemd/system/goose-update-geo.{service,timer}`（`ExecStart=/usr/local/bin/goose update-geo`，Weekly Sun 04:00，`disabled` 但 `preset: enabled`，不属于任何 dpkg 包） | 检测范围从「只看 `/etc/systemd/system/goose.service`」扩到 `/etc/systemd/system/goose*.{service,timer}` + `/lib/systemd/system/goose*.{service,timer}`；`--retire-goose` 时逐个 `systemctl disable --now` 再移到归档 `unit/` |
+| 另一个写 dae 配置的面板 | `dpkg` 里装着 **daed 2.1.1**（`/usr/bin/daed`、`/etc/daed/wing.db`），服务 `disabled`+最后一次运行 2026-10-20 3h14m 后 failed，当前未运行 | 只告警不自动处置：打印「daed 与本面板都会写 dae 配置，二者只能留一个」，并按 `is-active` 给出 `systemctl mask daed` / `apt remove daed` 建议 |
+
+- goose 归档已于 2026-10-25 在 n6 **整目录删除**（7.6MB）：删前写 `/root/goose-retired.inventory.txt`（2046B，含目录内每个文件的路径/字节/权限 + 两个 unit 的原文 + 恢复方法 + 「config.yaml 含订阅 token」提示），删后核对 goose 不在 PATH、systemd 无 goose 条目、面板与 dae 仍 active、`/etc/dae/config.dae` md5 `6d46aa9b1a7f021accd7499fdbb04ad0` 未变。
+- 实机验证（dry-run，未写盘）：.85 → 「未发现 goose」无告警；.85 造一个假 `goose-fake.timer` → 「检测到 goose」+「将执行: systemctl disable --now goose-fake.timer」+「将移动 …/goose-fake.timer」；n6 → 「未发现 goose」+ daed 告警（`daed 当前未运行（failed）`）。
+
 ## 14.29 单文件布局解析与空规则安全闸（v0.37）
 
 ### 14.29.1 现象
@@ -1901,7 +1914,7 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 3. 安装脚本的幂等性要用「**再装一次**」验证，不能只看首次成功。
 4. 排查时注意 `/api/model` 里分组字段名是 `filters`（复数，`model.Group{Name,Policy,Filters}`），不是 `filter`——用错字段名会把正常数据误判为 None。
 
-## 15. 本版（v0.37）变更清单
+## 15. 本版（v0.38）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1932,3 +1945,5 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 27. **一条命令部署（v0.35）**：`deploy/deploy.sh`（开发机）探测架构→交叉编译→上传→远程安装→自检；`deploy/install.sh`（目标机）8 步幂等安装，自动识别 systemd/procd、保留已有证书与凭证、首次安装打印一次性随机密码；`--dry-run` 全链路试运行；实机在 .85 验证通过且未触碰 `/etc/dae/**`（§14.27）。
 
 28. **单文件布局解析 + 空规则安全闸（v0.37）**：goose 遗留机（`/etc/dae/config.dae` 单文件、无 `config.d/`）上 `loadModel` 读不到主体配置 → 界面 0 规则且「应用」会静默清空路由规则。新增 `liveTexts()`/`coreExists()` 布局判定、`/api/model` 的 `layout`/`layoutNote`、以及「提交模型无规则且线上有 routing 时拒绝写入」的 422 安全闸；`.85`（split）与 `n6`（single，13 规则）双布局实测通过，发布 v0.35.4（§14.29）。
+
+29. **goose 完整残留面 + daed 告警（v0.38）**：`install.sh` 的 goose 检测扩到 `goose*.{service,timer}`（含 `/lib/systemd/system`，实测 n6 有 `goose-update-geo.timer` 指向已删二进制），退役时逐个 disable 并归档；新增 daed 检测（实测 n6 装着 daed 2.1.1，disabled/failed）只告警并给处置建议（§14.28.1）。

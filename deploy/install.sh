@@ -92,17 +92,28 @@ fi
 
 # --- goose（旧配置生成器，会与面板双写）---
 GOOSE_FOUND=""
+GOOSE_UNITS=""
+for u in /etc/systemd/system/goose*.service /etc/systemd/system/goose*.timer \
+         /lib/systemd/system/goose*.service /lib/systemd/system/goose*.timer; do
+  [ -f "$u" ] && GOOSE_UNITS="$GOOSE_UNITS $u"
+done
 [ -n "$(command -v goose 2>/dev/null || true)" ] && GOOSE_FOUND=1
 [ -d /etc/goose ] && GOOSE_FOUND=1
-[ -f /etc/systemd/system/goose.service ] && GOOSE_FOUND=1
+[ -n "$GOOSE_UNITS" ] && GOOSE_FOUND=1
 pgrep -x goose >/dev/null 2>&1 && GOOSE_FOUND=1
 if [ -n "$GOOSE_FOUND" ]; then
   warn "检测到 goose（旧配置生成器）：它和本面板都会写 dae 配置，可能互相覆盖"
   if [ "$RETIRE_GOOSE" = 1 ]; then
     info "退役 goose → $GOOSE_ARCHIVE（移动，不删除）"
     run mkdir -p "$GOOSE_ARCHIVE/bin" "$GOOSE_ARCHIVE/etc" "$GOOSE_ARCHIVE/unit"
-    if [ -f /etc/systemd/system/goose.service ]; then
-      if [ "$DRY" = 1 ]; then info "将执行: systemctl disable --now goose.service"; else systemctl disable --now goose.service >/dev/null 2>&1 || true; fi
+    if [ -n "$GOOSE_UNITS" ]; then
+      for u in $GOOSE_UNITS; do
+        n=$(basename "$u")
+        case "$n" in
+          *.timer|*.service)
+            if [ "$DRY" = 1 ]; then info "将执行: systemctl disable --now $n"; else systemctl disable --now "$n" >/dev/null 2>&1 || true; fi;;
+        esac
+      done
     fi
     if [ "$DRY" = 1 ]; then info "将移动 /usr/local/bin/goose* → $GOOSE_ARCHIVE/bin/"; else
       for f in /usr/local/bin/goose /usr/local/bin/goose-0.5.*.bak; do
@@ -110,8 +121,8 @@ if [ -n "$GOOSE_FOUND" ]; then
       done
     fi
     if [ -d /etc/goose ]; then run mv /etc/goose "$GOOSE_ARCHIVE/etc/goose"; fi
-    if [ -f /etc/systemd/system/goose.service ]; then
-      run mv /etc/systemd/system/goose.service "$GOOSE_ARCHIVE/unit/"
+    if [ -n "$GOOSE_UNITS" ]; then
+      for u in $GOOSE_UNITS; do run mv "$u" "$GOOSE_ARCHIVE/unit/"; done
       if [ "$DRY" = 0 ]; then systemctl daemon-reload >/dev/null 2>&1 || true; fi
     fi
     if [ "$DRY" = 0 ]; then
@@ -128,6 +139,18 @@ if [ -n "$GOOSE_FOUND" ]; then
   fi
 else
   ok "未发现 goose"
+fi
+
+# --- daed（daeuniverse 的图形面板，同样会写 dae 配置）---
+if command -v daed >/dev/null 2>&1 || dpkg -l 2>/dev/null | grep -q "^ii  *daed"; then
+  warn "检测到 daed（daeuniverse 的图形面板）：它和本面板都会写 dae 配置，二者只能留一个"
+  DAED_ACTIVE=$(systemctl is-active daed 2>/dev/null | head -1)
+  [ -n "$DAED_ACTIVE" ] || DAED_ACTIVE=inactive
+  if [ "$DAED_ACTIVE" = "active" ]; then
+    warn "  daed 正在运行 → 建议先停用：systemctl disable --now daed（确定不用再 apt remove daed）"
+  else
+    info "  daed 当前未运行（$DAED_ACTIVE）；确定不再使用后可 systemctl mask daed 或 apt remove daed"
+  fi
 fi
 
 # ---------- 1. 平台 ----------
