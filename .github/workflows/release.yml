@@ -1,0 +1,38 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: homenet-panel/go.mod
+      - name: 单元测试
+        working-directory: homenet-panel
+        run: go vet ./... && go test ./... -count=1
+      - name: 交叉编译
+        run: |
+          set -e
+          for arch in amd64 arm64; do
+            ( cd homenet-panel && GOOS=linux GOARCH=$arch CGO_ENABLED=0 \
+                go build -trimpath -ldflags '-s -w' -o dist/homenet-panel-linux-$arch ./cmd/homenet-panel )
+          done
+          cp deploy/install.sh deploy/online-install.sh dist/
+          ( cd dist && sha256sum homenet-panel-linux-* > sha256sums.txt && cat sha256sums.txt )
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" --notes "HomeNet Panel $TAG：linux/amd64 与 linux/arm64 静态二进制 + 在线安装脚本" \
+            || gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
