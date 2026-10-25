@@ -103,6 +103,7 @@ go vet ./... && go test ./... -count=1
 
 ## 文档
 
+- **`docs/USAGE.md`：使用与部署文档（部署到新设备、规则语法与 v2rayN 迁移、订阅源管理、接入档位、运维与 FAQ）**
 - `architecture.md`：总体架构、配置事务、订阅与聚合、接入档位设计、实测结论与变更清单
 - `docs/access-test-b2.md`：B2（主路由 DHCP 指向旁路由）端到端测试手册——前置条件、改前记录、逐项自检、三级回滚
 - `dae-cli-capability-checklist.md`：dae CLI 命令/信号/配置模型/坑点核对表

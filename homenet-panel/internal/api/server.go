@@ -483,6 +483,9 @@ func (s *Server) handleGetModel(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		out["parseError"] = err.Error()
 	}
+	drift := s.modelDrift(m)
+	out["diverged"] = len(drift) > 0
+	out["drift"] = drift
 	writeJSON(w, 200, out)
 }
 
@@ -1108,6 +1111,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/model", s.auth(s.handleGetModel))
 	mux.HandleFunc("/api/model/preview", s.auth(s.handlePreviewModel))
 	mux.HandleFunc("/api/model/apply", s.auth(s.handleApplyModel))
+	mux.HandleFunc("/api/model/resync", s.auth(s.handleResyncModel))
 	mux.HandleFunc("/api/subs/nodes", s.auth(s.handleSubsNodes))
 	mux.HandleFunc("/api/subs/groups", s.auth(s.handleSubsGroups))
 	mux.HandleFunc("/api/subs/speedtest", s.auth(s.handleSubsSpeedtest))

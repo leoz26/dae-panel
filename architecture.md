@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.33  
+> **文档版本：** v0.34  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -33,6 +33,7 @@
 > **修订（v0.31）：** 修两个订阅转换缺陷（alpn 嵌套列表被当作节点 → 40 个幽灵；anytls 协议未转换 → 20 个真节点丢失，已按 dae 的 outbound 解析实现补齐）；内容层订阅来源改为下拉选择。详见 §14.24。
 > **修订（v0.32）：** 组策略受控 A/B（同机场同机、只改 proxy 组、结束已恢复）：baseline(CF+dual 全节点) L3 成功 31%，只用香港 89%，香港固定节点 93%，`!日本` 8%；并确认 dae 的 `name(keyword: …)` 是**子串**不是正则（`'香港|新加坡'` 能过 validate 但匹配不到任何节点）。结论：延迟最小策略会被「端口开但数据面丢包」的远端节点骗到，组内混入远端节点是 69% 丢包的主因。详见 §14.25。  
 > **修订（v0.33）：** 按 A/B 结论把 `.85` 的 `proxy` 组正式改为「只用香港」（备份 `/root/ab/panel-core.dae.before-hkonly-20261025-152457`，md5 `393cc4f6db0abad99671522148b36d96`）；补测「reload 冷却期」——刚 reload 后立刻测是 0%，等 90 秒再测 baseline 28% / hk_only 92%，说明**应用配置后前几分钟的失败不能算进配置质量**。详见 §14.25.7。  
+> **修订（v0.34）：** v2rayN 规则集实测迁移（UDP443/广告拦截/AI 分组，见 §14.26）；发现并修复 model.json 与线上配置漂移，新增漂移检测与「从线上重新解析」；AI 规则实测由 sg（0/6）改为 hk（6/6）。
 > **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
@@ -1699,7 +1700,81 @@ scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ss
 - 回滚一条命令：`cp /root/ab/panel-core.dae.before-hkonly-20261025-152457 /etc/dae/config.d/panel-core.dae && chmod 600 … && systemctl reload dae`
 - 注意：面板下次「应用」会用**模型里解析到的同一份 filters** 重新渲染，所以这次改动会自然保留；若在面板 UI 里改回去，同样生效。
 
-## 15. 本版（v0.33）变更清单
+## 14.26 v2rayN 规则迁移实测 + 模型漂移防护（v0.34）
+
+### 14.26.1 背景
+
+用户提供了一份 v2rayN 规则集（`ruu.txt`，7 条，60 行）：UDP 443 阻断、private 直连、广告拦截、AI 专用代理、YouTube 代理、国内直连、兜底代理。问题：**这些规则能不能在 HomeNet Panel 里表达，怎么表达。**
+
+### 14.26.2 语义映射表
+
+| v2rayN | 面板 / dae | 说明 |
+|---|---|---|
+| `port: 443, network: udp` → block | `l4proto(udp) && dport(443) -> block` | UDP 443 是 QUIC/HTTP3 与部分 UDP 系业务 |
+| `geoip:private` + `geosite:private` → direct | 面板已自动注入 `dip(192.168.0.0/16)`、`dip(127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4)`、`dip(255.255.255.255/32)`、`pname(...)` | 属 EssentialRules，不在规则表内、删不掉 |
+| `domain:geosite:category-ads-all` → block | `domain(geosite:category-ads-all) -> block` | 语义一致 |
+| `domain:geosite:category-ai-!cn` → proxy | `domain(geosite:category-ai-!cn) -> <组>` | 组名由用户决定 |
+| `domain:geosite:youtube` → proxy | `domain(geosite:youtube) -> <组>` | 同上 |
+| `ip:geoip:cn` + `domain:geosite:cn` → direct（或关系） | 拆两行：`domain(geosite:cn, geosite:geolocation-cn) -> direct` 与 `ip(geoip:cn) -> direct` | **同一行谓词是「与」不是「或」**，必须拆 |
+| `port: 0-65535` → proxy | 写在 routing 末尾 `fallback: proxy` | dae 不支持端口区间写法 |
+
+### 14.26.3 能力核实（实机，非推测）
+
+- `/usr/share/dae/geosite.dat` 是 v2fly `GeoSiteList` protobuf，**tag 以大写存储**，共 1554 个；`CATEGORY-ADS-ALL`、`CATEGORY-AI-!CN`、`YOUTUBE`、`PRIVATE`、`CN`、`GEOLOCATION-CN` 均存在，引用时用小写可直接解析。
+- 翻译后的规则在临时配置上 `dae validate` **rc=0**（含 `domain(geosite:category-ai-!cn)` 这种带 `!` 的 tag）。
+- 面板规则模型是**自由文本**：`internal/model/model.go:26-27` 的 `Matcher`/`Out` 两个字符串，parseRouting 只按 `" -> "` 切分；`model.go:296` 渲染为 `    <matcher> -> <out>`。前端 datalist `outopts` 已含 `block`，`outInvalid()` 接受 `direct/block/reject/组名`。所以**不需要为这些规则加任何新代码**，直接在「内容层 → 分流规则」加行即可。
+- 模型往返验证：7 条规则 → Render → Parse 得 11 条（4 条 essential + 7 条自填），零丢失，fallback 保留。
+
+### 14.26.4 上线与命中实测
+
+应用后 `/etc/dae/config.d/panel-core.dae`（md5 `e924706ac24905778f0471c3c8f11a7f`）的 routing 顺序：4 条 essential → `l4proto(udp) && dport(443) -> block` → `domain(geosite:category-ads-all) -> block` → `domain(geosite:category-ai-!cn) -> hk` → `domain(geosite:youtube) -> hk` → `domain(suffix: claude.ai, suffix: anthropic.com) -> sg` → `domain(geosite:cn, geosite:geolocation-cn) -> direct` → `ip(geoip:cn) -> direct` → `fallback: proxy`。
+
+面板 `/api/route/test`（走真实 geosite/geoip）命中结果：www.youtube.com → hk（geosite:youtube）；claude.ai / chatgpt.com → category-ai-!cn；doubleclick.net → block（category-ads-all）；baidu / qq → direct；github.com / wikipedia → proxy（fallback）。
+
+连通性实测（.85 本机）：
+
+| 目标 | 组 | 结果 |
+|---|---|---|
+| doubleclick.net / googleadservices.com | block | TCP 6.1–6.2s 超时（确被丢弃） |
+| www.baidu.com | direct | 6/6，18–55ms |
+| youtubei.googleapis.com | hk | 6/6，avg 1.8s |
+| www.google.com | proxy | 6/6，avg 1.3s |
+| www.youtube.com | hk | 3/6（首屏域名本身不稳，子资源域名 6/6） |
+| www.reddit.com | proxy | 4/6 |
+| **claude.ai / chatgpt.com** | **sg** | **0/6** |
+| `api.openai.com` | sg | 同样失败 |
+
+**受控对照**：把 AI 规则临时改到 `-> hk`，validate 0、reload、**静置 90 秒**再测 → claude.ai 6/6 avg 1.2s、chatgpt.com 6/6 avg 2.3s、api.openai.com 6/6 avg 2.7s；测试脚本结束后自动恢复成 sg。
+
+**结论**：`sg` 组（新加坡 2 个节点，journal `alive_dialers=2 group=sg`）当时完全不可用，`hk`/`proxy` 组（alive_dialers 6–7）可用。AI 规则最终落为 `-> hk`，`sg` 组保留备用。这也再次印证 §14.25 的「reload 后有冷却期」：组策略是 `min_moving_avg`，刚 reload 完立刻测会得到一堆假失败。
+
+### 14.26.5 模型漂移（真风险）与防护
+
+**发现**：面板 UI 的真源是 `/var/lib/homenet-panel/model.json`（`internal/api/server.go` 的 loadModel 先读它，读不到才 Parse 线上文件）。实机检查发现该文件（1394B，10-24 23:47）里 `proxy` 组仍是旧的 `["subtag(CF)","subtag(dual)"]`、只有 4 条规则 —— 而线上配置已经被手工改过（HK-only 分组 + v2rayN 规则）。**此时用户在面板点一次「应用」，就会把线上的改动全部覆盖回旧状态。**
+
+处置：
+1. 立即把 `model.json` 手工同步成与线上一致（HK-only 分组、sg 组、11 条规则、fallback proxy），原文件备份为 `/root/ab/model.json.before-v2rayn-*`；
+2. 补代码能力（不依赖人肉同步）。
+
+新增 `homenet-panel/internal/api/model_drift.go`：
+
+| 函数 / 方法 | 作用 |
+|---|---|
+| `normalizeConfig(s string) string` | 去行尾空白、去首尾空行（避免脏格式误报） |
+| `(s *Server) modelDrift(m *model.Model) []string` | 把模型 Render 后与线上 `EntryPath`/`CorePath` 逐块比对，返回中文差异原因 |
+| `(s *Server) handleResyncModel` | `POST /api/model/resync`：Parse 线上 entry+core → saveModel → 审计 `model.resync` → 200。**只覆盖面板模型，不改线上** |
+
+配套改动：`handleGetModel` 响应新增 `diverged`/`drift`；前端「内容层」顶部在 `diverged` 时显示黄条「面板模型与线上配置不一致」+ 列出原因 + 按钮「从线上重新解析（覆盖面板模型，不改线上）」；新增测试 `model_drift_test.go` 的 `TestModelDriftDetectsDifference`（一致 / 行尾空行 / 多一条规则 / nil 模型 四例）。
+
+实机验证：临时实例 `/api/model` → `diverged:false, drift:null, rules:11`；`POST /api/model/resync` → 200 `ok=true rules=11`，之后仍 `diverged:false`。
+
+### 14.26.6 教训
+
+1. **有第二真源就有漂移**。文件是 dae 的真源，model.json 是 UI 的真源，两者一旦分叉，「应用」就是从 UI 覆盖文件的动作，会静默吃掉手工改动。防护只能靠每次读模型时做一致性检查 + 一键反向同步。
+2. 规则语义迁移不能只看名字：`domain`+`ip` 在 v2rayN 是「或」、在 dae 同一行是「与」，拆行与否直接改变命中集合。
+3. 验证代理质量必须**等冷却期**（§14.25），否则会把「组还没测完速」误判成「节点坏了」。
+
+## 15. 本版（v0.34）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1726,3 +1801,4 @@ scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ss
 23. **订阅转换两项修复 + 订阅选择器（v0.31）**：`ParseProxies` 按 `itemIndent` 区分节点与节点内嵌套列表（修掉 alpn 产生的 40 个幽灵节点）；新增 anytls 链接转换（依据 outbound 的 `parseAnytlsURL`），真实样本 81/81 全转、skipped 0；「内容层 → 订阅」来源改为下拉选择已登记镜像（§14.24）。
 24. **组策略受控 A/B（v0.32）**：同机场同机只改 `proxy` 组，实测 baseline 31% / 只用香港 89% / 香港固定节点 93% / `!日本` 8%；查清 `name(keyword:)` 是子串非正则（`'香港|新加坡'` 能过 validate 但零匹配）、多行 `filter` 是 AND、`(a || b)` 语法被拒；结论是把远端节点赶出 fallback 组，归因需固定单节点而不能靠「最近一次选择」（§14.25）。
 25. **组策略落地（v0.33）**：`.85` 的 `proxy` 组改为只用香港并实机验证（28% → 92%）；补记「reload 冷却期」（刚 reload 立刻测是 0%，静置 90 秒后才有参考价值），据此要求面板在应用成功提示里写明「等 1–3 分钟再看效果」（§14.25.7）。
+26. **v2rayN 规则迁移 + 模型漂移防护（v0.34）**：7 条 v2rayN 规则全部翻译为 dae 语法并上线（UDP443 阻断、广告拦截、YouTube/AI 分组、国内拆两行直连、端口区间改 fallback），`/api/route/test` 命中与连通性双向验证；受控对照证明 `sg` 组 0/6、`hk` 组 6/6，AI 规则最终改走香港；发现 `model.json` 与线上配置漂移（点「应用」会覆盖手工改动），新增漂移检测 `diverged`/`drift` 与 `POST /api/model/resync`（§14.26）。另新增 `docs/USAGE.md`（部署到新设备的完整说明）（§14.26）。

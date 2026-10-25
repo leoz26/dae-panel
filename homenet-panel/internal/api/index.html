@@ -101,6 +101,11 @@ td input,td select{width:100%}
       <!-- 内容层 -->
       <div v-if="tab===&#39;content&#39;">
         <div v-if="modelErr" class="banner">模型解析告警: {{modelErr}}</div>
+        <div v-if="modelDiverged" class="banner" style="border-color:#ffcc66">
+          <b>面板模型与线上配置不一致</b>（线上可能被手工改过，或面板模型比线上旧）。此时点「应用」会用面板模型<b>覆盖</b>线上改动。
+          <div v-for="(d,i) in modelDrift" :key="'df'+i" style="font-size:12px;color:#ffcc66">{{d}}</div>
+          <button class="sm" style="margin-top:6px" @click="resyncModel">从线上重新解析（覆盖面板模型，不改线上）</button>
+        </div>
         <div class="info">结构化编辑订阅 / 分组 / 分流规则，应用时自动渲染为 dae 配置并做 校验+备份+reload+失败回滚。全局(global)与 DNS 为高级原文编辑。<b>本页没有单独的「保存」按钮：改完必须点下面或底部的「校验+备份+reload 应用」才写盘生效</b>（输入框里的改动只是暂存在浏览器里）。</div>
         <div class="row" style="margin-bottom:10px">
           <button class="primary" @click="applyModel">校验+备份+reload 应用</button>
@@ -749,7 +754,7 @@ createApp({
     tab:"content", status:{}, resultText:"", applyText:"",
     target:"/etc/dae/config.dae", content:"", allowGoose:false,
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
-    modelSource:"", modelErr:"", previewEntry:"", previewCore:"", modelMsg:"",
+    modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], previewEntry:"", previewCore:"", modelMsg:"",
     subsData:null, subMsg:"", groupsData:null, latency:{},
     subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
     aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
@@ -838,7 +843,13 @@ createApp({
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
     async doRawApply(){ this.applyText="应用中…"; const r=await this.api("/api/apply","POST",{target:this.target,content:this.content,allowGoose:this.allowGoose}); this.applyText=this.pretty(r.data); this.refreshStatus(); },
     pretty(d){ try{ return typeof d==="string"?d:JSON.stringify(d,null,2); }catch(e){ return String(d); } },
-    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; if(!this.subsrcItems||!this.subsrcItems.length) this.loadSubsrc(); } },
+    async loadModel(){ const r=await this.api("/api/model"); if(r.code===200 && r.data && r.data.model){ const m=r.data.model; this.model={global:m.global||"",dns:m.dns||"",subscriptions:m.subscriptions||[],groups:m.groups||[],rules:m.rules||[],fallback:m.fallback||""}; this.modelSource=r.data.source||""; this.modelErr=r.data.parseError||""; this.modelDiverged=!!r.data.diverged; this.modelDrift=r.data.drift||[]; if(!this.subsrcItems||!this.subsrcItems.length) this.loadSubsrc(); } },
+    async resyncModel(){
+      if(!confirm('用线上配置文件重建面板模型？会覆盖浏览器里的未保存改动（不修改线上配置）。')) return;
+      const r=await this.api("/api/model/resync", {method:"POST", body:"{}"});
+      if(r.code===200){ this.modelMsg="已从线上重新解析"; await this.loadModel(); }
+      else { this.modelMsg=(r.data&&r.data.error)||('重新解析失败('+r.code+')'); }
+    },
     async previewModel(){ this.modelMsg="生成中…"; const r=await this.api("/api/model/preview","POST",{model:this.model}); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; this.modelMsg="已生成预览(未应用)"; } else this.modelMsg="预览失败: "+this.pretty(r.data); },
     async applyModel(){ this.modelMsg="应用中…"; const r=await this.api("/api/model/apply","POST",{model:this.model}); this.modelMsg=(r.code===200 && r.data.result && r.data.result.applied) ? "已应用并重载成功" : ("应用失败: "+this.pretty(r.data.error||r.data)); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; } this.refreshStatus(); },
     async loadSubs(){ this.subMsg="加载中…"; const r=await this.api("/api/subs/nodes"); if(r.code===200){ this.subsData=r.data; this.subMsg=""; } else { this.subMsg="加载失败"; } const g=await this.api("/api/subs/groups"); if(g.code===200){ this.groupsData=g.data; } },
