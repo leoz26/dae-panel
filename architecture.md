@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.32  
+> **文档版本：** v0.33  
 > **整理日期：** 2026-10-23  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -32,6 +32,7 @@
 > **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
 > **修订（v0.31）：** 修两个订阅转换缺陷（alpn 嵌套列表被当作节点 → 40 个幽灵；anytls 协议未转换 → 20 个真节点丢失，已按 dae 的 outbound 解析实现补齐）；内容层订阅来源改为下拉选择。详见 §14.24。
 > **修订（v0.32）：** 组策略受控 A/B（同机场同机、只改 proxy 组、结束已恢复）：baseline(CF+dual 全节点) L3 成功 31%，只用香港 89%，香港固定节点 93%，`!日本` 8%；并确认 dae 的 `name(keyword: …)` 是**子串**不是正则（`'香港|新加坡'` 能过 validate 但匹配不到任何节点）。结论：延迟最小策略会被「端口开但数据面丢包」的远端节点骗到，组内混入远端节点是 69% 丢包的主因。详见 §14.25。  
+> **修订（v0.33）：** 按 A/B 结论把 `.85` 的 `proxy` 组正式改为「只用香港」（备份 `/root/ab/panel-core.dae.before-hkonly-20261025-152457`，md5 `393cc4f6db0abad99671522148b36d96`）；补测「reload 冷却期」——刚 reload 后立刻测是 0%，等 90 秒再测 baseline 28% / hk_only 92%，说明**应用配置后前几分钟的失败不能算进配置质量**。详见 §14.25.7。  
 > **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
 > **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
@@ -1677,7 +1678,28 @@ python3 tools/netdiag/stability/probe.py --tag via11 --duration 3600 --interval 
 scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ssh root@<旁路由> 'python3 /root/ab_group.py'
 ```
 
-## 15. 本版（v0.32）变更清单
+### 14.25.7 冷却期与应用落地（v0.33）
+
+**踩到的坑：reload 之后的前几分钟全红。** 按 A/B 结论把 `proxy` 改成只用香港后，**立刻**跑 240 秒探针得到 `0/28 = 0%`（`EOFNoResponse` 21 次 + 超时 7 次），差点被误判成"改坏了"。原因：`min_moving_avg` 需要重新测速建立排序，刚 reload 时组内还没有可用测量值，连接全被掐。
+
+**公平复测（每次 reload 后先静置 90 秒，再跑 240 秒 l3 探针）**：
+
+| 变体 | 境外 L3 | 成功率 |
+|---|---|---|
+| baseline（CF+dual 全节点） | 10/36 | **28%** |
+| hk_only（`subtag(dual) && name(keyword:'香港')`） | 85/92 | **92%** |
+
+与第一轮 A/B（31% vs 89%）一致，结论稳定。**运维含义：应用配置后至少等 1–3 分钟再判断好坏；面板的「应用」成功提示应当附带这句话。**
+
+**已落地**（2026-10-25 15:24 CST，`.85`）：
+
+- 备份：`/root/ab/panel-core.dae.before-hkonly-20261025-152457`
+- 现配置 `/etc/dae/config.d/panel-core.dae` md5 `393cc4f6db0abad99671522148b36d96`，`proxy` 组只有一行过滤：`filter: subtag(dual) && name(keyword: '香港')`
+- `dae validate` rc=0 → `systemctl reload dae` → `/var/run/dae.progress` = `2|OK`，`dae` 与 `homenet-panel` 均 active
+- 回滚一条命令：`cp /root/ab/panel-core.dae.before-hkonly-20261025-152457 /etc/dae/config.d/panel-core.dae && chmod 600 … && systemctl reload dae`
+- 注意：面板下次「应用」会用**模型里解析到的同一份 filters** 重新渲染，所以这次改动会自然保留；若在面板 UI 里改回去，同样生效。
+
+## 15. 本版（v0.33）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1703,3 +1725,4 @@ scp tools/netdiag/stability/ab_group.py root@<旁路由>:/root/ab_group.py && ss
 22. **一次性 token 与登记项管理（v0.30）**：明确「上游只由面板拉一次并镜像，dae 只读 file://」；apply 时把 Clash 原始 YAML 留档到 `backups/subs-raw/`（便于补齐被跳过的节点类型）；新增 `POST /api/subsrc/remove` 与「删除」按钮，仍被内容层引用的登记项 409 拒绝（§14.23）。
 23. **订阅转换两项修复 + 订阅选择器（v0.31）**：`ParseProxies` 按 `itemIndent` 区分节点与节点内嵌套列表（修掉 alpn 产生的 40 个幽灵节点）；新增 anytls 链接转换（依据 outbound 的 `parseAnytlsURL`），真实样本 81/81 全转、skipped 0；「内容层 → 订阅」来源改为下拉选择已登记镜像（§14.24）。
 24. **组策略受控 A/B（v0.32）**：同机场同机只改 `proxy` 组，实测 baseline 31% / 只用香港 89% / 香港固定节点 93% / `!日本` 8%；查清 `name(keyword:)` 是子串非正则（`'香港|新加坡'` 能过 validate 但零匹配）、多行 `filter` 是 AND、`(a || b)` 语法被拒；结论是把远端节点赶出 fallback 组，归因需固定单节点而不能靠「最近一次选择」（§14.25）。
+25. **组策略落地（v0.33）**：`.85` 的 `proxy` 组改为只用香港并实机验证（28% → 92%）；补记「reload 冷却期」（刚 reload 立刻测是 0%，静置 90 秒后才有参考价值），据此要求面板在应用成功提示里写明「等 1–3 分钟再看效果」（§14.25.7）。
