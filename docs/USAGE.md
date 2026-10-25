@@ -77,6 +77,8 @@ curl -fsSL -H "Authorization: Bearer $TOK" -H "Accept: application/octet-stream"
 GH_TOKEN=$TOK sudo bash /tmp/oi.sh
 ```
 
+> 目标机没有 `curl` 时（Debian 最小安装、OpenWrt 常见），把上面两条改成 `wget -q --header="Authorization: Bearer $TOK" --header="Accept: application/octet-stream" -O /tmp/oi.sh <同一URL>`，或用 `python3 -c` 的 urllib 版本。脚本内部已自带 curl → wget → python3 三级回退，只有「取脚本本身」这一步需要你手动选工具。
+
 脚本行为：识别架构 → 下载二进制/安装脚本（有 `sha256sums.txt` 就校验）→ 调用 `install.sh` 完成安装 → 清理临时目录。支持 `--base-url http://镜像地址`（离线/内网镜像）、`--tag v0.35.1`（锁版本）、以及透传 `--dry-run` 等安装参数。
 
 ### 2.1 先核对设备能不能跑 dae
