@@ -1,7 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.35  
-> **整理日期：** 2026-10-23  
+> **文档版本：** v0.37  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -22,22 +21,25 @@
 > **修订（v0.19）：** 实现 §4.4.7 的 P-A 阶段——新增 `internal/access`（只读能力探测 + 选档推荐）与 `/api/access/probe`、`/api/access/recommend`、前端「接入向导」tab；实机（192.168.1.85）跑通并修掉 3 个真机 bug（`dae version` 子命令不存在 / 未展开 `include` / `nft list tables` 字段数假设），详见 §14.16。
 > **修订（v0.20）：** 补入 §4.4.3 的现场实测样本：中兴家用固件「地址管理」页提供可编辑的**「自定义网关地址」**（= DHCP Option 3），说明"家用路由普遍改不了 DHCP 网关"不成立 → B2 在部分家用固件上可行；同时记录"该值可能影响路由器自身出口、填错会整段断网"的风险与操作顺序。详见 §4.4.3。  
 > **修订（v0.21）：** 落地接入向导 P-B（只出计划与只读自检，不执行）：新增 §14.17，定稿"默认 B1、其余档位仅留生成入口"，并新增 README/LICENSE（MIT）用于开源。
-> · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
-> · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
 > **修订（v0.22）：** 接入 apply/rollback 落地（写自有片段 + 建自有 nft 表 + reload + 失败回滚 + 幂等 + 指纹校验），并在 192.168.1.85 完成段1「本机事务测试」：发现并修掉 4 个真 bug（inet 表需 `dnat ip to`、重复 apply 会叠加规则、`ip_forward` 被 dae 置 1 后回滚不还原、回滚把「表不存在」当失败）；段2「B2 端到端测试」写成 `homenet-panel/docs/access-test-b2.md`。详见 §14.18。
 > **修订（v0.23）：** 登录体验与 HTTPS：会话持久化（重启不掉登录）+ 「记住我 30 天」+ cookie `Secure` 按请求协议判定 + `/panel.crt` 证书下载 + 同端口协议分流（明文 `http://ip:8787` 自动 301 跳到 https，不再报 400）。详见 §14.19。  
 > **修订（v0.24）：** 新增 §14.20「首次登录强制改密」：凭据加 `MustChange` 标记、auth 中间件 403 门禁（白名单 /api/me、/api/passwd、/api/logout、/api/health）、`POST /api/passwd` 与口令强度规则、`setpass --must-change`、前端改密卡片；实机 403 与浏览器渲染均验证通过。
 > **修订（v0.25）：** 登录/改密表单补 form + name + autocomplete（让浏览器弹出「保存密码」并支持自动填充），补充 §14.20 说明与初始密码 10086 的例外口径。
 > **修订（v0.26）：** 登录/改密改为**原生表单提交**（`POST /login`、`POST /passwd` + 303 跳转），解决 fetch 登录拿不到「保存密码」提示；补充证书未受信任时 Chrome 禁用密码管理器的说明（§14.20）。
+> **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
 > **修订（v0.28）：** 转发改「有条件才开」（配置声明 lan_interface / dae reload 报 ipforward off 两条触发，自动重试一次），实机验证死结解除。
+> **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
+> **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
 > **修订（v0.31）：** 修两个订阅转换缺陷（alpn 嵌套列表被当作节点 → 40 个幽灵；anytls 协议未转换 → 20 个真节点丢失，已按 dae 的 outbound 解析实现补齐）；内容层订阅来源改为下拉选择。详见 §14.24。
 > **修订（v0.32）：** 组策略受控 A/B（同机场同机、只改 proxy 组、结束已恢复）：baseline(CF+dual 全节点) L3 成功 31%，只用香港 89%，香港固定节点 93%，`!日本` 8%；并确认 dae 的 `name(keyword: …)` 是**子串**不是正则（`'香港|新加坡'` 能过 validate 但匹配不到任何节点）。结论：延迟最小策略会被「端口开但数据面丢包」的远端节点骗到，组内混入远端节点是 69% 丢包的主因。详见 §14.25。  
 > **修订（v0.33）：** 按 A/B 结论把 `.85` 的 `proxy` 组正式改为「只用香港」（备份 `/root/ab/panel-core.dae.before-hkonly-20261025-152457`，md5 `393cc4f6db0abad99671522148b36d96`）；补测「reload 冷却期」——刚 reload 后立刻测是 0%，等 90 秒再测 baseline 28% / hk_only 92%，说明**应用配置后前几分钟的失败不能算进配置质量**。详见 §14.25.7。  
 > **修订（v0.34）：** v2rayN 规则集实测迁移（UDP443/广告拦截/AI 分组，见 §14.26）；发现并修复 model.json 与线上配置漂移，新增漂移检测与「从线上重新解析」；AI 规则实测由 sg（0/6）改为 hk（6/6）。
 > **修订（v0.35）：** 新增一条命令部署（`deploy/deploy.sh` 开发机侧 + `deploy/install.sh` 目标机侧，幂等、支持 --dry-run、systemd/procd 自动识别），实机验证见 §14.27。
-> **修订（v0.30）：** 一次性订阅 token 的正确姿势（镜像而非 dae 直连）+ 上游原始 YAML 留档（`backups/subs-raw/`）+ 订阅源登记项删除接口与按钮（模型引用中的拒绝删除）。详见 §14.23。
-> **修订（v0.29）：** 修面板两处「点了没反应」：`--c` 未传入 `api.Config.EntryPath`（真 bug，本地/换路径场景会读错配置）；内容层加顶部「校验+备份+reload 应用」条并写明没有单独保存按钮；订阅源更新页新增「新增订阅源」+ 后端为新登记上游自动分配默认镜像 `subs/<name>.sub`。详见 §14.22。
-> **修订（v0.27）：** 14.21 转发开关改由面板持久化（internal/access/sysctl.go，应用时打开并写 /etc/sysctl.d，回滚按原值还原）+ clashconv 支持 Clash 行内映射与 ssr 链接转换（实测 61/61）。
+> **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
+> **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
+> **整理日期：** 2026-10-23  
+> · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
+> · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
 > **建议路径：** `docs/architecture.md`  
 > **项目状态：** 架构草案；§13 部分条目已在 192.168.1.85 实机复核（文中标注“实测”），E1–E26 已于 2026-10-23 全部实机实测完成
 
@@ -1558,7 +1560,17 @@ CDP 实测：点「+ 添加订阅」表格行 2 → 3；填入 `summer` / `file:
 
 `syncEntries()` 只把**模型里已有的订阅**合并进登记表，所以「还没进模型」的上游（例如想先接 summer）无处登记。改动：
 
-- 前端「订阅源更新」页新增「新增订阅源」卡片（名称 / 上游 URL / UA + 新增按钮），名称限 `^[A-Za-z0-9._-]+## 14.23 一次性订阅 token、跳过节点留档与登记项删除（v0.30）
+- 前端「订阅源更新」页新增「新增订阅源」卡片（名称 / 上游 URL / UA + 新增按钮），名称限 `^[A-Za-z0-9._-]+$`、长度 ≤ 64（`internal/api/subsrc.go` 的 `validSubName`，防路径穿越）；
+- 后端 `handleSubsrcApply` 在 `entry.File == ""`（模型尚未引用）时自动分配默认镜像 `filepath.Join(baseDir, "subs", name+".sub")`、`Source = "file://subs/<name>.sub"`，并 `os.MkdirAll(subDir, 0o755)`；
+- 前端 `saveSrc` 修竞态：原先不 `await this.loadSubsrc()`，导致「已新增」提示被随后刷新列表清空。
+
+### 14.22.4 接一个新机场（summer）的三步
+
+1. 「订阅源更新 → 新增订阅源」填名字 `summer` + 上游 URL + UA（按机场要求，例如 `clash-verge/v1.7.7`）；
+2. 点「拉取并检查」看节点数（上游若是 Clash/Mihomo YAML 会自动转成节点链接，`format=clash`）；
+3. 点「拉取并应用」（写 `<baseDir>/subs/summer.sub`）→「内容层 → 订阅」把 `summer` 的来源选成 `file://subs/summer.sub` → 顶部「校验+备份+reload 应用」。
+
+## 14.23 一次性订阅 token、跳过节点留档与登记项删除（v0.30）
 
 ### 14.23.1 现场反馈
 
@@ -1821,20 +1833,6 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 
 副作用说明：安装过程**只**替换面板自身二进制与 unit，不动 `/etc/dae/**`；实测安装前后 `panel-core.dae` 与 `config.dae` 的内容未变、dae 未重启。
 
-### 14.28 安装器补依赖预检：dae 一键装 + goose 退役（v0.36）
-
-目标机第一次装面板时，最常见的两个「装完不能用」来源是**没有 dae** 与**还留着 goose**（goose 是面板的前身，会和面板抢同一份 dae 配置）。`deploy/install.sh` 新增 0/8 步统一处理：
-
-| 检测项 | 判据 | 处置 |
-| --- | --- | --- |
-| dae 已装 | `command -v dae` | 打印版本；`pgrep -x dae` 不在则提示「应用配置会失败」 |
-| dae 未装 | 同上为空 | 提示 degraded；`--install-dae` 时自动加 daeuniverse APT 源并安装 |
-| goose 存在 | `command -v goose` / `/etc/goose` / goose.service / `pgrep -x goose` | 默认只告警；`--retire-goose` 退役到 `/root/goose-retired` |
-
-- **dae 自动安装**只走官方 APT 仓库（`https://daeuniverse.pages.dev`），按 APT 主版本选 `daeuniverse.sources`（APT ≥ 3）或 `daeuniverse.list`；同时下载 `daeuniverse-archive-goose.gpg` 到 `/usr/share/keyrings/`。三个 URL 实测 200（142B / 111B / 2275B）。非 APT 系统直接 `die` 并给文档链接，绝不瞎猜包管理器。
-- **goose 退役是「移动」不是删除**：先 `systemctl disable --now goose.service`，再把二进制、`/etc/goose`、unit 分别移到 `/root/goose-retired/{bin,etc,unit}`，写 `README.txt`（含「config.yaml 里有订阅 token，别外传」与恢复步骤），最后 `daemon-reload`。默认不执行，必须显式 `--retire-goose`。
-- 实机干跑（192.168.1.85，临时造 `/etc/goose` + 假 `/usr/local/bin/goose`）输出：默认 `[!] 检测到 goose … [=] 一并退役：加 --retire-goose`；加 `--retire-goose` 后打印 4 条「将执行/将移动」且**未真正移动**（dry-run 会跳过所有 mv），清理后 `/etc/goose` 与 `goose` 均不存在。
-
 ### 14.27.6 在线安装（v0.35 追加）
 
 `deploy/online-install.sh`（目标机侧）+ `.github/workflows/release.yml`（CI 侧）：
@@ -1851,7 +1849,59 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 2. `ssh host 'cmd'` 加 `-t` 会打印 `Pseudo-terminal will not be allocated`，无实际影响。
 3. 部署脚本在 macOS 上要显式给 `HOME` 与 `GOCACHE`，否则 Go 报 `GOCACHE is not defined and $HOME is not defined`。
 
-## 15. 本版（v0.36）变更清单
+### 14.28 安装器补依赖预检：dae 一键装 + goose 退役（v0.36）
+
+目标机第一次装面板时，最常见的两个「装完不能用」来源是**没有 dae** 与**还留着 goose**（goose 是面板的前身，会和面板抢同一份 dae 配置）。`deploy/install.sh` 新增 0/8 步统一处理：
+
+| 检测项 | 判据 | 处置 |
+| --- | --- | --- |
+| dae 已装 | `command -v dae` | 打印版本；`pgrep -x dae` 不在则提示「应用配置会失败」 |
+| dae 未装 | 同上为空 | 提示 degraded；`--install-dae` 时自动加 daeuniverse APT 源并安装 |
+| goose 存在 | `command -v goose` / `/etc/goose` / goose.service / `pgrep -x goose` | 默认只告警；`--retire-goose` 退役到 `/root/goose-retired` |
+
+- **dae 自动安装**只走官方 APT 仓库（`https://daeuniverse.pages.dev`），按 APT 主版本选 `daeuniverse.sources`（APT ≥ 3）或 `daeuniverse.list`；同时下载 `daeuniverse-archive-goose.gpg` 到 `/usr/share/keyrings/`。三个 URL 实测 200（142B / 111B / 2275B）。非 APT 系统直接 `die` 并给文档链接，绝不瞎猜包管理器。
+- **goose 退役是「移动」不是删除**：先 `systemctl disable --now goose.service`，再把二进制、`/etc/goose`、unit 分别移到 `/root/goose-retired/{bin,etc,unit}`，写 `README.txt`（含「config.yaml 里有订阅 token，别外传」与恢复步骤），最后 `daemon-reload`。默认不执行，必须显式 `--retire-goose`。
+- 实机干跑（192.168.1.85，临时造 `/etc/goose` + 假 `/usr/local/bin/goose`）输出：默认 `[!] 检测到 goose … [=] 一并退役：加 --retire-goose`；加 `--retire-goose` 后打印 4 条「将执行/将移动」且**未真正移动**（dry-run 会跳过所有 mv），清理后 `/etc/goose` 与 `goose` 均不存在。
+
+## 14.29 单文件布局解析与空规则安全闸（v0.37）
+
+### 14.29.1 现象
+
+在 n6（Armbian bookworm / aarch64）用在线安装装完后第一次打开页面：内容层 **0 条规则**，红字 `parseError=未解析出任何配置块（可能格式不匹配）`，黄条提示模型漂移「读不到线上主体配置 /etc/dae/config.d/panel-core.dae」；而线上实际有 13 条规则、1 个分组、2 个订阅。
+
+### 14.29.2 根因
+
+`internal/api/server.go` 的 `loadModel()` 固定读 `s.CorePath`（默认 `/etc/dae/config.d/panel-core.dae`）。.85 是面板接管后的 include 双文件布局，所以一直没暴露；n6 是 goose 留下的**单文件布局**（`/etc/dae/config.dae` 2046B，首行「# 由 Goose 生成 …」，无 `config.d/`）→ coreText 为空 → `model.Parse("")` 什么都不产出。
+
+危险方向是不对称的：界面显示 0 规则 → 用户点「校验+备份+reload 应用」→ 写进去的是「空的 panel-core.dae + include」→ reload 成功、dae 继续运行，但**分流规则被静默清空**。这类 bug 不能靠用户眼力兜底，必须在写入侧阻断。
+
+### 14.29.3 代码改动
+
+| 位置 | 改动 |
+| --- | --- |
+| `internal/api/server.go` | 新增 `liveTexts() (entryText, coreText string, single bool)`：CorePath 缺失/为空时把入口文本当主体返回 `single=true`；新增 `coreExists() bool` |
+| `loadModel()` / `handleResyncModel` | 改用 `liveTexts()`（`model.json` 仍优先） |
+| `internal/api/model_drift.go` | 单文件布局直接返回 nil 漂移（没有第二份文件可比） |
+| `handleGetModel` | 响应增加 `layout`（`split`/`single`）与 `layoutNote`（说明单文件布局下「应用」会改写成 include + `config.d/panel-core.dae`，自动备份可回滚） |
+| `handleApplyModel` | 安全闸：提交的 `rules` 为空 **且** 线上主体含 `routing {` → 422「拒绝应用：提交的模型没有任何分流规则…若确实要清空，请先手工改配置再点「从线上重新解析」」 |
+| `internal/api/index.html` | 蓝框 banner「线上是单文件布局：{layoutNote}」，位置在黄框漂移提示之前 |
+| `internal/api/model_layout_test.go`（新） | `TestLiveTextsSingleFile`（single=true、rules=2、fallback=proxy、groups=1、subs=1、drift=nil）、`TestApplyModelRejectsEmptyRules`（空 rules + 线上有 routing → 422） |
+
+### 14.29.4 实机验证
+
+- **n6（单文件）**：`/api/model` → `layout=single`、`parseError=None`、`rules=13`（`pname(NetworkManager, systemd-resolved, dnsmasq)`、`dip(224.0.0.0/3, 'ff00::/8')`、`dip(geoip:private)`、`dip(geoip:cn)`、`dip(198.41.192.0/19, …)`、`domain(geosite:cn)`…、`l4proto(udp) && dport(443)`、`dport(853)`）、`groups=1`（proxy / min_moving_avg）、`subs=2`（cf、dual，均 `file://subs/*.sub`）、`fallback=proxy`、`diverged=false`；`/api/subs/nodes` `total=30`。
+- **.85（include 双文件）**：`layout=split`、`rules=11`、`groups=3`、`subs=3`、`diverged=false`，未受影响。
+- `go test ./... -count=1` 全绿；发布 **v0.35.4**（workflow run 40205550549 success，资产 6 个，含 `verify-install.sh`）。
+- `install.sh` 幂等复装：保留原凭证与证书（输出「密码: (沿用原有凭证)」），`/etc/dae/**` 未变（.85 的 `config.dae` 218B/mtime 10-24 23:47、`panel-core.dae` 1228B/mtime 10-25 21:45）。
+
+### 14.29.5 教训
+
+1. 「只认自己那套布局」是典型的环境绑定 bug：任何「读线上配置」的入口都必须**先判布局再决定读哪个文件**（面板接管前的老机器、goose 遗留机都可能是单文件）。
+2. 写侧必须比读侧更保守：解析失败/模型为空时无条件拒绝写入，而不是让用户看出「怎么是空的」。
+3. 安装脚本的幂等性要用「**再装一次**」验证，不能只看首次成功。
+4. 排查时注意 `/api/model` 里分组字段名是 `filters`（复数，`model.Group{Name,Policy,Filters}`），不是 `filter`——用错字段名会把正常数据误判为 None。
+
+## 15. 本版（v0.37）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -1880,3 +1930,5 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 25. **组策略落地（v0.33）**：`.85` 的 `proxy` 组改为只用香港并实机验证（28% → 92%）；补记「reload 冷却期」（刚 reload 立刻测是 0%，静置 90 秒后才有参考价值），据此要求面板在应用成功提示里写明「等 1–3 分钟再看效果」（§14.25.7）。
 26. **v2rayN 规则迁移 + 模型漂移防护（v0.34）**：7 条 v2rayN 规则全部翻译为 dae 语法并上线（UDP443 阻断、广告拦截、YouTube/AI 分组、国内拆两行直连、端口区间改 fallback），`/api/route/test` 命中与连通性双向验证；受控对照证明 `sg` 组 0/6、`hk` 组 6/6，AI 规则最终改走香港；发现 `model.json` 与线上配置漂移（点「应用」会覆盖手工改动），新增漂移检测 `diverged`/`drift` 与 `POST /api/model/resync`（§14.26）。另新增 `docs/USAGE.md`（部署到新设备的完整说明）（§14.26）。
 27. **一条命令部署（v0.35）**：`deploy/deploy.sh`（开发机）探测架构→交叉编译→上传→远程安装→自检；`deploy/install.sh`（目标机）8 步幂等安装，自动识别 systemd/procd、保留已有证书与凭证、首次安装打印一次性随机密码；`--dry-run` 全链路试运行；实机在 .85 验证通过且未触碰 `/etc/dae/**`（§14.27）。
+
+28. **单文件布局解析 + 空规则安全闸（v0.37）**：goose 遗留机（`/etc/dae/config.dae` 单文件、无 `config.d/`）上 `loadModel` 读不到主体配置 → 界面 0 规则且「应用」会静默清空路由规则。新增 `liveTexts()`/`coreExists()` 布局判定、`/api/model` 的 `layout`/`layoutNote`、以及「提交模型无规则且线上有 routing 时拒绝写入」的 422 安全闸；`.85`（split）与 `n6`（single，13 规则）双布局实测通过，发布 v0.35.4（§14.29）。
