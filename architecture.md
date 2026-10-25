@@ -1821,6 +1821,16 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 
 副作用说明：安装过程**只**替换面板自身二进制与 unit，不动 `/etc/dae/**`；实测安装前后 `panel-core.dae` 与 `config.dae` 的内容未变、dae 未重启。
 
+### 14.27.6 在线安装（v0.35 追加）
+
+`deploy/online-install.sh`（目标机侧）+ `.github/workflows/release.yml`（CI 侧）：
+
+- workflow 打 `v*` tag 触发：`go vet` + `go test` → 交叉编译 amd64/arm64（`-trimpath -ldflags "-s -w"`，8.9MB）→ 拷两个安装脚本 → `sha256sum` → `gh release create`（已存在则 `gh release upload --clobber`）。
+- 在线脚本识别 `uname -m`，取 `homenet-panel-linux-<arch>` + `install.sh` + `sha256sums.txt`（校验后才继续），再以 `--binary` 调 `install.sh`，结束清理临时目录。
+- **私有仓库必须走 API**：`github.com/.../releases/latest/download/<asset>` 对私有仓库恒返回 404（即使带 token，因为那是网页通道）；正确姿势是 `GET /repos/{owner}/{repo}/releases/{latest|tags/TAG}` 找 `asset.id`，再 `GET /repos/.../releases/assets/{id}` 带 `Accept: application/octet-stream`。脚本里 `asset_url()` 就做这件事（优先 python3，其次 OpenWrt 的 `jsonfilter`，最后 grep 兜底）。
+- 下载器优先级：`curl` → `wget` → `python3 urllib`（.85 上没有 curl，实测走 wget）。
+- CI 首次失败原因：`cd homenet-panel && go build -o dist/...` 把产物写进了 `homenet-panel/dist`，随后在仓库根 `cp deploy/* dist/` 报 `cp: target 'dist/': No such file or directory`；改为先在根建 `dist/`、build 输出 `../dist/` 后通过（run 40200858051 failure → 修复后 success）。
+
 ### 14.27.5 坑
 
 1. 早期版本用 `"$BIN" --print-version` 判架构，二进制没有该 flag 会误报「架构不匹配」；改为「执行它、只看 126/127 退出码（exec format error / not found）」。

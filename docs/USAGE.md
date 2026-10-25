@@ -52,6 +52,33 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 `bash install.sh --binary /tmp/homenet-panel`（参数同上，`--arch` 由 `uname -m` 决定）。
 
 
+### 2.0b 在线安装（不碰开发机，直接从 GitHub Releases 装）
+
+发布产物由 GitHub Actions 自动构建（打 `v*` tag 触发，见 `.github/workflows/release.yml`），每个 release 带 5 个资产：
+`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`sha256sums.txt`。
+
+**公开仓库（真·一条命令）**：
+
+```bash
+curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash
+# 指定版本 / 透传安装参数：
+curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash -s -- --port 9443 --traffic-iface eth1
+```
+
+**私有仓库（需要只读 token）**：web 下载地址对私有仓库一律 404，必须走 API。用仓库里的在线脚本取资产再执行：
+
+```bash
+TOK=ghp_xxxxxxxx
+ID=$(curl -fsSL -H "Authorization: Bearer $TOK" \
+     https://api.github.com/repos/leoz26/dae-panel/releases/latest \
+     | python3 -c 'import json,sys;d=json.load(sys.stdin);print([a["id"] for a in d["assets"] if a["name"]=="online-install.sh"][0])')
+curl -fsSL -H "Authorization: Bearer $TOK" -H "Accept: application/octet-stream" \
+     -o /tmp/oi.sh "https://api.github.com/repos/leoz26/dae-panel/releases/assets/$ID"
+GH_TOKEN=$TOK sudo bash /tmp/oi.sh
+```
+
+脚本行为：识别架构 → 下载二进制/安装脚本（有 `sha256sums.txt` 就校验）→ 调用 `install.sh` 完成安装 → 清理临时目录。支持 `--base-url http://镜像地址`（离线/内网镜像）、`--tag v0.35.1`（锁版本）、以及透传 `--dry-run` 等安装参数。
+
 ### 2.1 先核对设备能不能跑 dae
 
 dae 依赖内核 eBPF + BTF，**不是所有设备都能用**：
