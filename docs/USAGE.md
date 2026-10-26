@@ -52,7 +52,24 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 `bash install.sh --binary /tmp/homenet-panel`（参数同上，`--arch` 由 `uname -m` 决定）。
 
 
-### 2.0b 在线安装（不碰开发机，直接从 GitHub Releases 装）
+### 2.0c 面板内「安装与初始化」（装完面板之后）
+
+装好面板、打开网页 → 顶部「安装与初始化」标签：
+
+| 动作 | 会做什么 | 前提 |
+| --- | --- | --- |
+| 安装 dae | 加官方 APT 源 + GPG key → `apt-get update` → `apt-get install -y dae` | 面板以 root 运行，系统是 APT 系 |
+| 生成初始配置 | 写 `/etc/dae/config.dae`（include）+ `config.d/panel-core.dae`（tproxy 12345 / wan_interface auto / DNS 223.5.5.5 / fallback direct），写完立刻 `dae validate` | dae 已安装 |
+| 启动 dae | `systemctl enable` + `restart`（OpenWrt 走 `/etc/init.d/dae restart`），并轮询 active | 配置已存在 |
+
+要点：
+
+- 每个动作都有 **dry-run** 按钮，先看要执行的命令，再决定是否真跑。
+- 「生成初始配置」**只用于空白设备**：只要入口或主体配置任一非空就拒绝（包括面板自己托管过的），确实要覆盖需调 API 带 `force=true`（会先备份成 `*.bak-<时间>`）。
+- `dae validate` 失败会自动回滚到写入前的文件，页面「执行记录」里会显示「已回滚」。
+- 面板以非 root 运行时这一页只读，按钮会返回「需要 root 权限」。
+
+## 2.0b 在线安装（不碰开发机，直接从 GitHub Releases 装）
 
 发布产物由 GitHub Actions 自动构建（打 `v*` tag 触发，见 `.github/workflows/release.yml`），每个 release 带 5 个资产：
 `homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`sha256sums.txt`。

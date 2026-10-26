@@ -1197,6 +1197,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/geo", s.auth(s.handleGeo))
 	mux.HandleFunc("/api/geo/update", s.auth(s.handleGeoUpdate))
 	mux.HandleFunc("/api/geo/versions", s.auth(s.handleGeoVersions))
+	mux.HandleFunc("/api/setup/status", s.auth(s.handleSetupStatus))
+	mux.HandleFunc("/api/setup/install-dae", s.auth(s.handleSetupInstallDae))
+	mux.HandleFunc("/api/setup/init-config", s.auth(s.handleSetupInitConfig))
+	mux.HandleFunc("/api/setup/start-dae", s.auth(s.handleSetupStartDae))
 	mux.HandleFunc("/api/audit", s.auth(s.handleAudit))
 	mux.HandleFunc("/api/audit/export", s.auth(s.handleAuditExport))
 

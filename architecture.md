@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.41  
+> **文档版本：** v0.42  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -2045,7 +2045,51 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 测试：`internal/subs/subs_test.go` 的 `TestFetchRawUA` 改为断言「留空 → 发出 DefaultUA 且成功」「显式 UA 优先」「`SetUserAgent` 优先于 DefaultUA」，另加 `TestFetchRawNoUAFallsBackToGoDefault`（把 `DefaultUA` 置空时确实回退到 `Go-http-client`）。
 
 实机验证（n6，v0.37.1）：`/api/subsrc` 里 `dual.ua = None`，`POST /api/subsrc/check {name:"dual"}` → `format=clash`、`remoteCount=29`、`localCount=29`、`changed=false`，不再 403。
-## 15. 本版（v0.41）变更清单
+## 14.33 面板内「安装与初始化」：把 install.sh 的缺口做成按钮（v0.42）
+
+### 14.33.1 起因（两个真缺口）
+
+用户问「现在在线部署会帮我安装 dae 吗」，核实后暴露两件事：
+
+1. `deploy/install.sh --install-dae` 只装二进制与服务，**不写** `/etc/dae/config.dae`；而 `dae.service` 的 `ExecStartPre=dae validate` 会让服务直接启动失败。
+2. install.sh 里那句「dae 还没配置：首次打开面板可生成初始配置」在当时是空头承诺——`internal/`、`cmd/` 里没有任何初始配置生成逻辑。
+
+于是用户提出：「可以把安装做成按钮写到面板上吗」。答案是做成「安装与初始化」页：状态只读 + 三个动作（安装 dae / 生成初始配置 / 启动 dae），每个动作都能 dry-run。
+
+### 14.33.2 实现
+
+| 位置 | 内容 |
+| --- | --- |
+| `homenet-panel/internal/bootstrap/bootstrap.go` | `Options{Runner,Fetch,EtcDir,EntryPath,CorePath,DryRun,IsRoot}`；`Detect(o) Status`（root / 服务管理器 / APT / dae 版本与运行 / 配置大小与是否面板托管 / BTF / memlock）；`InstallDae`（APT 源 + GPG key + `apt-get update` + `install -y dae`，非 APT 系直接给文档链接）；`WriteInitConfig`（`model.Render(DefaultModel())` 写入口 + panel-core.dae，0600）；`StartDae`（systemd enable+restart 或 procd restart，轮询 is-active 最多 5s）；`DefaultModel()` = tproxy 12345 + wan_interface auto + DNS udp://223.5.5.5:53 + `fallback: direct`（EssentialRules 由 `model.Render` 自动前置注入） |
+| `homenet-panel/internal/api/bootstrap.go` | `GET /api/setup/status`、`POST /api/setup/install-dae`、`POST /api/setup/init-config`、`POST /api/setup/start-dae`（后三者带 `{dryRun}`，init-config 另带 `{force}`）；全部 `s.auth` 保护 + `setupMu` 串行 + 审计动作 `setup.installDae` / `setup.initConfig` / `setup.startDae` |
+| `homenet-panel/internal/api/index.html` | 新增 tab「安装与初始化」：现场状态表（运行身份 / 服务管理器 / APT / dae / 配置文件 / 主体配置 / BTF 与 memlock）+ 一键操作（安装 dae、生成初始配置、启动 dae、两个 dry-run）+ 执行记录表（步骤 / 命令 / 结果 / 输出） |
+| `deploy/install.sh` | 那句不实提示改为「装完面板后打开『安装与初始化』页可一键生成初始配置」 |
+
+### 14.33.3 安全边界
+
+- **必须是 root**：`Detect` 报 `root:false` 时三个动作都返回「需要 root 权限」，页面只读仍可用。
+- **串行**：`setupMu` 保证同一时刻只跑一个动作，避免「安装 dae」与「生成配置」交叉写系统。
+- **已有配置必须显式 force**：`WriteInitConfig` 只要入口或主体任一文件非空就拒绝（含面板自己托管的配置）——初版只拦「非面板托管」，实机复核时发现那会把线上 11 条规则冲成默认值，已收紧并补 `TestWriteInitConfigRefusesManagedConfigToo`。
+- **写前备份**：`<path>.bak-<20060102-150405>`，模式沿用原文件权限。
+- **validate 失败自动回滚**：`dae validate -c <entry>` 失败 → 用最新备份恢复两个文件并记录「已回滚到写入前的配置」步骤。
+- **dry-run**：只打印命令与目标路径，不写盘、不调 apt、不重启服务（`Step.Skipped=true`）。
+- **不做面板自更新**：避免面板在运行中替换自己的二进制。
+
+### 14.33.4 实机验证（192.168.1.85，v0.42）
+
+- `GET /api/setup/status` → `root:true, serviceManager:"systemd", hasApt:true, daeInstalled:true, daeVersion:"dae version v2.1.1", daeRunning:true, configExists:true, configBytes:218, configManaged:true, coreExists:true, btf:true, memlockKB:8192`。
+- `install-dae {dryRun:true}` → 200，步骤「dae 已安装，跳过」（不重复装）。
+- `init-config {dryRun:true}` → **422 拒绝**：`已存在配置（面板托管）：/etc/dae/config.dae；拒绝覆盖（生成初始配置只用于空白设备）。确认要替换请带 force=true（会先备份）` —— 这正是想要的护栏。
+- `start-dae {dryRun:true}` → 200，三步 `systemctl enable dae` / `systemctl restart dae` / 检查运行状态（全部跳过）。
+- 浏览器（headless Chrome + CDP，登录后点「安装与初始化」）：DOM 26,330 字节，`{{` 泄漏 0，渲染出状态表（root（可安装/初始化）/ systemd / APT 可用 / dae version v2.1.1 · 运行中 / 218 字节 · 面板托管）与三个动作按钮。
+
+### 14.33.5 刻意不做
+
+- 面板自更新、daed 式「面板当 daemon 管家」：面板只保证 dae 能跑起来，生命周期仍交给 systemd / procd。
+- apt 卸载/降级 dae：破坏性太强，留给用户命令行。
+- 非 APT 系自动安装（如 OpenWrt opkg）：只给官方文档链接，避免写错源把系统搞脏。
+
+## 15. 本版（v0.42）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2084,3 +2128,4 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 31. **Geo 版本检测（v0.40）**：`internal/geodata/version.go` 给出本地版本（apt 包版本 / 面板更新记录）+ 上游构建号（GitHub release API）+ 逐文件结论；默认源用 release 资产大小而不是逐文件 HEAD（.85 上 HEAD 全超时、n6 上慢到 91s），apt 托管时跳过 HEAD；接口 `GET /api/geo/versions`、`/api/geo` 增 `state`，前端「Geo 数据」页加「检测版本」按钮与版本对照表；实测 n6 91s→1.0s、.85 0.7s（§14.31）。
 
 32. **订阅 UA 兜底（v0.41）**：UA 留空时不再把 `Go-http-client/1.1` 暴露给机场，改用 `DefaultUA = "clash-verge/v1.7.7"`（顺序：单条 ua → `--sub-ua` → DefaultUA）；n6 上留空实测 29/29 通过（§14.32）。
+33. **新增 §14.33（v0.42）**：面板内「安装与初始化」页——`GET /api/setup/status` + 三个动作（安装 dae / 生成初始配置 / 启动 dae，均可 dry-run），root 校验 + 串行锁 + 已有配置强制 force（避免把线上规则冲成默认值）+ 写前备份 + `dae validate` 失败自动回滚 + 审计 `setup.*`；同时修正 install.sh「首次打开面板可生成初始配置」的不实提示。

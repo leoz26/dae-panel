@@ -94,6 +94,7 @@ td input,td select{width:100%}
         <button :class="{active:tab===&#39;probe&#39;}" @click="tab=&#39;probe&#39;">运行探测</button>
         <button :class="{active:tab===&#39;bytes&#39;}" @click="tab=&#39;bytes&#39;;loadBytes()">字节统计</button>
         <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
+        <button :class="{active:tab===&#39;setup&#39;}" @click="tab=&#39;setup&#39;;loadSetup()">安装与初始化</button>
         <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
         <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
         <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
@@ -490,6 +491,48 @@ td input,td select{width:100%}
       </div>
 
       <!-- 审计日志 -->
+      <div v-if="tab===&#39;setup&#39;">
+        <div class="info">这一页处理「从零到能跑」：检测环境 → 安装 dae（官方 APT 源）→ 生成最小可用配置 → 启动。每一步都可先 dry-run 看要执行什么；生成配置时会先备份，<code>dae validate</code> 失败会立即回滚。面板必须以 root 运行才允许执行这些动作（否则这里只能看状态）。</div>
+        <div class="card">
+          <h2>现场状态</h2>
+          <div class="row"><button @click="loadSetup">刷新状态</button><span class="muted" v-if="setupMsg">{{setupMsg}}</span></div>
+          <table class="tbl" style="margin-top:8px" v-if="setupStatus">
+            <tr><th>项</th><th>值</th></tr>
+            <tr><td>运行身份</td><td :style="{color: setupStatus.root ? '#8fd18f' : '#ff8888'}">{{setupStatus.root ? 'root（可安装/初始化）' : '非 root（只能看状态）'}}</td></tr>
+            <tr><td>服务管理器</td><td>{{setupStatus.serviceManager}}</td></tr>
+            <tr><td>APT</td><td>{{setupStatus.hasApt ? '可用' : '不可用（非 APT 系需手工安装）'}}</td></tr>
+            <tr><td>dae</td><td>{{setupStatus.daeInstalled ? (setupStatus.daeVersion || '已安装') : '未安装'}} · {{setupStatus.daeRunning ? '运行中' : '未运行'}}</td></tr>
+            <tr><td>配置文件</td><td>{{setupStatus.configExists ? (setupStatus.configBytes + ' 字节' + (setupStatus.configManaged ? ' · 面板托管' : ' · 非面板生成')) : '不存在'}}<div class="muted" style="font-size:11px">{{setupStatus.entryPath}}</div></td></tr>
+            <tr><td>主体配置</td><td>{{setupStatus.coreExists ? '存在' : '不存在'}}<div class="muted" style="font-size:11px">{{setupStatus.corePath}}</div></td></tr>
+            <tr><td>内核能力</td><td>BTF {{setupStatus.btf ? '可用' : '缺失'}} · memlock {{setupStatus.memlockKB < 0 ? 'unlimited' : (setupStatus.memlockKB + ' KB')}}</td></tr>
+          </table>
+          <div v-if="setupStatus && setupStatus.note" style="margin-top:8px;color:#ffcc66;font-size:12px">{{setupStatus.note}}</div>
+        </div>
+        <div class="card">
+          <h2>一键操作</h2>
+          <div class="row">
+            <button @click="runSetup('install-dae')" :disabled="setupBusy">安装 dae</button>
+            <button @click="runSetup('init-config')" :disabled="setupBusy">生成初始配置</button>
+            <button @click="runSetup('start-dae')" :disabled="setupBusy">启动 dae</button>
+            <button class="ghost" @click="runSetup('install-dae', true)" :disabled="setupBusy">dry-run 安装</button>
+            <button class="ghost" @click="runSetup('init-config', true)" :disabled="setupBusy">dry-run 初始化</button>
+            <span class="muted" v-if="setupBusy">执行中…</span>
+          </div>
+          <div class="muted" style="margin-top:8px;font-size:12px">「生成初始配置」写的是 /etc/dae/config.dae + config.d/panel-core.dae（tproxy 12345、wan_interface auto、DNS 223.5.5.5、无规则时 fallback direct）。若这两个文件已有<b>非面板托管</b>的内容，会被拒绝覆盖——确实要替换请用 API 带 force=true。</div>
+        </div>
+        <div class="card" v-if="setupSteps.length">
+          <h2>执行记录</h2>
+          <table class="tbl">
+            <tr><th>步骤</th><th>命令</th><th>结果</th></tr>
+            <tr v-for="(s,i) in setupSteps" :key="'ss'+i">
+              <td>{{s.title}}</td>
+              <td class="mono" style="font-size:11px">{{s.command || '-'}}</td>
+              <td :style="{color: s.ok ? '#8fd18f' : '#ff8888'}">{{s.skipped ? '已跳过（dry-run）' : (s.ok ? '成功' : '失败')}}<div class="muted" style="font-size:11px" v-if="s.output">{{s.output}}</div></td>
+            </tr>
+          </table>
+          <div v-if="setupError" style="color:#ff8888;font-size:12px;margin-top:6px">{{setupError}}</div>
+        </div>
+      </div>
       <div v-if="tab===&#39;geo&#39;">
         <div class="info">dae 的 <code>geoip.dat</code>/<code>geosite.dat</code> 决定 <code>geosite:*</code>、<code>geoip:*</code> 规则能否命中。数据源默认用 Loyalsoldier 的 v2ray-rules-dat（与 goose 时代一致）。更新流程：下载 → 校验（大小 / 必须含 <code>cn</code> tag）→ 备份旧文件到 <code>geo/</code> → 原子替换 → reload dae；任一步失败都不动现有文件。</div>
         <div class="card">
@@ -830,7 +873,7 @@ createApp({
     modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], modelLayout:"", modelLayoutNote:"", previewEntry:"", previewCore:"", modelMsg:"",
     subsData:null, subMsg:"", groupsData:null, latency:{},
     subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
-    geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""}, geoVer:null, geoVerMsg:"",
+    geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""}, geoVer:null, geoVerMsg:"", setupStatus:null, setupMsg:"", setupSteps:[], setupError:"", setupBusy:false,
     aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
     routeDomain:"", routeRes:null, routeMsg:"",
     ruleProbeDomain:"", ruleProbe:null,
@@ -940,6 +983,24 @@ createApp({
     goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
     exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
     async loadGeo(){ this.geoMsg="加载中…"; const r=await this.api("/api/geo"); if(r.code===200){ this.geoData=r.data.data; this.geoData.keep=r.data.keep; this.geoMsg=""; if(!this.geoSrc.geoip&&r.data.data.urls) this.geoSrc.geoip=r.data.data.urls.geoip||""; if(!this.geoSrc.geosite&&r.data.data.urls) this.geoSrc.geosite=r.data.data.urls.geosite||""; } else this.geoMsg="加载失败 (HTTP "+r.code+")"; },
+    async loadSetup(){
+      const r = await this.api("/api/setup/status","GET");
+      if(r.code===200 && r.data && r.data.status){ this.setupStatus=r.data.status; this.setupMsg=""; }
+      else { this.setupMsg = "读取状态失败：" + ((r.data&&r.data.error)||("HTTP "+r.code)); }
+    },
+    async runSetup(action, dry){
+      if(action==="init-config" && !confirm("将写入 "+(this.setupStatus?this.setupStatus.entryPath:"/etc/dae/config.dae")+" 与主体配置（会先备份，dae validate 失败自动回滚）。继续？")) return;
+      this.setupBusy=true; this.setupSteps=[]; this.setupError=""; this.setupMsg="";
+      try {
+        const r = await this.api("/api/setup/"+action,"POST", dry ? {dryRun:true} : {});
+        const res = (r.data && r.data.result) || {};
+        this.setupSteps = res.steps || [];
+        this.setupError = res.error || (r.code===200 ? "" : ("HTTP "+r.code));
+        if(r.data && r.data.status) this.setupStatus=r.data.status;
+        this.setupMsg = res.ok ? (dry ? "dry-run 完成（未改动系统）" : "完成") : "失败";
+        if(res.ok && !dry) await this.loadSetup();
+      } finally { this.setupBusy=false; }
+    },
     async checkVersions(){
       this.geoVerMsg="检测中（只发 HEAD 请求，不下载正文）…";
       const qs=[];

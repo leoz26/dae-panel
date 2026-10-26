@@ -83,7 +83,7 @@ else
       DEBIAN_FRONTEND=noninteractive apt-get install -y -q dae >/dev/null || die "apt-get install dae 失败"
       DAE_BIN=$(command -v dae 2>/dev/null || true)
       if [ -n "$DAE_BIN" ]; then ok "dae 已安装：$("$DAE_BIN" --version 2>/dev/null | head -1)"; else die "安装后仍找不到 dae"; fi
-      warn "dae 还没配置：首次打开面板可生成初始配置，或自行放 /etc/dae/config.dae"
+      warn "dae 还没配置：装完面板后打开页面的「安装与初始化」可一键生成，或自行放 /etc/dae/config.dae"
     fi
   else
     info "要和面板一起装：加 --install-dae（APT 系自动添加官方仓库并安装）"
