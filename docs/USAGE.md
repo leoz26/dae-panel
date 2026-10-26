@@ -88,9 +88,15 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 # 最新（CDN，可能滞后几分钟）
 curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
 # 钉版本（CDN 标签，立即生效，推荐生产用）
-curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.2-dist/online-install.sh | sudo bash
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh | sudo bash
 # 透传安装参数：
-curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.2-dist/online-install.sh | sudo bash -s -- --tag v0.38.2 --port 9443 --traffic-iface eth1
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh | sudo bash -s -- --port 9443 --traffic-iface eth1
+
+# 如果 cdn.jsdelivr.net 在你那边打不开，把域名换成下面任意一个（内容相同）：
+#   https://fastly.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh
+#   https://gcore.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh
+# 没有 curl 时把 curl -fsSL ... | sudo bash 换成：
+#   wget -qO /tmp/oi.sh <上面的URL> && sudo bash /tmp/oi.sh
 ```
 
 脚本自身的下载器按下面的顺序逐个试，**任一源成功即用**，全部失败才报错：

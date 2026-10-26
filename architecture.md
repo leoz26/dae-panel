@@ -2200,7 +2200,10 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 
 **坑 2：`@dist/VERSION` 缓存滞后导致版本漂移**。`dist` 分支已发到 v0.38.3，CDN 仍返回 `v0.38.2`，于是脚本按旧版本取资产。改成先问 GitHub API（权威），只有当 API 不可达时（例如用户那台连不上 github.com 的机器）才用 CDN 的 `VERSION`，并明确打印「可能滞后」告警；要绝对确定就用 `--tag vX.Y.Z`。
 
-顺带记录一条环境事实：`.85` 这台机器上 `api.github.com` **不可达**（脚本打印了「GitHub API 不可达」），而 `cdn.jsdelivr.net` 可达——这正是用户要求走 CDN 的现实依据。
+顺带记录两条环境事实：
+
+- `.85` 这台机器上 `api.github.com` **不可达**（脚本打印了「GitHub API 不可达」），而 `cdn.jsdelivr.net` 可达——这正是用户要求走 CDN 的现实依据。
+- CDN 的**多个入口之间可达性不同**：同一时刻在 n6（移动宽带）上 `cdn.jsdelivr.net` `rc=4` 网络失败、`fastly.jsdelivr.net` 也失败，而 `gcore.jsdelivr.net` 200 / 7866B。所以脚本里的 fastly/gcore 回退不是装饰，是实测必需。
 
 ### 14.34.5 边界与代价
 
