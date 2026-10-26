@@ -100,7 +100,9 @@ curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.2-dist/online-inst
 3. `raw.githubusercontent.com`
 4. `github.com/<repo>/releases/download/<tag>`
 
-每个源都用 `curl --http1.1 --retry 4 --retry-all-errors --connect-timeout 15 --max-time 600`，没有 curl 则退 `wget --tries=4`，再退 `python3 urllib`。下载后按 `sha256sums.txt` 校验。版本号从 `@dist/VERSION` 读；读不到再问 GitHub API。
+每个源都用 `curl --http1.1 --retry 4 --retry-all-errors --connect-timeout 15 --max-time 600`，没有 curl 则退 `wget --tries=4`，再退 `python3 urllib`。
+
+**一个源必须取齐三个文件**（`install.sh` + 二进制 + `sha256sums.txt`）才算成功，否则整源放弃——否则会出现「二进制来自 A 源、校验和来自 B 源」的假报错。版本号优先问 GitHub API；API 不可达时才用 CDN 的 `VERSION`（会打印「可能滞后」），要绝对确定就加 `--tag vX.Y.Z`。
 
 **备用：GitHub 直连**
 

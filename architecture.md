@@ -2147,11 +2147,11 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 
 | 环节 | 行为 |
 |---|---|
-| 版本解析 | 先读 `@dist/VERSION`；失败再问 `api.github.com/repos/<repo>/releases/latest` 的 `tag_name`；都没有则退 `latest` |
+| 版本解析 | 先问 `api.github.com/repos/<repo>/releases/latest` 的 `tag_name`（权威）；不可达才读 `@dist/VERSION` 并打印「可能滞后」告警；都没有则退 `latest` |
 | 源顺序 | `--base-url` 优先；否则 jsDelivr `@<tag>-dist` → jsDelivr `@dist` → fastly.jsdelivr.net → gcore.jsdelivr.net → raw.githubusercontent.com/`<tag>-dist` → github.com/releases/download/`<tag>` |
 | 单次下载 | `curl -fsSL --http1.1 --retry 4 --retry-all-errors --connect-timeout 15 --max-time 600`；无 curl 退 `wget -q --tries=4 --timeout=20`；再无则 `python3 urllib` |
-| 逐源回退 | `download()` 按源顺序试，成功且非空即返回；全部失败才 die，并提示「检查网络、代理、或 --base-url 镜像」 |
-| 完整性 | 拿到 `sha256sums.txt` 就比对；不一致直接 die（下载损坏或被篡改） |
+| 逐源回退 | **按源整体试**：`try_source()` 用同一个源取齐 `install.sh` + 二进制 + `sha256sums.txt`，任一失败或校验和不匹配就整源放弃；全部失败才 die |
+| 完整性 | 拿到 `sha256sums.txt` 就比对；不一致时**换源重试**（而不是直接失败）——见下面的「串味」教训 |
 | 私有仓库 | 匿名全失败且给了 `GH_TOKEN` 时，走 API 两步（`releases/latest|tags/<tag>` 取 asset.id → `releases/assets/<id>` 带 `Accept: application/octet-stream`） |
 | 透传参数 | 未知参数收集进 `PASSTHRU` 交给 `install.sh`，因此 `--port`/`--traffic-iface`/`--install-dae` 照旧可用 |
 
@@ -2194,12 +2194,20 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
   [=] DRY-RUN：只检查，不写任何文件
   ```
 
+### 14.34.6 两个真踩到的坑
+
+**坑 1：校验和「串味」**。最初是逐文件独立回退：二进制可能来自 `@v0.38.2-dist`，而 `sha256sums.txt` 该源一次抖动后回退到了 `@dist`（已经是 v0.38.3）→ 校验必然不匹配，用户看到「下载损坏或被篡改」这种吓人的提示，实际只是源混用。改成 `try_source()`：**一个源要么全部成功，要么整体放弃**，校验不匹配也当作该源失败继续换源。
+
+**坑 2：`@dist/VERSION` 缓存滞后导致版本漂移**。`dist` 分支已发到 v0.38.3，CDN 仍返回 `v0.38.2`，于是脚本按旧版本取资产。改成先问 GitHub API（权威），只有当 API 不可达时（例如用户那台连不上 github.com 的机器）才用 CDN 的 `VERSION`，并明确打印「可能滞后」告警；要绝对确定就用 `--tag vX.Y.Z`。
+
+顺带记录一条环境事实：`.85` 这台机器上 `api.github.com` **不可达**（脚本打印了「GitHub API 不可达」），而 `cdn.jsdelivr.net` 可达——这正是用户要求走 CDN 的现实依据。
+
 ### 14.34.5 边界与代价
 
 - **jsDelivr 有分支缓存**：同一个 `@dist` 路径可能短时间内仍返回旧文件。缓解措施是 CI 主动 purge + 提供 `--tag vX.Y.Z`（走不可变的 `<tag>-dist`）。对「钉版本」场景缓存是好事，对「永远最新」场景偶发滞后。
 - **jsDelivr 单文件上限 20MB**：当前二进制 8–9MB，够用；若将来膨胀要换 R2/OSS。
 - **jsDelivr 不支持「版本号样式」的分支名，但支持同名标签**：所以钉版本一律用 `vX.Y.Z-dist` 标签，不要用分支。
-- **分支缓存无法可靠 purge**：实测 purge 报 `finished` 后 `@dist` 仍是旧文件。因此「一条命令装最新」本身有几分钟到几小时的滞后风险；需要确定版本时用 `--tag vX.Y.Z`（走标签）。
+- **分支缓存无法可靠 purge**：实测 purge 报 `finished` 后 `@dist` 仍是旧文件（`@main` 同样滞后）。因此「一条命令装最新」有几分钟到几小时的滞后风险；需要确定版本用 `--tag vX.Y.Z`，要拿最新脚本本身就用 `@<tag>-dist` 标签 URL。
 - **CDN 只是传输层**：面板不因此信任任何内容——仍然验 `sha256sums.txt`，`install.sh` 仍然 `--dry-run` 可用。
 - **不做**：不把二进制提交进 `main`（历史会膨胀）、不依赖第三方上传服务（用户没有 R2/OSS 账号）、不在面板里做「自更新」（仍是 apt/脚本的职责）。
 
