@@ -1964,6 +1964,17 @@ n6 上退役 goose 后复查发现两个首次退役没覆盖到的点，已补�
 | 从头配置 | 旧 goose 配置存 `/root/config.dae.goose-backup-20261026-001713`；新写 split 布局（入口只 include `config.d/*.dae`，主体 4 条 essential 直连 + `fallback: direct`），`chmod 600`，`dae validate` rc=0，删除旧 `model.json`，`systemctl start dae` → active |
 | 面板 | arm64 二进制部署后 active；`/api/model` → `layout=split`、4 规则、`diverged=false`；`/api/geo/update` dry-run **0.0s** 返回符号链接说明 |
 
+#### n6 的 apt 数据源其实就是 Loyalsoldier，只是版本日期不同
+
+`dpkg -s v2ray-rules-dat` → `Version: 202610222206.0.0`、`Maintainer: dae@daeuniverse`、`Homepage: https://github.com/Loyalsoldier/v2ray-rules-dat` —— apt 包只是把 Loyalsoldier 的 dat 按时间戳重新打包发布，**与面板默认源同一家**。所以两机的差别只在「哪一天的构建」：
+
+| 机器 | 安装方式 | geosite.dat | geoip.dat | 关键 tag |
+| --- | --- | --- | --- | --- |
+| 192.168.1.85 | 手工放的实文件（goose 时代下载） | 11,225,745B | 16,587,463B | CN / STEAM / APPLE-CN / CATEGORY-AI-!CN / GEOLOCATION-CN 均有；STEAM@CN、MICROSOFT@CN 均无 |
+| n6 | apt 包 `v2ray-rules-dat`（2026-10-22 构建）经符号链接提供 | 11,381,894B | 16,569,543B | 同上（两机一致） |
+
+结论：tag 集合一致，规则写法可互换；差异仅是数据构建日期带来的条目增减。
+
 ### 14.30.6 .85 上的真实更新验证
 
 GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeout`，一次 dry-run 用掉 120s），因此用本机 HTTP 镜像做端到端验证：`/api/geo/update {urls:{geoip:http://127.0.0.1:8123/geoip.dat, ...}}` → 200、两文件替换成功、备份落到 `backups/geo/*`、`reloadCode=0`、`progress=2/OK`、dae 仍 active。失败态也验证过：dry-run 报错时返回 200 + `result.errors`，真实更新报错时 422 且不动现有文件。
