@@ -79,6 +79,14 @@ sudo /usr/local/bin/homenet-panel serve \
 
 ## 一条命令部署（见 docs/USAGE.md 2.0 / 2.0b，安装后用 `deploy/verify-install.sh` 只读自检）
 
+走 CDN（初始环境连不上 github.com 也能装）：
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
+```
+
+GitHub 直连备用：`curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash`
+
 ```bash
 bash deploy/deploy.sh root@192.168.1.85 -i ~/.ssh/id_ed25519   # 自动交叉编译 + 上传 + 安装 + 起服务 + 自检
 ```

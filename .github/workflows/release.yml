@@ -34,6 +34,35 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
+          echo "$TAG" > dist/VERSION
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
             --title "$TAG" --notes "HomeNet Panel $TAG：linux/amd64 与 linux/arm64 静态二进制 + 在线安装脚本" \
             || gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
+      # 把产物发布到 dist 分支（可变，指向最新）与 <tag>-dist 分支（不可变快照），
+      # 让没有 GitHub 直连的初始环境也能经 jsDelivr 等 CDN 安装。
+      - name: 发布 dist 分支（CDN）
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          cd dist
+          git init -q -b dist
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "dist: $TAG"
+          REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push -f "$REMOTE" dist
+          git push -f "$REMOTE" dist:"$TAG-dist"
+          echo "已发布分支 dist 与 $TAG-dist"
+
+      - name: 刷新 jsDelivr 缓存
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        run: |
+          for f in online-install.sh install.sh verify-install.sh sha256sums.txt VERSION \
+                   homenet-panel-linux-amd64 homenet-panel-linux-arm64; do
+            curl -fsS --max-time 20 "https://purge.jsdelivr.net/gh/${{ github.repository }}@dist/$f" >/dev/null || true
+          done

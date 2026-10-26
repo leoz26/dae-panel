@@ -69,18 +69,47 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 - `dae validate` 失败会自动回滚到写入前的文件，页面「执行记录」里会显示「已回滚」。
 - 面板以非 root 运行时这一页只读，按钮会返回「需要 root 权限」。
 
-## 2.0b 在线安装（不碰开发机，直接从 GitHub Releases 装）
+## 2.0b 在线安装（一条命令，CDN 优先）
 
-发布产物由 GitHub Actions 自动构建（打 `v*` tag 触发，见 `.github/workflows/release.yml`），每个 release 带 5 个资产：
-`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`sha256sums.txt`。
+发布产物由 GitHub Actions 自动构建（打 `v*` tag 触发，见 `.github/workflows/release.yml`）。除了挂到 Release，CI 还会把同一批文件推到两个**普通分支**，供 CDN 转售：
 
-**公开仓库（真·一条命令）**：
+| 分支 | 内容 | 特性 |
+|---|---|---|
+| `dist` | 最新一次发布的全部产物 + `VERSION` | 可变，永远指向最新 |
+| `<tag>-dist`（如 `v0.38.1-dist`） | 该次发布的全部产物 | 不可变，适合钉版本 |
+
+产物清单：`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`verify-install.sh`、`sha256sums.txt`、`VERSION`。
+
+**推荐：走 CDN（初始环境连不上 github.com 也能装）**
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
+# 指定版本 / 透传安装参数：
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash -s -- --tag v0.38.1 --port 9443 --traffic-iface eth1
+```
+
+脚本自身的下载器按下面的顺序逐个试，**任一源成功即用**，全部失败才报错：
+
+1. `cdn.jsdelivr.net`（@<tag>-dist → @dist）
+2. `fastly.jsdelivr.net`、`gcore.jsdelivr.net`（jsDelivr 的其他入口）
+3. `raw.githubusercontent.com`
+4. `github.com/<repo>/releases/download/<tag>`
+
+每个源都用 `curl --http1.1 --retry 4 --retry-all-errors --connect-timeout 15 --max-time 600`，没有 curl 则退 `wget --tries=4`，再退 `python3 urllib`。下载后按 `sha256sums.txt` 校验。版本号从 `@dist/VERSION` 读；读不到再问 GitHub API。
+
+**备用：GitHub 直连**
 
 ```bash
 curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash
-# 指定版本 / 透传安装参数：
-curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash -s -- --port 9443 --traffic-iface eth1
 ```
+
+**备用：自建镜像 / 内网 HTTP 目录**
+
+```bash
+bash online-install.sh --base-url http://192.168.1.10:8123/hnp --tag v0.38.1
+```
+
+> jsDelivr 对分支内容有缓存，CI 发布会顺手调 `https://purge.jsdelivr.net/gh/leoz26/dae-panel@dist/<文件>` 刷新；偶发仍缓存旧版时，用 `--tag vX.Y.Z`（走不可变的 `<tag>-dist` 分支）绕开。`
 
 **私有仓库（需要只读 token）**：web 下载地址对私有仓库一律 404，必须走 API。用仓库里的在线脚本取资产再执行：
 

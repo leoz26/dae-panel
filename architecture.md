@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.42  
+> **文档版本：** v0.43  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -38,6 +38,7 @@
 > **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
 > **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
 > **修订（v0.38）：** 补齐 goose 的完整残留面（`goose-update-geo.{service,timer}` 这类额外 unit 也会被检测并退役）+ 新增 daed（第三个写 dae 配置的面板）告警；n6 的 `/root/goose-retired` 已在留档后整目录删除，详见 §14.28.1。  
+> **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
 > **整理日期：** 2026-10-23  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
@@ -2089,7 +2090,83 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 - apt 卸载/降级 dae：破坏性太强，留给用户命令行。
 - 非 APT 系自动安装（如 OpenWrt opkg）：只给官方文档链接，避免写错源把系统搞脏。
 
-## 15. 本版（v0.42）变更清单
+## 14.34 CDN 安装链路：dist / <tag>-dist 分支 + 多源回退（v0.43）
+
+### 14.34.1 起因：初始环境连不上 GitHub
+
+用户在一台 FNos（x86_64）上跑在线安装，两次都停在第 2 步：
+
+```
+curl: (18) HTTP/2 stream 1 was not closed cleanly ...
+curl: (52) Empty reply from server
+curl: (28) Failed to connect to github.com port 443 after 133331 ms
+[x] 下载 online-install.sh 失败
+```
+
+三个问题叠在一起：
+
+1. 初始环境的出网路径不稳定（HTTP/2 被中间设备打断、连接被静默丢弃）——这是用户侧事实，面板改不了；
+2. 旧 `online-install.sh` 的 `fetch()` 是裸 `curl -fsSL`：**没有重试、没有 --http1.1**，一次抖动就整条安装失败；
+3. 所有资产只有一个来源（GitHub Releases），一旦 github.com 不可达就没有退路。
+
+用户结论（逐字）："我觉得用cdn会更好，因为一个初始环境可能不一定连得上github"。
+
+### 14.34.2 方案：发布到普通分支，让 CDN 转售
+
+GitHub Releases 的资产只能从 github.com 取；jsDelivr 这类 CDN 只转售**仓库文件**。所以 CI 在发布 Release 之后，把同一批产物再推进两个普通分支：
+
+| 分支 | 内容 | 特性 |
+|---|---|---|
+| `dist` | 最近一次发布的全部产物 + `VERSION`（内容就是 tag 字符串） | 可变，永远指向最新 |
+| `<tag>-dist` | 该次发布的全部产物 | 不可变快照，可长期钉版本 |
+
+对应 URL：
+
+```
+https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh
+https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.1-dist/homenet-panel-linux-amd64
+```
+
+工作流步骤（`.github/workflows/release.yml`，仅在 `refs/tags/v*` 时执行）：
+
+1. `echo "$TAG" > dist/VERSION`，并把 `VERSION` 一起挂到 Release；
+2. 在 `dist/` 里 `git init -b dist` → commit → `git push -f <token>@github.com/<repo>.git dist` 与 `dist:<tag>-dist`（每次都是新提交、强推覆盖，历史不膨胀）；
+3. 对 7 个文件逐个请求 `https://purge.jsdelivr.net/gh/<repo>@dist/<文件>` 刷新 CDN 缓存（失败 `continue-on-error`）。
+
+### 14.34.3 安装脚本：多源 + 重试 + 校验
+
+`deploy/online-install.sh` 重写后的下载策略：
+
+| 环节 | 行为 |
+|---|---|
+| 版本解析 | 先读 `@dist/VERSION`；失败再问 `api.github.com/repos/<repo>/releases/latest` 的 `tag_name`；都没有则退 `latest` |
+| 源顺序 | `--base-url` 优先；否则 jsDelivr `@<tag>-dist` → jsDelivr `@dist` → fastly.jsdelivr.net → gcore.jsdelivr.net → raw.githubusercontent.com/`<tag>-dist` → github.com/releases/download/`<tag>` |
+| 单次下载 | `curl -fsSL --http1.1 --retry 4 --retry-all-errors --connect-timeout 15 --max-time 600`；无 curl 退 `wget -q --tries=4 --timeout=20`；再无则 `python3 urllib` |
+| 逐源回退 | `download()` 按源顺序试，成功且非空即返回；全部失败才 die，并提示「检查网络、代理、或 --base-url 镜像」 |
+| 完整性 | 拿到 `sha256sums.txt` 就比对；不一致直接 die（下载损坏或被篡改） |
+| 私有仓库 | 匿名全失败且给了 `GH_TOKEN` 时，走 API 两步（`releases/latest|tags/<tag>` 取 asset.id → `releases/assets/<id>` 带 `Accept: application/octet-stream`） |
+| 透传参数 | 未知参数收集进 `PASSTHRU` 交给 `install.sh`，因此 `--port`/`--traffic-iface`/`--install-dae` 照旧可用 |
+
+### 14.34.4 CDN 可达性实测（开发机，2026-10-26）
+
+对 `leoz26/dae-panel@main/README.md` 逐个发 GET：
+
+| URL | 结果 |
+|---|---|
+| `https://cdn.jsdelivr.net/gh/...` | 200 / 8914B |
+| `https://fastly.jsdelivr.net/gh/...` | 200 / 8914B |
+| `https://gcore.jsdelivr.net/gh/...` | 200 / 8914B |
+| `https://raw.githubusercontent.com/...` | 200 / 8914B |
+| `https://cdn.statically.io/gh/...` | 200 / 8914B（脚本未列入首选，保留作手工镜像） |
+
+### 14.34.5 边界与代价
+
+- **jsDelivr 有分支缓存**：同一个 `@dist` 路径可能短时间内仍返回旧文件。缓解措施是 CI 主动 purge + 提供 `--tag vX.Y.Z`（走不可变的 `<tag>-dist`）。对「钉版本」场景缓存是好事，对「永远最新」场景偶发滞后。
+- **jsDelivr 单文件上限 20MB**：当前二进制 8–9MB，够用；若将来膨胀要换 R2/OSS。
+- **CDN 只是传输层**：面板不因此信任任何内容——仍然验 `sha256sums.txt`，`install.sh` 仍然 `--dry-run` 可用。
+- **不做**：不把二进制提交进 `main`（历史会膨胀）、不依赖第三方上传服务（用户没有 R2/OSS 账号）、不在面板里做「自更新」（仍是 apt/脚本的职责）。
+
+## 15. 本版（v0.43）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2129,3 +2206,5 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 
 32. **订阅 UA 兜底（v0.41）**：UA 留空时不再把 `Go-http-client/1.1` 暴露给机场，改用 `DefaultUA = "clash-verge/v1.7.7"`（顺序：单条 ua → `--sub-ua` → DefaultUA）；n6 上留空实测 29/29 通过（§14.32）。
 33. **新增 §14.33（v0.42）**：面板内「安装与初始化」页——`GET /api/setup/status` + 三个动作（安装 dae / 生成初始配置 / 启动 dae，均可 dry-run），root 校验 + 串行锁 + 已有配置强制 force（避免把线上规则冲成默认值）+ 写前备份 + `dae validate` 失败自动回滚 + 审计 `setup.*`；同时修正 install.sh「首次打开面板可生成初始配置」的不实提示。
+
+34. **CDN 安装链路（v0.43）**：新增 `dist` / `<tag>-dist` 分支发布（`.github/workflows/release.yml`）与 jsDelivr 缓存刷新；`deploy/online-install.sh` 重写为多源回退 + `--http1.1` 重试 + sha256 校验 + `--tag/--base-url/--cdn` 参数，推荐一行命令改为 `https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh`（§14.34）。
