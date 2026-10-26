@@ -55,8 +55,11 @@ jobs:
           git commit -qm "dist: $TAG"
           REMOTE="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git push -f "$REMOTE" dist
-          git push -f "$REMOTE" dist:"$TAG-dist"
-          echo "已发布分支 dist 与 $TAG-dist"
+          # 还要一个带 -dist 的**标签**：jsDelivr 只索引分支 dist，且 dist 有缓存滞后；
+          # 标签形式的 vX.Y.Z-dist 能被 CDN 正常解析并永久缓存。
+          git tag -f "$TAG-dist" >/dev/null
+          git push -f "$REMOTE" "refs/tags/$TAG-dist"
+          echo "已发布分支 dist 与标签 $TAG-dist"
 
       - name: 刷新 jsDelivr 缓存
         if: startsWith(github.ref, 'refs/tags/v')
@@ -65,4 +68,5 @@ jobs:
           for f in online-install.sh install.sh verify-install.sh sha256sums.txt VERSION \
                    homenet-panel-linux-amd64 homenet-panel-linux-arm64; do
             curl -fsS --max-time 20 "https://purge.jsdelivr.net/gh/${{ github.repository }}@dist/$f" >/dev/null || true
+            curl -fsS --max-time 20 "https://purge.jsdelivr.net/gh/${{ github.repository }}@${{ github.ref_name }}-dist/$f" >/dev/null || true
           done

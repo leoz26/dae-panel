@@ -75,19 +75,22 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 
 | 分支 | 内容 | 特性 |
 |---|---|---|
-| `dist` | 最新一次发布的全部产物 + `VERSION` | 可变，永远指向最新 |
-| `<tag>-dist`（如 `v0.38.1-dist`） | 该次发布的全部产物 | 不可变，适合钉版本 |
+| 分支 `dist` | 最新一次发布的全部产物 + `VERSION` | 可变，指向最新（CDN 有缓存滞后） |
+| 标签 `<tag>-dist`（如 `v0.38.2-dist`） | 该次发布的全部产物 | 不可变，CDN 立即生效、适合钉版本 |
 
-> 实测：jsDelivr **只索引 `dist` 分支**——叫 `v0.38.1-dist` 的分支在 jsDelivr 上恒 404（它把 `v0.38.1-…` 当版本号解析），但在 `raw.githubusercontent.com` 上正常。所以「最新版走 CDN、钉版本走 raw」。
+> 实测两点：① **分支**名里带版本号（`v0.38.1-dist`）在 jsDelivr 上恒 404，但同名的 **git 标签**正常；② `@dist` 分支有缓存滞后（purge 后仍可能返回旧脚本）。所以「钉版本用标签，最新版用 `@dist`（可能滞后几分钟）」。
 
 产物清单：`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`verify-install.sh`、`sha256sums.txt`、`VERSION`。
 
 **推荐：走 CDN（初始环境连不上 github.com 也能装）**
 
 ```bash
+# 最新（CDN，可能滞后几分钟）
 curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
-# 指定版本 / 透传安装参数：
-curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash -s -- --tag v0.38.1 --port 9443 --traffic-iface eth1
+# 钉版本（CDN 标签，立即生效，推荐生产用）
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.2-dist/online-install.sh | sudo bash
+# 透传安装参数：
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.2-dist/online-install.sh | sudo bash -s -- --tag v0.38.2 --port 9443 --traffic-iface eth1
 ```
 
 脚本自身的下载器按下面的顺序逐个试，**任一源成功即用**，全部失败才报错：

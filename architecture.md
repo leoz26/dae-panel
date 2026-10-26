@@ -2115,10 +2115,10 @@ curl: (28) Failed to connect to github.com port 443 after 133331 ms
 
 GitHub Releases 的资产只能从 github.com 取；jsDelivr 这类 CDN 只转售**仓库文件**。所以 CI 在发布 Release 之后，把同一批产物再推进两个普通分支：
 
-| 分支 | 内容 | 特性 |
+| ref | 内容 | 特性 |
 |---|---|---|
-| `dist` | 最近一次发布的全部产物 + `VERSION`（内容就是 tag 字符串） | 可变，永远指向最新 |
-| `<tag>-dist` | 该次发布的全部产物 | 不可变快照，可长期钉版本 |
+| 分支 `dist` | 最近一次发布的全部产物 + `VERSION`（内容就是 tag 字符串） | 可变，指向最新；**CDN 上有分钟级缓存滞后** |
+| 标签 `<tag>-dist`（如 `v0.38.2-dist`） | 该次发布的全部产物 | 不可变快照，CDN 解析正常、永久可缓存 |
 
 对应 URL：
 
@@ -2127,7 +2127,13 @@ https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh
 https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-linux-amd64
 ```
 
-**实测结论（重要）**：jsDelivr 只索引 `dist` 这一个分支。名字里带版本号的 `v0.38.1-dist` 会被 jsDelivr 当成「版本」解析而返回 404（`Couldn't find the requested file /VERSION in leoz26/dae-panel.`），`cdn.statically.io` 与 purge 后重试同样 404；但同一条分支在 `raw.githubusercontent.com` 上 200、文件完整。因此**钉版本的 CDN 路径不可用**，钉版本走 raw 的 `<tag>-dist`，最新版走 jsDelivr 的 `@dist`。
+**实测结论（重要，走了两次弯路）**：
+
+1. **分支名里带版本号会被 CDN 当成「版本」解析**：`@v0.38.1-dist`（分支）在 jsDelivr 上恒 404（`Couldn't find the requested file /VERSION in leoz26/dae-panel.`），`cdn.statically.io` 与 purge 后重试同样 404，但同一条分支在 `raw.githubusercontent.com` 上 200、文件完整。
+2. **同名 git 标签则完全正常**：在 `dist` 分支的提交上打标签 `v0.38.2-dist` 后，`@v0.38.2-dist/online-install.sh` 立即 200 / 6635B（正确内容）。
+3. **分支内容有缓存滞后**：`dist` 分支已更新到 6635B 的新脚本后，`@dist/online-install.sh` 在 cdn/fastly/gcore 三个入口仍返回旧的 6540B，purge 返回 `finished`（CF/FY 都刷了）后依旧；同一时刻 `@v0.38.2-dist` 已是新的。
+
+结论：**最新版靠 `@dist`（可能滞后几分钟到几小时），钉版本靠 `@<tag>-dist` 标签（立即生效、永久缓存）**。安装脚本因此把标签源放在第一位，`@dist` 只作兜底。
 
 工作流步骤（`.github/workflows/release.yml`，仅在 `refs/tags/v*` 时执行）：
 
@@ -2171,7 +2177,9 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 | `fastly.jsdelivr.net/@dist/online-install.sh` | 200 / 6540B |
 | `gcore.jsdelivr.net/@dist/online-install.sh` | 200 / 6540B |
 | `raw.githubusercontent.com/<repo>/v0.38.1-dist/homenet-panel-linux-arm64` | 200 / 7,602,360B |
-| `cdn.jsdelivr.net/@v0.38.1-dist/...` | **404**（版本号分支名不被索引） |
+| `cdn.jsdelivr.net/@v0.38.1-dist/...`（分支） | **404**（版本号样式的分支名不被索引） |
+| `cdn.jsdelivr.net/@v0.38.2-dist/online-install.sh`（标签） | 200 / 6635B（新内容，未滞后） |
+| `cdn.jsdelivr.net/@dist/online-install.sh` | 200 / 6540B（**旧内容**，purge 后仍滞后） |
 
 **端到端实测（两台真机，`--dry-run` 不写盘）**：
 
@@ -2190,7 +2198,8 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 
 - **jsDelivr 有分支缓存**：同一个 `@dist` 路径可能短时间内仍返回旧文件。缓解措施是 CI 主动 purge + 提供 `--tag vX.Y.Z`（走不可变的 `<tag>-dist`）。对「钉版本」场景缓存是好事，对「永远最新」场景偶发滞后。
 - **jsDelivr 单文件上限 20MB**：当前二进制 8–9MB，够用；若将来膨胀要换 R2/OSS。
-- **jsDelivr 不支持「版本号样式」的分支名**：这是本轮实测踩到的硬限制（`@v0.38.1-dist` 必 404）。若将来确实需要「CDN 上钉版本」，只能改用不撞版本号命名的分支（如 `pkg` + 目录分层）或对象存储。
+- **jsDelivr 不支持「版本号样式」的分支名，但支持同名标签**：所以钉版本一律用 `vX.Y.Z-dist` 标签，不要用分支。
+- **分支缓存无法可靠 purge**：实测 purge 报 `finished` 后 `@dist` 仍是旧文件。因此「一条命令装最新」本身有几分钟到几小时的滞后风险；需要确定版本时用 `--tag vX.Y.Z`（走标签）。
 - **CDN 只是传输层**：面板不因此信任任何内容——仍然验 `sha256sums.txt`，`install.sh` 仍然 `--dry-run` 可用。
 - **不做**：不把二进制提交进 `main`（历史会膨胀）、不依赖第三方上传服务（用户没有 R2/OSS 账号）、不在面板里做「自更新」（仍是 apt/脚本的职责）。
 

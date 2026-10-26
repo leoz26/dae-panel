@@ -112,11 +112,12 @@ else
   if [ "$TAG" = latest ]; then
     SOURCES+=("https://github.com/$REPO_SLUG/releases/latest/download")
   else
-    # jsDelivr 只索引了 dist 分支（版本号样式的分支名它会当成版本解析而 404），
-    # 钉版本的镜像走 raw.githubusercontent 的 <tag>-dist 分支。
+    # 首选 CDN 上的 <tag>-dist **标签**（不可变、缓存友好）；
+    # 分支 dist 只作为兜底（jsDelivr 对分支有分钟级缓存滞后）。
+    SOURCES+=("$CDN/$REPO_SLUG@$TAG-dist")
     SOURCES+=("$CDN/$REPO_SLUG@dist")
-    SOURCES+=("https://fastly.jsdelivr.net/gh/$REPO_SLUG@dist")
-    SOURCES+=("https://gcore.jsdelivr.net/gh/$REPO_SLUG@dist")
+    SOURCES+=("https://fastly.jsdelivr.net/gh/$REPO_SLUG@$TAG-dist")
+    SOURCES+=("https://gcore.jsdelivr.net/gh/$REPO_SLUG@$TAG-dist")
     SOURCES+=("https://raw.githubusercontent.com/$REPO_SLUG/$TAG-dist")
     SOURCES+=("https://raw.githubusercontent.com/$REPO_SLUG/dist")
     SOURCES+=("https://github.com/$REPO_SLUG/releases/download/$TAG")
