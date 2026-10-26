@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.47  
+> **文档版本：** v0.48  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -11,6 +11,7 @@
 > **修订（v0.9）：** 前端本地化（Vue 内嵌，去 CDN 依赖）；节点测速（并发 TCP 建连延迟）+ 按分组 filter 本地求值命中；模式 B 自建聚合（多订阅合并去重，生成 panel-merged.sub）。新增 §14.6。详见 §14。
 > **修订（v0.10）：** 补记前端本地化方案取舍分析（§14.7）；新增模式 B 一键安全切换（POST /api/aggregate/switch，事务化改订阅引用+分组 filter 并校验可回滚）。详见 §14.7 / §14.8。
 > **修订（v0.11）：** 启用 HTTPS/TLS（`serve --tls-cert/--tls-key`，cookie 置 Secure，自签 SAN 证书）。详见 §14.9。
+> **修订（v0.48）：** §14.37.7 记录真机 bug：`ParseDNS` 返回的 nil 切片被编成 JSON `null`，前端 `null.push` 抛异常导致「+ 添加请求/响应规则」点了没反应；新增 `DNSSpec.Normalize()`、handler 规范化与前端兜底，并补两条回归测试。
 > **修订（v0.47）：** 新增 §14.38「构建矩阵扩到 linux/armv7 与 linux/386」：CI 用 `产物名:GOARCH:GOARM` 四元组交叉编译，`online-install.sh` 的 `uname -m` 映射补 armv7/386、armv6 明确拒绝，并说明为什么不做 armv6 与 mips（dae 官方 deb 其实有 x86_32/armv7 包）。
 > **修订（v0.46）：** 新增 §14.37「结构化 DNS 编辑器」：`internal/model/dns.go` 的结构化视图（Parse/Render/Lint）+ `/api/dns/parse`、`/api/dns/render` + 前端「DNS」标签页；校验规则来自 .85 上逐条 `dae validate` 实测（dns 的 qname 不支持 `geolocation:`；动作只有 `reject`，`accept` 仅限响应规则）。`Model.DNS` 仍为原样文本，保存后走同一 apply 事务。
 > **修订（v0.12）：** 新增分流命中调试器（geosite 解码 + 规则本地求值，§14.10）；分流规则可视化编辑增强（排序、出站联表、未保存规则试算，§14.11）。
@@ -2358,6 +2359,36 @@ DNSSpec{Upstreams, Request, RequestFallback, Response, ResponseFallback}
 
 部署：交叉编译 amd64/arm64 → `.85` 与 `n6` 的 homenet-panel 与 dae 均 active；`gofmt -l` 干净、`go vet ./...` 与 `go test ./... -count=1` 全绿。
 
+### 14.37.7 真机反馈：「+ 添加请求规则 / 响应规则」点了没反应（v0.48）
+
+**现象**：用户在面板「DNS」页点「+ 添加请求规则」「+ 添加响应规则」，表格不增行、界面无任何提示。
+
+**根因（Go 的 nil 切片 → JSON null）**：线上 dns 块通常只有 `upstream`，没有 `routing.request`。`ParseDNS` 里 `s.Request` 一直是 nil，`json.Marshal` 把 nil 切片编成 `null`，于是接口返回的是：
+
+```json
+{"spec":{"upstreams":[{...}],"request":null,"requestFallback":"cn","response":null,"responseFallback":"accept"}}
+```
+
+前端 `addDnsRule` 里是 `const arr = this.dnsSpec.request; arr.push(...)` —— `null.push` 抛 `TypeError`，Vue 的 click 处理器中止，**视觉上就是「按钮点了没反应」**（没有任何报错提示，因为异常在事件处理器里）。同理 `upstreams` 为空时「+ 添加上游」也会失败。
+
+**为什么自动化测试没抓到**：上一轮的 CDP 验证脚本先点了「填回默认值」再点「+ 添加请求规则」；`resetDns()` 在前端显式构造了 `request: []`，于是绕过了 null。这类「测试路径正好避开陷阱」的情况，只有真机按自然顺序点才会暴露。
+
+**修法（两端都加保险）**：
+
+| 位置 | 改动 |
+| --- | --- |
+| `internal/model/dns.go` | 新增 `func (s DNSSpec) Normalize() DNSSpec`：三个 nil 切片换成空切片；`ParseDNS` 结尾 `return s.Normalize()`；`DefaultDNSSpec()` 里直接把 `Request`/`Response` 初始化为 `[]DNSRule{}` |
+| `internal/api/dns.go` | `handleDNSParse` 用 `model.ParseDNS(in.Text).Normalize()` 与 `model.DefaultDNSSpec().Normalize()`，保证响应里永远是 `[]` |
+| `internal/api/index.html` | `loadDns` 收到 spec 后补 `sp.upstreams=sp.upstreams||[]` 等三行；`addUpstream`/`addDnsRule`/`delDnsRule`/`delUpstream` 都先确保数组存在再 push/splice（就算将来后端再返回 null 也不炸） |
+
+**回归测试**：`internal/model/dns_test.go` 新增 `TestParseDNSSpecNormalized`（三种只有部分块的文本：解析结果三个切片都非 nil，且 `json.Marshal` 里不出现 `"request":null`）与 `TestDefaultDNSSpecSerializesAsArrays`。
+
+**验证（真机）**：新二进制部署到 `.85`（amd64）与 `n6`（arm64）。临时实例 `POST /api/dns/parse` 返回 `request = [] | response = [] | upstreams = [cn/udp://223.5.5.5:53]`，`has null arrays: False`。CDP 浏览器按**自然路径**（登录 → 点 DNS 标签 → 直接点两个「+ 添加」按钮）：表格行数 4 → 6，新增行里的输入框数量 6，模板占位符泄漏 0。
+
+**教训**：
+1. Go 里凡是「返回给前端当数组用」的字段，**要么初始化成空切片，要么在前端兜底** —— nil 切片编成 `null` 是默认行为；
+2. 前端自动化测试要照用户的实际点击顺序走，别先调「填回默认值」把状态铺好；
+3. `pkill -f 'homenet-[p]anel serve'` 这种「防自杀」写法只防住了命令行里带方括号的那一处字面量 —— 如果同一条 `ssh` 命令里**别处**出现过完整的 `homenet-panel serve`（例如随后要启动它的命令行），`pkill` 仍会匹配并杀掉自己，还会连带杀掉 `--addr 0.0.0.0:8787` 的**生产实例**（本轮实际发生：`homenet-panel.service` 被 SIGTERM 停止、systemd 记为 Deactivated 未自动重启）。正确做法是用端口或 pid 精确定位（`pgrep -f 'addr 127.0.0.1:8901'`），或干脆换一个没人用的端口。
 ### 14.37.6 边界（刻意不做）
 
 - **不做「无 IPv6 就 reject AAAA」开关**：用户明确不要。要挡 AAAA 就在请求规则里加 `qtype(aaaa) -> reject`（编辑器支持，并提示代价：IPv6-only 服务会解析失败）。
@@ -2411,7 +2442,7 @@ CDN 取回实测（`https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/`�
 架构映射干跑（把 `uname -m` 换成各值跑同一段 `case`）：`x86_64→amd64`、`aarch64→arm64`、`armv7l→armv7`、`i686→386`、`armv6l→die（ARMv6 暂不提供构建）`、`mips→die（不支持的架构）`。
 
 **未验证**：手上没有 32 位 ARM / x86 真机，因此只到「能编译、能下载、校验和一致」这一层，**没有 32 位设备上的实机启动与 eBPF 加载验证**。32 位内核的 BPF/BTF 支持与 `memlock` 限制都要现场复核（`install.sh --dry-run` 与面板「接入向导」的能力表都会先报出来）。
-## 15. 本版（v0.47）变更清单
+## 15. 本版（v0.48）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2457,3 +2488,4 @@ CDN 取回实测（`https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/`�
 36. **计划步骤白话说明（v0.45）**：`internal/access/plan.go` 的 `Step` 新增 `Note` 字段（4 条全部填写），前端在每条步骤详情下渲染蓝色提示框；新增 `TestPlanStepsHavePlainLanguageNotes`；实机 API 与 CDP 浏览器均验证（§14.36）。
 37. **结构化 DNS 编辑器（v0.46）**：新增 `internal/model/dns.go`（`DNSSpec`/`ParseDNS`/`RenderDNS`/`LintDNS`/`DefaultDNSSpec`）、`internal/api/dns.go`（`/api/dns/parse`、`/api/dns/render`）与前端「DNS」标签页；`Model.DNS` 仍是原样文本，编辑结果渲染回文本后走同一 apply 事务。校验依据来自 .85 上逐条 `dae validate`（`qname(geolocation:)`、`-> drop`、请求规则 `-> accept` 都不被 dae 接受）。实机 preview 证明「dns 不改时生成结果与线上逐字节一致」，详见 §14.37。
 38. **构建矩阵扩到 armv7 / 386（v0.47）**：CI 编译循环改为 `产物名:GOARCH:GOARM` 四元组（`amd64`/`arm64`/`armv7`(GOARM=7)/`386`），purge 与 release notes 同步；`deploy/online-install.sh` 的 `uname -m` 映射加 `armv7l→armv7`、`i686→386`，`armv6l` 明确拒绝（GOARM=7 二进制在 ARMv6 上 Illegal instruction）。dae 官方 deb 本身有 `x86_32` 与 `armv7` 包，组合可行。详见 §14.38。
+39. **DNS 编辑器「+ 添加」按钮无反应（v0.48）**：Go 的 nil 切片被编成 JSON `null`，前端 `null.push` 抛 TypeError，事件处理器静默中止。`DNSSpec.Normalize()` + `handleDNSParse` 规范化 + 前端四处兜底；新增 `TestParseDNSSpecNormalized`/`TestDefaultDNSSpecSerializesAsArrays`；真机 CDP 按自然点击顺序验证表格 4→6 行。详见 §14.37.7。

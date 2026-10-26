@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -125,5 +126,47 @@ func TestLintDNSRejectsInvalidActions(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("warnings should mention %q, got %s", want, joined)
 		}
+	}
+}
+
+// TestParseDNSSpecNormalized 断言解析结果里没有 nil 切片。
+// 背景：nil 切片会编成 JSON 的 null，前端表格用 arr.push(...) 增行，
+// null.push 会抛 TypeError，表现为「点了『+ 添加请求规则』没反应」。
+func TestParseDNSSpecNormalized(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"只有上游", "    upstream {\n        cn: 'udp://223.5.5.5:53'\n    }"},
+		{"空字符串", ""},
+		{"只有兜底", "    routing {\n        request {\n            fallback: cn\n        }\n    }"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s := ParseDNS(c.body)
+			if s.Upstreams == nil || s.Request == nil || s.Response == nil {
+				t.Fatalf("ParseDNS 返回了 nil 切片: upstreams=%v request=%v response=%v", s.Upstreams, s.Request, s.Response)
+			}
+			raw, err := json.Marshal(s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, bad := range []string{"\"upstreams\":null", "\"request\":null", "\"response\":null"} {
+				if strings.Contains(string(raw), bad) {
+					t.Fatalf("JSON 里出现 %s：%s", bad, raw)
+				}
+			}
+		})
+	}
+}
+
+// TestDefaultDNSSpecSerializesAsArrays 确认默认值也编成 [] 而不是 null。
+func TestDefaultDNSSpecSerializesAsArrays(t *testing.T) {
+	raw, err := json.Marshal(DefaultDNSSpec())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "null") {
+		t.Fatalf("默认值里出现 null：%s", raw)
 	}
 }

@@ -29,11 +29,30 @@ type DNSSpec struct {
 	ResponseFallback string        `json:"responseFallback"`
 }
 
+// Normalize 把 nil 切片换成空切片。
+// 必须做：Go 的 nil 切片会编成 JSON 的 null，而前端表格要靠
+// dnsSpec.request.push(...) 增行 —— null.push 会抛 TypeError，
+// 表现就是「点了『+ 添加…』没反应」。
+func (s DNSSpec) Normalize() DNSSpec {
+	if s.Upstreams == nil {
+		s.Upstreams = []DNSUpstream{}
+	}
+	if s.Request == nil {
+		s.Request = []DNSRule{}
+	}
+	if s.Response == nil {
+		s.Response = []DNSRule{}
+	}
+	return s
+}
+
 // DefaultDNSSpec 是面板新建/空配置时使用的默认 DNS（与历史生成的配置一致）。
 func DefaultDNSSpec() DNSSpec {
 	return DNSSpec{
 		Upstreams:        []DNSUpstream{{Name: "cn", Addr: "udp://223.5.5.5:53"}},
+		Request:          []DNSRule{},
 		RequestFallback:  "cn",
+		Response:         []DNSRule{},
 		ResponseFallback: "accept",
 	}
 }
@@ -91,7 +110,7 @@ func ParseDNS(body string) DNSSpec {
 			}
 		}
 	}
-	return s
+	return s.Normalize()
 }
 
 // RenderDNS 把结构化视图渲染成 dns 块正文（4 空格基准缩进，可直接放回 Model.DNS）。

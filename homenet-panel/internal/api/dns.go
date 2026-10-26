@@ -17,10 +17,10 @@ func (s *Server) handleDNSParse(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, map[string]any{"error": "请求体不是合法 JSON: " + err.Error()})
 		return
 	}
-	spec := model.ParseDNS(in.Text)
+	spec := model.ParseDNS(in.Text).Normalize()
 	if len(spec.Upstreams) == 0 && len(spec.Request) == 0 && len(spec.Response) == 0 {
 		// 线上没有 dns 块或解析不出内容时，给一份可直接用的默认值。
-		spec = model.DefaultDNSSpec()
+		spec = model.DefaultDNSSpec().Normalize()
 		writeJSON(w, 200, map[string]any{"spec": spec, "warnings": model.LintDNS(spec), "defaulted": true})
 		return
 	}

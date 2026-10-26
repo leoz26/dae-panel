@@ -1043,12 +1043,12 @@ createApp({
       if(r.code===200){ this.modelMsg="已从线上重新解析"; await this.loadModel(); }
       else { this.modelMsg=(r.data&&r.data.error)||('重新解析失败('+r.code+')'); }
     },
-    async loadDns(){ if(!this.model) await this.loadModel(); const r=await this.api("/api/dns/parse","POST",{text:(this.model&&this.model.dns)||""}); if(r.code===200){ this.dnsSpec=r.data.spec; this.dnsWarn=r.data.warnings||[]; this.dnsDefaulted=!!r.data.defaulted; this.dnsText=""; this.dnsMsg=r.data.defaulted?"线上没有 dns 块，已给出默认值（尚未应用）":"已从当前配置载入"; } else this.dnsMsg="载入失败: "+this.pretty(r.data); },
+    async loadDns(){ if(!this.model) await this.loadModel(); const r=await this.api("/api/dns/parse","POST",{text:(this.model&&this.model.dns)||""}); if(r.code===200){ const sp=r.data.spec||{}; sp.upstreams=sp.upstreams||[]; sp.request=sp.request||[]; sp.response=sp.response||[]; this.dnsSpec=sp; this.dnsWarn=r.data.warnings||[]; this.dnsDefaulted=!!r.data.defaulted; this.dnsText=""; this.dnsMsg=r.data.defaulted?"线上没有 dns 块，已给出默认值（尚未应用）":"已从当前配置载入"; } else this.dnsMsg="载入失败: "+this.pretty(r.data); },
     dnsOutOpts(which){ const s=this.dnsSpec||{upstreams:[]}; const names=(s.upstreams||[]).map(function(u){return u.name;}).filter(function(n){return !!n;}); return (which==="response") ? names.concat(["reject","accept"]) : names.concat(["reject"]); },
-    addUpstream(){ if(!this.dnsSpec) return; this.dnsSpec.upstreams.push({name:"",addr:""}); },
-    delUpstream(i){ if(this.dnsSpec) this.dnsSpec.upstreams.splice(i,1); },
-    addDnsRule(which){ if(!this.dnsSpec) return; const arr=(which==="request")?this.dnsSpec.request:this.dnsSpec.response; arr.push({matcher:"",out:""}); },
-    delDnsRule(which,i){ if(!this.dnsSpec) return; const arr=(which==="request")?this.dnsSpec.request:this.dnsSpec.response; arr.splice(i,1); },
+    addUpstream(){ if(!this.dnsSpec) return; if(!this.dnsSpec.upstreams) this.dnsSpec.upstreams=[]; this.dnsSpec.upstreams.push({name:"",addr:""}); },
+    delUpstream(i){ if(this.dnsSpec && this.dnsSpec.upstreams) this.dnsSpec.upstreams.splice(i,1); },
+    addDnsRule(which){ if(!this.dnsSpec) return; const k=(which==="request")?"request":"response"; if(!this.dnsSpec[k]) this.dnsSpec[k]=[]; this.dnsSpec[k].push({matcher:"",out:""}); },
+    delDnsRule(which,i){ if(!this.dnsSpec) return; const k=(which==="request")?"request":"response"; if(!this.dnsSpec[k]) this.dnsSpec[k]=[]; this.dnsSpec[k].splice(i,1); },
     resetDns(){ this.dnsSpec={upstreams:[{name:"cn",addr:"udp://223.5.5.5:53"}],request:[],requestFallback:"cn",response:[],responseFallback:"accept"}; this.dnsWarn=[]; this.dnsText=""; this.dnsMsg="已填回默认 DNS（还没应用）"; },
     async renderDns(){ const r=await this.api("/api/dns/render","POST",{spec:this.dnsSpec}); if(r.code===200){ this.dnsText=r.data.text; this.dnsWarn=r.data.warnings||[]; this.dnsMsg="已渲染（还没写盘）"; } else this.dnsMsg="渲染失败: "+this.pretty(r.data); },
     async saveDns(){ const r=await this.api("/api/dns/render","POST",{spec:this.dnsSpec}); if(r.code!==200){ this.dnsMsg="渲染失败: "+this.pretty(r.data); return; } this.dnsText=r.data.text; this.dnsWarn=r.data.warnings||[]; if(this.dnsWarn.length && !confirm("DNS 配置有 "+this.dnsWarn.length+" 个问题，多半会被 dae validate 拒绝并自动回滚。仍然应用吗？")){ this.dnsMsg="已取消（未应用）"; return; } if(!this.model){ this.dnsMsg="模型未载入，请刷新页面后重试"; return; } this.model.dns=this.dnsText; this.dnsMsg="应用中…"; await this.applyModel(); this.dnsMsg="应用结果："+this.modelMsg; this.refreshStatus(); },
