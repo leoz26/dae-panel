@@ -2395,7 +2395,22 @@ DNSSpec{Upstreams, Request, RequestFallback, Response, ResponseFallback}
 
 ### 14.38.5 发布与实测
 
-（发布后回填：CI 产物清单、CDN 上 armv7/386 的取回与 sha256 校验结果。）
+tag `v0.39.0`（commit `06d21a2`）触发 CI：run 40334889661 **success**。Release 与 `dist` 分支、`v0.39.0-dist` 标签内容一致：
+
+| 资产 | 字节 |
+| --- | --- |
+| homenet-panel-linux-amd64 | 8,159,416 |
+| homenet-panel-linux-arm64 | 7,733,432 |
+| homenet-panel-linux-armv7 | 7,930,040 |
+| homenet-panel-linux-386 | 7,835,832 |
+| install.sh / online-install.sh / verify-install.sh | 15,515 / 8,140 / 4,486 |
+| sha256sums.txt / VERSION | 366 / 8 |
+
+CDN 取回实测（`https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/`）：`VERSION`=200/8B 内容 `v0.39.0`；`sha256sums.txt`=200/366B；`homenet-panel-linux-armv7`=200/7,930,040B；`-386`=200/7,835,832B。两个 32 位产物下载后 `sha256` 与 `sha256sums.txt` **逐字节一致**（armv7 `b3ab2a8a…`、386 `db06d1cc…`），`file` 显示 `ELF 32-bit LSB executable, ARM, EABI5` 与 `ELF 32-bit LSB executable, Intel 80386`，均 statically linked / stripped。CDN 上的 `online-install.sh`（8,140B）已含 `armv7l|armv7`、`armv6l`(die)、`i386|i486|i586|i686|x86` 三行新映射。
+
+架构映射干跑（把 `uname -m` 换成各值跑同一段 `case`）：`x86_64→amd64`、`aarch64→arm64`、`armv7l→armv7`、`i686→386`、`armv6l→die（ARMv6 暂不提供构建）`、`mips→die（不支持的架构）`。
+
+**未验证**：手上没有 32 位 ARM / x86 真机，因此只到「能编译、能下载、校验和一致」这一层，**没有 32 位设备上的实机启动与 eBPF 加载验证**。32 位内核的 BPF/BTF 支持与 `memlock` 限制都要现场复核（`install.sh --dry-run` 与面板「接入向导」的能力表都会先报出来）。
 ## 15. 本版（v0.47）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
