@@ -112,11 +112,13 @@ else
   if [ "$TAG" = latest ]; then
     SOURCES+=("https://github.com/$REPO_SLUG/releases/latest/download")
   else
-    SOURCES+=("$CDN/$REPO_SLUG@$TAG-dist")
+    # jsDelivr 只索引了 dist 分支（版本号样式的分支名它会当成版本解析而 404），
+    # 钉版本的镜像走 raw.githubusercontent 的 <tag>-dist 分支。
     SOURCES+=("$CDN/$REPO_SLUG@dist")
-    SOURCES+=("https://fastly.jsdelivr.net/gh/$REPO_SLUG@$TAG-dist")
-    SOURCES+=("https://gcore.jsdelivr.net/gh/$REPO_SLUG@$TAG-dist")
+    SOURCES+=("https://fastly.jsdelivr.net/gh/$REPO_SLUG@dist")
+    SOURCES+=("https://gcore.jsdelivr.net/gh/$REPO_SLUG@dist")
     SOURCES+=("https://raw.githubusercontent.com/$REPO_SLUG/$TAG-dist")
+    SOURCES+=("https://raw.githubusercontent.com/$REPO_SLUG/dist")
     SOURCES+=("https://github.com/$REPO_SLUG/releases/download/$TAG")
   fi
   info "来源：$(printf '%s ' "${SOURCES[@]}")"
@@ -129,10 +131,6 @@ fi
 download() {
   local name="$1" out="$2" src
   for src in "${SOURCES[@]}"; do
-    case "$src" in
-      *github.com/*releases*|*raw.githubusercontent.com*) ;;
-      *) ;;
-    esac
     if get "$src/$name" "$out" 2>/dev/null && [ -s "$out" ]; then
       return 0
     fi
