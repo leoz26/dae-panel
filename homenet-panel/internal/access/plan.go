@@ -23,8 +23,10 @@ type PlanOptions struct {
 
 // Step 是计划里的一步：Snippet 为可直接复制的片段（nft/dae 配置/路由器操作说明）。
 type Step struct {
-	Title   string `json:"title"`
-	Detail  string `json:"detail"`
+	Title  string `json:"title"`
+	Detail string `json:"detail"`
+	// Note 是给人看的白话补充（界面里显示在详情下方的提示框内），不影响执行。
+	Note    string `json:"note,omitempty"`
 	Snippet string `json:"snippet,omitempty"`
 }
 
@@ -96,8 +98,10 @@ func PlanFor(p *Probe, opt PlanOptions) Plan {
 		pl.Warnings = append(pl.Warnings, "观察模式不改变任何流量路径：本计划只做只读校验")
 	} else {
 		pl.Steps = append(pl.Steps, Step{
-			Title:   "确认 dae 的 LAN 绑定（lan_interface）",
-			Detail:  "dae 靠 lan_interface 决定处理哪些网卡的流量；不写这一项时只有本机流量被代理。地道的做法是由面板写入自有片段 config.d/panel-access.dae，而不是改入口配置。",
+			Title:  "确认 dae 的 LAN 绑定（lan_interface）",
+			Detail: "dae 靠 lan_interface 决定处理哪些网卡的流量；不写这一项时只有本机流量被代理。地道的做法是由面板写入自有片段 config.d/panel-access.dae，而不是改入口配置。",
+			Note: "打个比方：lan_interface 就是「dae 在小区哪个门岗值班」。不填 = 只管自己家（本机）；填 ens2/br-lan = 从这个门进来的所有住户（LAN 设备）都归它管。\n" +
+				"注意它决定的是「谁来处理」，不是「怎么处理」——怎么分流仍然看下面的路由规则。",
 			Snippet: RenderDaeGlobal(pl.LanIfaces, pl.TProxyPort),
 		})
 	}
@@ -105,18 +109,25 @@ func PlanFor(p *Probe, opt PlanOptions) Plan {
 	// 2) 面板侧：自有 nft 表（DNS 重定向 / 可选 SNAT）
 	if pl.Mode != ModeObserve {
 		pl.Steps = append(pl.Steps, Step{
-			Title:   "自有 nft 表：DNS 重定向（panel_dns）",
-			Detail:  "DNS 必须经过本机，否则 dae 拿不到域名，geosite/关键词规则会失效。表按名字创建，随时可整表删除（完全卸载）。",
+			Title:  "自有 nft 表：DNS 重定向（panel_dns）",
+			Detail: "DNS 必须经过本机，否则 dae 拿不到域名，geosite/关键词规则会失效。表按名字创建，随时可整表删除（完全卸载）。",
+			Note: "为什么「看不到域名」：网络包里只有目标 IP（门牌号），没有域名（收件人姓名）。「youtube.com = 142.250.72.14」这个对照关系，只在查 DNS 的那一瞬间出现过；设备若把 DNS 发给主路由，dae 就没听见，只能看到一个发往 142.250.72.14 的连接，认不出是 YouTube，所有按域名写的规则全部失效（只剩 ip/geoip 规则有效）。\n" +
+				"这一块就是把「查号码的过程」也交给 dae 听一遍：内网设备发出的 DNS 查询（UDP/TCP 53）在到达主路由前被改送到旁路由，dae 于是知道谁是谁。\n" +
+				"（dae 也会从 HTTPS 握手的 SNI 里嗅探域名作补漏，但加密/纯 IP 连接看不到，不能依赖。）",
 			Snippet: RenderNftDNS(pl.ProxyIP, pl.LanIfaces, pl.DNSMode),
 		})
 		pl.Steps = append(pl.Steps, Step{
-			Title:   "自有 nft 表：条件性 SNAT（panel_snat）",
-			Detail:  "只有「未被劫持却被转发」的流量（ICMP、内网互访、部分 IPv6）在跨网段或主路由开 rp_filter 时才需要 SNAT；被 tproxy 劫持的 TCP/UDP 在旁路由本地终结，回程天然对称，不需要 SNAT。",
+			Title:  "自有 nft 表：条件性 SNAT（panel_snat）",
+			Detail: "只有「未被劫持却被转发」的流量（ICMP、内网互访、部分 IPv6）在跨网段或主路由开 rp_filter 时才需要 SNAT；被 tproxy 劫持的 TCP/UDP 在旁路由本地终结，回程天然对称，不需要 SNAT。",
+			Note: "为什么「通常不需要」：被 dae 接管的 TCP/UDP 连接，旁路由是「本地收下再自己发出去」，回包自然回到旁路由，路是对称的。\n" +
+				"只有没被接管、只是被「转发」过去的流量（ping/ICMP、内网互访、部分 IPv6）才可能回程绕道；症状是「能连上但网页打不开」或「ping 不通」。真遇到了再把这里改成 on。",
 			Snippet: RenderNftSNAT(pl.SNAT, pl.LanIfaces),
 		})
 		pl.Steps = append(pl.Steps, Step{
-			Title:   "说明：拦截规则由 dae 自己安装（panel_tproxy 默认不建）",
-			Detail:  "dae 会为 lan_interface 自动安装 netkit/nft 拦截，面板不再叠一层 tproxy 规则以免冲突；panel_tproxy 仅在你需要自定义放行例外时才创建。",
+			Title:  "说明：拦截规则由 dae 自己安装（panel_tproxy 默认不建）",
+			Detail: "dae 会为 lan_interface 自动安装 netkit/nft 拦截，面板不再叠一层 tproxy 规则以免冲突；panel_tproxy 仅在你需要自定义放行例外时才创建。",
+			Note: "tproxy 是「把连接半路改道到本地代理端口」的手艺。dae 已经自己会做了（它会建 netkit 设备对 + 独立 netns 来拦流量），面板再建一层只会互相打架。\n" +
+				"所以这里默认只留一段注释：等哪天你要「某些目标明确不走代理」的白名单例外，才有必要建这张表。",
 			Snippet: RenderNftTProxyPlaceholder(),
 		})
 	}

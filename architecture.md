@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.44  
+> **文档版本：** v0.45  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -38,6 +38,7 @@
 > **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
 > **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
 > **修订（v0.38）：** 补齐 goose 的完整残留面（`goose-update-geo.{service,timer}` 这类额外 unit 也会被检测并退役）+ 新增 daed（第三个写 dae 配置的面板）告警；n6 的 `/root/goose-retired` 已在留档后整目录删除，详见 §14.28.1。  
+> **修订（v0.45）：** 接入计划的四块面板侧步骤新增**白话说明**（`Step.Note`：门岗比喻、门牌号 vs 收件人姓名、为什么通常不需要 SNAT、为什么不自建 tproxy），前端渲染为提示框（§14.36）。  
 > **修订（v0.44）：** 应用配置时若 dae 没在运行，面板不再把 `dae reload` 的 CLI 用法当错误抛出，而是明确提示「dae 没有在运行」并回滚 + 指路「安装与初始化」页（`ErrDaeNotRunning` / `DaeDownHint` / `explainDaeOut`，见 §14.35）。  
 > **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。实测补充：jsDelivr **只索引 `dist` 分支**，版本号样式的 `<tag>-dist` 分支名会被当成版本解析而 404，故钉版本走 `raw.githubusercontent.com/<tag>-dist`（见 §14.34.2/14.34.4）。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
 > **整理日期：** 2026-10-23  
@@ -2277,7 +2278,22 @@ func explainDaeOut(out string) string // 把 failed to read pid file / no such f
 - 面板的职责是「写配置 + 让 dae 重载」，**启动/重启进程属于「安装与初始化」页**（显式按钮 + 审计记录），自动拉起会让一次误操作变成「服务被面板悄悄重启」。
 - 唯一例外是既有的「转发自检」：那不是重启 dae，只是在 reload 报 `ipforward on <iface> is off` 时补 sysctl 再重试一次（§14.21.4）。
 
-## 15. 本版（v0.44）变更清单
+## 14.36 计划步骤的白话说明（Note 字段，v0.45）
+
+用户反馈「第②块『旁路由看不到域名只能看到 IP』看不懂」。截图里的四块面板侧步骤此前只有技术化 Detail，本次给每个 Step 加了一个 `Note` 字段（`internal/access/plan.go` 的 `Step.Note`，JSON `note`），前端渲染成详情下方的蓝色提示框（`.note`，`white-space: pre-line` 让 `\n` 自然分段）。
+
+四条 note 的要点：
+
+| 步骤 | 白话解释的核心比喻 |
+| --- | --- |
+| ① `panel-access.dae` / lan_interface | 「dae 在小区哪个门岗值班」：不填只管自己家（本机），填 `ens2`/`br-lan` 则从这个门进来的住户（LAN 设备）都归它管；它决定「谁来处理」，不决定「怎么处理」 |
+| ② `panel_dns` / DNS 重定向 | 网络包里只有**门牌号（目标 IP）**，没有**收件人姓名（域名）**；「youtube.com = 142.250.72.14」的对照只在查 DNS 的一瞬间出现，设备把 DNS 发给主路由，dae 就没听见 → 只能看到发往该 IP 的连接，认不出是谁，所有 `domain(...)` 规则失效（只剩 `ip/geoip` 有效）。这块就是把「查号码的过程」也交给 dae 听一遍。附带说明 dae 会从 HTTPS SNI 嗅探域名补漏，但加密/纯 IP 连接看不到 |
+| ③ `panel_snat` | 被 dae 接管的连接旁路由「本地收下再自己发出去」，回程天然对称，所以通常不需要 SNAT；只有没被接管、只是被转发的流量（ping/ICMP、内网互访、部分 IPv6）才可能回程绕道，症状是「能连上但网页打不开 / ping 不通」，那时再改 `on` |
+| ④ `panel_tproxy` | tproxy 是「把连接半路改道到本地代理端口」的手艺，dae 已经自己做（netkit 设备对 + 独立 netns），面板再叠一层只会打架；等需要「某些目标明确不走代理」的白名单例外时才建 |
+
+验证：`TestPlanStepsHavePlainLanguageNotes`（每个面板侧 Step 必须有非空 Note，且 DNS 那步必须含「门牌号」）；实机 `POST /api/access/plan` 的四条 step 都带 `note`；CDP 浏览器实测 DOM 35,286 字节、模板占位符泄漏 0、`class="note"` 出现 4 次、正文含「门牌号」。部署到 `.85`(amd64) 与 `n6`(arm64)。
+
+## 15. 本版（v0.45）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2320,3 +2336,4 @@ func explainDaeOut(out string) string // 把 failed to read pid file / no such f
 
 34. **CDN 安装链路（v0.43）**：新增 `dist` / `<tag>-dist` 分支发布（`.github/workflows/release.yml`）与 jsDelivr 缓存刷新；`deploy/online-install.sh` 重写为多源回退 + `--http1.1` 重试 + sha256 校验 + `--tag/--base-url/--cdn` 参数，推荐一行命令改为 `https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh`（§14.34）。
 35. **dae 未运行时的应用报错（v0.44）**：`dae reload` 在拿不到 pid 时会读 `/var/run/dae.pid`，读不到就打 `failed to read pid file … Usage: dae reload`——这实际是「dae 没在运行」。`internal/configtx/configtx.go` 新增 `ErrDaeNotRunning`/`DaeDownHint`/`explainDaeOut`，`Apply`/`ApplyMulti`/`Rollback` 在 reload 前判 `RunningPID()<=0` 并回滚 + 指路「安装与初始化」页，失败文案不再回显 CLI 用法（§14.35）。
+36. **计划步骤白话说明（v0.45）**：`internal/access/plan.go` 的 `Step` 新增 `Note` 字段（4 条全部填写），前端在每条步骤详情下渲染蓝色提示框；新增 `TestPlanStepsHavePlainLanguageNotes`；实机 API 与 CDP 浏览器均验证（§14.36）。

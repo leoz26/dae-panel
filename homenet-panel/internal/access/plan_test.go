@@ -165,3 +165,18 @@ func TestVerifyLevels(t *testing.T) {
 		t.Fatalf("dae 未运行应 fail、遗留表应 warn，实际 fail=%d stale=%d", fail, stale)
 	}
 }
+
+func TestPlanStepsHavePlainLanguageNotes(t *testing.T) {
+	pl := PlanFor(testProbe(), PlanOptions{Mode: ModeBypassManual, ProxyIP: "192.168.1.85"})
+	if len(pl.Steps) < 2 {
+		t.Fatalf("want >=2 panel steps, got %d", len(pl.Steps))
+	}
+	for _, s := range pl.Steps {
+		if strings.TrimSpace(s.Note) == "" {
+			t.Fatalf("step %q should carry a plain-language note", s.Title)
+		}
+	}
+	if !strings.Contains(pl.Steps[1].Note, "门牌号") {
+		t.Fatalf("DNS step note should explain the IP-vs-domain point, got %q", pl.Steps[1].Note)
+	}
+}

@@ -13,7 +13,8 @@ header b{font-size:16px}h1{font-size:13px;color:#8b97ad;font-weight:400;margin:0
 .wrap{padding:16px;max-width:1200px;margin:0 auto}
 .card{background:#1b2233;border:1px solid #24304a;border-radius:10px;padding:14px;margin-bottom:14px}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th,.tbl td{border-bottom:1px solid #24304a;padding:5px 8px;text-align:left}.tbl .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}.hl{background:#22304d}.bad{border-color:#ff5c5c!important}
-.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.muted{color:#8b97ad}
+.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.note{margin:6px 0 2px;padding:8px 10px;border-left:3px solid #4c8bf5;background:rgba(76,139,245,.08);border-radius:4px;font-size:12.5px;line-height:1.65;white-space:pre-line;color:#c8d4e6}
+    .muted{color:#8b97ad}
 .card h2{font-size:12px;margin:0 0 10px;color:#8b97ad;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
 button{background:#24304a;color:#e7ecf5;border:1px solid #34406a;border-radius:7px;padding:6px 12px;cursor:pointer;margin:3px 4px 3px 0;font-size:13px}
 button:hover{background:#2c3a5c}button.primary{background:#2f6bff;border-color:#2f6bff}button.danger{background:#7a2b2b;border-color:#a33}
@@ -439,6 +440,7 @@ td input,td select{width:100%}
           <div v-for="(s,i) in accessPlan.steps" :key="'ps'+i" style="margin:10px 0">
             <div><b>{{i+1}}. {{s.title}}</b></div>
             <div class="muted">{{s.detail}}</div>
+            <div class="note" v-if="s.note">{{s.note}}</div>
             <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
             <button class="sm" v-if="s.snippet" @click="copyText(s.snippet)">复制片段</button>
           </div>
@@ -446,12 +448,14 @@ td input,td select{width:100%}
           <div v-for="(s,i) in accessPlan.manualSteps" :key="'pm'+i" style="margin:10px 0">
             <div><b>{{i+1}}. {{s.title}}</b></div>
             <div class="muted">{{s.detail}}</div>
+            <div class="note" v-if="s.note">{{s.note}}</div>
             <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
           </div>
           <h3>回滚</h3>
           <div v-for="(s,i) in accessPlan.rollback" :key="'pr'+i" style="margin:10px 0">
             <div><b>{{i+1}}. {{s.title}}</b></div>
             <div class="muted">{{s.detail}}</div>
+            <div class="note" v-if="s.note">{{s.note}}</div>
             <pre class="mono" v-if="s.snippet">{{s.snippet}}</pre>
           </div>
           <h3>自检清单</h3>
