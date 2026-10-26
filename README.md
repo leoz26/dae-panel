@@ -77,7 +77,7 @@ sudo /usr/local/bin/homenet-panel serve \
 - **可以直接输 `ip:8787` 吗？** 可以。同端口会识别明文 HTTP 并 **301 跳到 `https://`**；不想跳可加 `--allow-plain-http`（密码会明文过网）。
 - **每次都要重新登录？** 登录页勾「记住我」= 30 天免登录；会话写在 `--session-path`（默认 `/var/lib/homenet-panel/sessions.json`，0600，只存 token 的 SHA-256 摘要），面板重启也不会掉。
 
-## 一条命令部署（见 docs/USAGE.md 2.0 / 2.0b，安装后用 `deploy/verify-install.sh` 只读自检）
+## 一条命令部署（见 `docs/USAGE.md` 2.0 / 2.0b，安装后用 `deploy/verify-install.sh` 只读自检）
 
 走 CDN（初始环境连不上 github.com 也能装）：
 
@@ -121,6 +121,7 @@ go vet ./... && go test ./... -count=1
 
 - **`docs/USAGE.md`：使用与部署文档（部署到新设备、规则语法与 v2rayN 迁移、订阅源管理、接入档位、运维与 FAQ）**
 - `architecture.md`：总体架构、配置事务、订阅与聚合、接入档位设计、实测结论与变更清单
+- `docs/RULES.md`：分流规则写法详解（匹配器全表、面板注入的 4 条安全规则逐条拆解、常见坑、验证方法）
 - `docs/access-test-b2.md`：B2（主路由 DHCP 指向旁路由）端到端测试手册——前置条件、改前记录、逐项自检、三级回滚
 - `dae-cli-capability-checklist.md`：dae CLI 命令/信号/配置模型/坑点核对表
 
