@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.45  
+> **文档版本：** v0.46  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -11,6 +11,7 @@
 > **修订（v0.9）：** 前端本地化（Vue 内嵌，去 CDN 依赖）；节点测速（并发 TCP 建连延迟）+ 按分组 filter 本地求值命中；模式 B 自建聚合（多订阅合并去重，生成 panel-merged.sub）。新增 §14.6。详见 §14。
 > **修订（v0.10）：** 补记前端本地化方案取舍分析（§14.7）；新增模式 B 一键安全切换（POST /api/aggregate/switch，事务化改订阅引用+分组 filter 并校验可回滚）。详见 §14.7 / §14.8。
 > **修订（v0.11）：** 启用 HTTPS/TLS（`serve --tls-cert/--tls-key`，cookie 置 Secure，自签 SAN 证书）。详见 §14.9。
+> **修订（v0.46）：** 新增 §14.37「结构化 DNS 编辑器」：`internal/model/dns.go` 的结构化视图（Parse/Render/Lint）+ `/api/dns/parse`、`/api/dns/render` + 前端「DNS」标签页；校验规则来自 .85 上逐条 `dae validate` 实测（dns 的 qname 不支持 `geolocation:`；动作只有 `reject`，`accept` 仅限响应规则）。`Model.DNS` 仍为原样文本，保存后走同一 apply 事务。
 > **修订（v0.12）：** 新增分流命中调试器（geosite 解码 + 规则本地求值，§14.10）；分流规则可视化编辑增强（排序、出站联表、未保存规则试算，§14.11）。
 > **修订（v0.13）：** 修复 v0.12 尾部截断（§13 的 D8–D12 与整节 §14 丢失，已按实机实测与现有代码重建）；并新增 §14.12「流量 / 命中统计（DNS 旁路）」记录 ③ DNS 查询频度统计与 ② eBPF 预留接口的实现、口径与开销实测。
 > **修订（v0.14）：** 新增 §14.13「订阅变更提醒 + 审计日志导出与保留」：状态栏订阅变化红点与差异明细（只提醒、人工应用）、CSV/JSONL 审计导出、按大小轮转与可配置保留份数（含路由器/NAS 磁盘口径建议），并修复 `/api/audit` 死路由（此前前端审计页 404）。  
@@ -2293,7 +2294,76 @@ func explainDaeOut(out string) string // 把 failed to read pid file / no such f
 
 验证：`TestPlanStepsHavePlainLanguageNotes`（每个面板侧 Step 必须有非空 Note，且 DNS 那步必须含「门牌号」）；实机 `POST /api/access/plan` 的四条 step 都带 `note`；CDP 浏览器实测 DOM 35,286 字节、模板占位符泄漏 0、`class="note"` 出现 4 次、正文含「门牌号」。部署到 `.85`(amd64) 与 `n6`(arm64)。
 
-## 15. 本版（v0.45）变更清单
+## 14.37 结构化 DNS 编辑器（v0.46）
+
+### 14.37.1 起因
+
+面板的 `dns { }` 段一直是**原样文本**（`internal/model/model.go:73` 的 `DNS string`，Render 时 `dns {` + `ensureNL(m.DNS)` + `}`）。用户看到 daed 那类面板的 DNS 页有「上游服务器 / 请求规则 / 响应规则 / 各自兜底」，要求把等价能力做进本面板；同时明确**不要**做「无 IPv6 就自动 reject AAAA」的一键开关（见 §14.37.6）。
+
+### 14.37.2 设计：结构化视图只是「一层皮」，真源仍是文本
+
+为不破坏既有 apply 事务、漂移检测（`modelDrift`）与单文件布局兼容，**没有**把 `Model.DNS` 改成结构体，而是新增一个纯函数的结构化视图：
+
+```
+dns 块正文（Model.DNS，原样文本）
+        ↓ ParseDNS（宽松，看不懂的行忽略）
+DNSSpec{Upstreams, Request, RequestFallback, Response, ResponseFallback}
+        ↓ 前端表格编辑
+        ↓ RenderDNS（规范化 4 空格缩进）
+新的 dns 块正文 → 写回 Model.DNS → 走原来的 /api/model/apply（校验+备份+reload+失败回滚）
+```
+
+好处：写配置的路径仍然只有一条（模型 → Render → 事务），DNS 编辑与订阅/分组/规则共享同一套备份、指纹、回滚与审计；dns 解析失败也不会让整体模型解析崩掉。
+
+### 14.37.3 代码
+
+| 位置 | 内容 |
+| --- | --- |
+| `internal/model/dns.go` | `DNSUpstream{Name,Addr}`、`DNSRule{Matcher,Out}`、`DNSSpec{Upstreams,Request,RequestFallback,Response,ResponseFallback}`、`DefaultDNSSpec()`、`ParseDNS(body) DNSSpec`、`RenderDNS(spec) string`、`LintDNS(spec) []string`；辅助 `blockOpen/splitKV/quoteAddr/stripLineComment`（行内 `#` 注释按引号状态剥离） |
+| `internal/api/dns.go` | `POST /api/dns/parse {text}` → `{spec, warnings, defaulted}`（线上没有 dns 块或解析不出内容时返回 `DefaultDNSSpec()` 并置 `defaulted=true`）；`POST /api/dns/render {spec}` → `{text, warnings}`；两个端点只读、不写盘，均在 `s.auth` 下 |
+| `internal/model/dns_test.go`、`internal/api/dns_test.go` | 线上真实文本解析、带规则与行内注释的解析、`Render→Parse` 往返深比较、默认值 lint 干净、坏输入告警文案、两个 handler 的往返与「空文本给默认值」 |
+| `internal/api/index.html` | 新标签页「DNS」：上游表（名字/地址/删除）、请求规则表、响应规则表、两个兜底下拉，按钮「从当前配置重新载入 / 填回默认值 / 渲染预览（不写盘）/ 保存到模型并应用」，告警黄条 + 渲染结果 `<pre>` 预览 |
+
+### 14.37.4 dae 真正接受什么（.85 上逐条 `dae validate` 实测）
+
+这一节是编辑器的**校验依据**，不是抄文档：
+
+| 写法 | 结果 |
+| --- | --- |
+| `qname(geosite:cn) -> cn` | rc=0 |
+| `qname(suffix: apple.com.cn, suffix: icloud.com.cn) -> cn` | rc=0 |
+| `qname(keyword: lucky) -> cn` | rc=0 |
+| `qname(regex: .*\.cn$) -> cn` | rc=0 |
+| `qname(geolocation-cn) -> cn` | **rc=1** `addQName: unsupported key:` —— dns 的 qname 不支持 geolocation（分流 routing 里可以） |
+| `qtype(aaaa) -> reject` | rc=0 |
+| `qtype(aaaa) -> drop` | **rc=1** `upstream "drop" not found` —— dns 的动作只有 `reject` |
+| 请求规则里 `-> accept` | **rc=1** `upstream "accept" not found` —— `accept` 只能用在响应规则 |
+| `response { ip(geoip:cn) -> reject }` | rc=0（可用于挡污染解析） |
+| 上游 `udp://` / `tcp://` / `tls://` / `https://` | 均 rc=0 |
+| 只有 `upstream { }`、没有 `routing { }` | rc=0 |
+
+据此 `LintDNS` 输出中文告警：上游缺协议前缀、上游重名/缺地址、规则指向不存在的上游、`drop` 提示改 `reject`、请求规则里误用 `accept`、`qname` 里写了 `geolocation`。前端下拉也按上下文给（请求规则 = 上游名 + `reject`；响应规则 = 上游名 + `reject` + `accept`）。
+
+### 14.37.5 实机与浏览器验证
+
+| 项目 | 结果 |
+| --- | --- |
+| `.85` 临时实例（127.0.0.1:8899，独立 auth/session/audit/backup）`/api/dns/parse` 线上 dns 文本 | 200：`{cn: udp://223.5.5.5:53}` + `requestFallback=cn` + `responseFallback=accept`，告警为空 |
+| `/api/dns/render` 原样渲染回去 | 与线上 `panel-core.dae` 的 dns 段**逐字节一致** |
+| `/api/model/preview`（dns 不改） | 生成的 `panel-core.dae` 与线上文件 `strip()` 后**完全相同**（`identical_to_live: True`） |
+| 加一条 `qname(geosite:cn) -> cn` 后再 preview | 只多这一行（`diff lines: ['qname(geosite:cn) -> cn']`） |
+| CDP 浏览器（headless Chrome + 真实登录 cookie） | 点「DNS」标签：3 张卡片（上游/请求/响应）渲染，输入框预填 `cn` / `udp://223.5.5.5:53` / `cn` / `accept`，提示「已从当前配置载入」，模板占位符泄漏 0，两个 datalist（`dnso-req`/`dnso-res`）存在 |
+| 浏览器点「填回默认值」+「渲染预览（不写盘）」 | 提示「已渲染（还没写盘）」，`<pre>` 出完整 dns 文本；点「+ 添加请求规则」表格增行 |
+
+部署：交叉编译 amd64/arm64 → `.85` 与 `n6` 的 homenet-panel 与 dae 均 active；`gofmt -l` 干净、`go vet ./...` 与 `go test ./... -count=1` 全绿。
+
+### 14.37.6 边界（刻意不做）
+
+- **不做「无 IPv6 就 reject AAAA」开关**：用户明确不要。要挡 AAAA 就在请求规则里加 `qtype(aaaa) -> reject`（编辑器支持，并提示代价：IPv6-only 服务会解析失败）。
+- **不校验 DNS 里的 geosite tag 是否存在**：`internal/model/lint.go` 的 `GeoRefs/LintGeo` 目前只覆盖分流规则；`qname(geosite:xxx)` 写错只是永不命中，不会让 validate 失败。
+- **不改 apply 管线**：DNS 编辑保存后仍走 `POST /api/model/apply`（校验 → 备份 → 写盘 → reload → 失败回滚），没有第二条写配置通道。
+- **不覆盖 dns 块的其他字段**（例如未经验证的 `bind` 等键）：当前只做 upstream + routing.request/response + 兜底，其他写法请用「整段配置(高级)」。
+## 15. 本版（v0.46）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2337,3 +2407,4 @@ func explainDaeOut(out string) string // 把 failed to read pid file / no such f
 34. **CDN 安装链路（v0.43）**：新增 `dist` / `<tag>-dist` 分支发布（`.github/workflows/release.yml`）与 jsDelivr 缓存刷新；`deploy/online-install.sh` 重写为多源回退 + `--http1.1` 重试 + sha256 校验 + `--tag/--base-url/--cdn` 参数，推荐一行命令改为 `https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh`（§14.34）。
 35. **dae 未运行时的应用报错（v0.44）**：`dae reload` 在拿不到 pid 时会读 `/var/run/dae.pid`，读不到就打 `failed to read pid file … Usage: dae reload`——这实际是「dae 没在运行」。`internal/configtx/configtx.go` 新增 `ErrDaeNotRunning`/`DaeDownHint`/`explainDaeOut`，`Apply`/`ApplyMulti`/`Rollback` 在 reload 前判 `RunningPID()<=0` 并回滚 + 指路「安装与初始化」页，失败文案不再回显 CLI 用法（§14.35）。
 36. **计划步骤白话说明（v0.45）**：`internal/access/plan.go` 的 `Step` 新增 `Note` 字段（4 条全部填写），前端在每条步骤详情下渲染蓝色提示框；新增 `TestPlanStepsHavePlainLanguageNotes`；实机 API 与 CDP 浏览器均验证（§14.36）。
+37. **结构化 DNS 编辑器（v0.46）**：新增 `internal/model/dns.go`（`DNSSpec`/`ParseDNS`/`RenderDNS`/`LintDNS`/`DefaultDNSSpec`）、`internal/api/dns.go`（`/api/dns/parse`、`/api/dns/render`）与前端「DNS」标签页；`Model.DNS` 仍是原样文本，编辑结果渲染回文本后走同一 apply 事务。校验依据来自 .85 上逐条 `dae validate`（`qname(geolocation:)`、`-> drop`、请求规则 `-> accept` 都不被 dae 接受）。实机 preview 证明「dns 不改时生成结果与线上逐字节一致」，详见 §14.37。

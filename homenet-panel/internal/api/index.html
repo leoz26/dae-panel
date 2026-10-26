@@ -87,6 +87,7 @@ td input,td select{width:100%}
     <div class="wrap">
       <div class="tabs">
         <button :class="{active:tab===&#39;content&#39;}" @click="tab=&#39;content&#39;">内容层</button>
+        <button :class="{active:tab===&#39;dns&#39;}" @click="tab=&#39;dns&#39;;loadDns()">DNS</button>
         <button :class="{active:tab===&#39;subgrp&#39;}" @click="tab=&#39;subgrp&#39;;loadSubs()">订阅·分组</button>
         <button :class="{active:tab===&#39;subsrc&#39;}" @click="tab=&#39;subsrc&#39;;loadSubsrc()">订阅源更新</button>
         <button :class="{active:tab===&#39;agg&#39;}" @click="tab=&#39;agg&#39;;loadAgg()">自建聚合</button>
@@ -215,6 +216,76 @@ td input,td select{width:100%}
         </div>
       </div>
 
+      <!-- DNS -->
+      <div v-if="tab===&#39;dns&#39;">
+        <div class="info">结构化编辑 dns 块：上游服务器 → 请求规则（按域名/类型决定问哪个上游）→ 响应规则（按返回的 IP 决定接受还是丢弃）。改完点「保存到模型并应用」，走同一套 校验+备份+reload+失败回滚；dae 不认的写法会被 dae validate 拒绝并自动回滚。</div>
+        <div class="row" style="margin-bottom:10px">
+          <button @click="loadDns">从当前配置重新载入</button>
+          <button @click="resetDns">填回默认值</button>
+          <button @click="renderDns">渲染预览（不写盘）</button>
+          <button class="primary" @click="saveDns">保存到模型并应用</button>
+          <span class="muted" v-if="dnsMsg">{{dnsMsg}}</span>
+        </div>
+        <div v-if="dnsWarn && dnsWarn.length" class="banner" style="border-color:#ffcc66">
+          <b>有 {{dnsWarn.length}} 个问题</b>（不阻断渲染，但多半会让 dae validate 失败）：
+          <div v-for="(w,i) in dnsWarn" :key="&#39;dw&#39;+i" style="font-size:12px;color:#ffcc66">{{w}}</div>
+        </div>
+        <div v-if="dnsSpec">
+          <div class="card">
+            <h2>上游服务器 (upstream)</h2>
+            <div class="muted" style="margin-bottom:8px">地址要带协议前缀：<code>udp://223.5.5.5:53</code>、<code>tcp://8.8.8.8:53</code>、<code>https://1.1.1.1/dns-query</code>。名字随便起（cn / remote / alidns…），规则里用它指向上游。</div>
+            <table>
+              <tr><th style="width:160px">名字</th><th>地址</th><th style="width:70px"></th></tr>
+              <tr v-for="(u,i) in dnsSpec.upstreams" :key="&#39;du&#39;+i">
+                <td><input v-model="u.name" placeholder="cn"/></td>
+                <td><input v-model="u.addr" placeholder="udp://223.5.5.5:53"/></td>
+                <td><button class="sm" @click="delUpstream(i)">删除</button></td>
+              </tr>
+            </table>
+            <button class="sm" style="margin-top:8px" @click="addUpstream">+ 添加上游</button>
+          </div>
+          <div class="card">
+            <h2>请求规则 (request)</h2>
+            <div class="muted" style="margin-bottom:8px">按 DNS 问题决定问哪个上游。匹配器例：<code>qname(geosite:cn)</code>、<code>qname(suffix: apple.com.cn)</code>、<code>qname(keyword: lucky)</code>、<code>qtype(aaaa)</code>。出站可填上游名，或 <code>reject</code> / <code>accept</code>。</div>
+            <table>
+              <tr><th>匹配器</th><th style="width:200px">出站</th><th style="width:70px"></th></tr>
+              <tr v-for="(r,i) in dnsSpec.request" :key="&#39;drq&#39;+i">
+                <td><input v-model="r.matcher" placeholder="qname(geosite:cn)"/></td>
+                <td><input v-model="r.out" list="dnso-req" placeholder="cn"/></td>
+                <td><button class="sm" @click="delDnsRule(&#39;request&#39;,i)">删除</button></td>
+              </tr>
+            </table>
+            <button class="sm" style="margin-top:8px" @click="addDnsRule(&#39;request&#39;)">+ 添加请求规则</button>
+            <div class="row" style="margin-top:10px">
+              <span class="muted">兜底 (fallback)</span>
+              <input v-model="dnsSpec.requestFallback" list="dnso-req" style="max-width:240px" placeholder="cn"/>
+            </div>
+          </div>
+          <div class="card">
+            <h2>响应规则 (response)</h2>
+            <div class="muted" style="margin-bottom:8px">按解析结果决定接受还是丢弃（例：<code>ip(geoip:cn)</code> → <code>reject</code> 可挡 DNS 污染）。不填规则时只留兜底 <code>accept</code>。</div>
+            <table>
+              <tr><th>匹配器</th><th style="width:200px">动作</th><th style="width:70px"></th></tr>
+              <tr v-for="(r,i) in dnsSpec.response" :key="&#39;drs&#39;+i">
+                <td><input v-model="r.matcher" placeholder="ip(geoip:cn)"/></td>
+                <td><input v-model="r.out" list="dnso-res" placeholder="accept"/></td>
+                <td><button class="sm" @click="delDnsRule(&#39;response&#39;,i)">删除</button></td>
+              </tr>
+            </table>
+            <button class="sm" style="margin-top:8px" @click="addDnsRule(&#39;response&#39;)">+ 添加响应规则</button>
+            <div class="row" style="margin-top:10px">
+              <span class="muted">兜底 (fallback)</span>
+              <input v-model="dnsSpec.responseFallback" list="dnso-res" style="max-width:240px" placeholder="accept"/>
+            </div>
+          </div>
+          <datalist id="dnso-req"><option v-for="o in dnsOutOpts(&#39;request&#39;)" :value="o"></option></datalist>
+          <datalist id="dnso-res"><option v-for="o in dnsOutOpts(&#39;response&#39;)" :value="o"></option></datalist>
+          <div class="card" v-if="dnsText">
+            <h2>将写入 dns { } 的内容</h2>
+            <pre>{{dnsText}}</pre>
+          </div>
+        </div>
+      </div>
       <!-- 订阅·分组 -->
       <div v-if="tab===&#39;subgrp&#39;">
         <div class="info">只读解析订阅来源(file:// 相对路径 / http(s))，并按分组 filter 本地求值展示命中节点。点“全部测速”对节点端点做 TCP 建连延迟测量（≥3s 视为不可达）。不修改任何文件。</div>
@@ -875,6 +946,7 @@ createApp({
     target:"/etc/dae/config.dae", content:"", allowGoose:false,
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
     modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], modelLayout:"", modelLayoutNote:"", previewEntry:"", previewCore:"", modelMsg:"",
+    dnsSpec:null, dnsText:"", dnsMsg:"", dnsWarn:[], dnsDefaulted:false,
     subsData:null, subMsg:"", groupsData:null, latency:{},
     subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
     geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""}, geoVer:null, geoVerMsg:"", setupStatus:null, setupMsg:"", setupSteps:[], setupError:"", setupBusy:false,
@@ -971,6 +1043,15 @@ createApp({
       if(r.code===200){ this.modelMsg="已从线上重新解析"; await this.loadModel(); }
       else { this.modelMsg=(r.data&&r.data.error)||('重新解析失败('+r.code+')'); }
     },
+    async loadDns(){ if(!this.model) await this.loadModel(); const r=await this.api("/api/dns/parse","POST",{text:(this.model&&this.model.dns)||""}); if(r.code===200){ this.dnsSpec=r.data.spec; this.dnsWarn=r.data.warnings||[]; this.dnsDefaulted=!!r.data.defaulted; this.dnsText=""; this.dnsMsg=r.data.defaulted?"线上没有 dns 块，已给出默认值（尚未应用）":"已从当前配置载入"; } else this.dnsMsg="载入失败: "+this.pretty(r.data); },
+    dnsOutOpts(which){ const s=this.dnsSpec||{upstreams:[]}; const names=(s.upstreams||[]).map(function(u){return u.name;}).filter(function(n){return !!n;}); return (which==="response") ? names.concat(["reject","accept"]) : names.concat(["reject"]); },
+    addUpstream(){ if(!this.dnsSpec) return; this.dnsSpec.upstreams.push({name:"",addr:""}); },
+    delUpstream(i){ if(this.dnsSpec) this.dnsSpec.upstreams.splice(i,1); },
+    addDnsRule(which){ if(!this.dnsSpec) return; const arr=(which==="request")?this.dnsSpec.request:this.dnsSpec.response; arr.push({matcher:"",out:""}); },
+    delDnsRule(which,i){ if(!this.dnsSpec) return; const arr=(which==="request")?this.dnsSpec.request:this.dnsSpec.response; arr.splice(i,1); },
+    resetDns(){ this.dnsSpec={upstreams:[{name:"cn",addr:"udp://223.5.5.5:53"}],request:[],requestFallback:"cn",response:[],responseFallback:"accept"}; this.dnsWarn=[]; this.dnsText=""; this.dnsMsg="已填回默认 DNS（还没应用）"; },
+    async renderDns(){ const r=await this.api("/api/dns/render","POST",{spec:this.dnsSpec}); if(r.code===200){ this.dnsText=r.data.text; this.dnsWarn=r.data.warnings||[]; this.dnsMsg="已渲染（还没写盘）"; } else this.dnsMsg="渲染失败: "+this.pretty(r.data); },
+    async saveDns(){ const r=await this.api("/api/dns/render","POST",{spec:this.dnsSpec}); if(r.code!==200){ this.dnsMsg="渲染失败: "+this.pretty(r.data); return; } this.dnsText=r.data.text; this.dnsWarn=r.data.warnings||[]; if(this.dnsWarn.length && !confirm("DNS 配置有 "+this.dnsWarn.length+" 个问题，多半会被 dae validate 拒绝并自动回滚。仍然应用吗？")){ this.dnsMsg="已取消（未应用）"; return; } if(!this.model){ this.dnsMsg="模型未载入，请刷新页面后重试"; return; } this.model.dns=this.dnsText; this.dnsMsg="应用中…"; await this.applyModel(); this.dnsMsg="应用结果："+this.modelMsg; this.refreshStatus(); },
     async previewModel(){ this.modelMsg="生成中…"; const r=await this.api("/api/model/preview","POST",{model:this.model}); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; this.modelMsg="已生成预览(未应用)"; } else this.modelMsg="预览失败: "+this.pretty(r.data); },
     async applyModel(){ this.modelMsg="应用中…"; const r=await this.api("/api/model/apply","POST",{model:this.model}); this.modelMsg=(r.code===200 && r.data.result && r.data.result.applied) ? "已应用并重载成功" : ("应用失败: "+this.pretty(r.data.error||r.data)); if(r.code===200){ this.previewEntry=r.data.entry; this.previewCore=r.data.core; } this.refreshStatus(); },
     async loadSubs(){ this.subMsg="加载中…"; const r=await this.api("/api/subs/nodes"); if(r.code===200){ this.subsData=r.data; this.subMsg=""; } else { this.subMsg="加载失败"; } const g=await this.api("/api/subs/groups"); if(g.code===200){ this.groupsData=g.data; } },

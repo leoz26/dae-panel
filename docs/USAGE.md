@@ -315,11 +315,33 @@ dat 文件本身没有版本号，面板用两条线索判断：
 - `reject` 不是合法出站（`dae validate` 会报 `outbound (group) "reject" not found`），请用 `block`。
 - 模型检查（内容层顶部红框）会提示：出站未定义、`fallback` 未定义、以及 `geosite:xxx` 在当前 geosite.dat 里不存在（这类规则永远不会命中，例如 `steam@cn`、`microsoft@cn`）。
 
+## 2.11 DNS 编辑器（结构化，免写文本）
+
+面板顶部标签「DNS」把 `dns { }` 段拆成三块表来编辑；改完点「保存到模型并应用」，仍然走**校验 → 备份 → 写盘 → reload → 失败回滚**这一条事务（和内容层同一个按钮逻辑）。
+
+| 区块 | 作用 |
+| --- | --- |
+| 上游服务器 (upstream) | 名字 → 地址。地址必须带协议：`udp://223.5.5.5:53`、`tcp://8.8.8.8:53`、`tls://1.1.1.1:853`、`https://1.1.1.1/dns-query` |
+| 请求规则 (request) | 按 DNS 问题选上游：`qname(geosite:cn)`、`qname(suffix: apple.com.cn)`、`qname(keyword: lucky)`、`qname(regex: .*\.cn$)`、`qtype(aaaa)`；出站只能填**上游名**或 `reject` |
+| 请求兜底 | 上面的规则都不命中时问谁（一般填你信任的主上游） |
+| 响应规则 (response) | 按解析结果决定：如 `ip(geoip:cn) -> reject`（挡污染）；出站可填上游名、`reject` 或 `accept` |
+| 响应兜底 | 一般是 `accept` |
+
+被 dae 明确拒绝的写法（编辑器会提前给黄字告警；验证环境 dae v2.1.1 实测）：
+
+- `qname(geolocation-cn)` —— dns 的 `qname` 不支持 `geolocation:`，请用 `geosite:cn`；
+- `-> drop` —— dns 没有 drop，只有 `reject`；
+- 请求规则里 `-> accept` —— `accept` 只能用在响应规则。
+
+想挡 IPv6（例如机场没有 IPv6 出口）就自己加一条 `qtype(aaaa) -> reject`：代价是 IPv6-only 的服务会解析失败。面板**不会**替你做这个决定，也没有这个总开关。
+
+常见默认组合（多数家庭场景够用）：上游 `cn: udp://223.5.5.5:53`、`remote: tcp://8.8.8.8:53`；请求规则 `qname(geosite:cn) -> cn`；请求兜底 `remote`；响应兜底 `accept`。
 ## 3. 界面速览
 
 | 页签 | 干什么 |
 |---|---|
-| 内容层 | 结构化编辑订阅/分组/规则/DNS；**唯一写盘入口是「校验+备份+reload 应用」** |
+| 内容层 | 结构化编辑订阅/分组/规则；**唯一写盘入口是「校验+备份+reload 应用」** |
+| DNS | 结构化编辑 dns 块（上游 / 请求规则 / 响应规则 + 兜底），保存后走同一 apply 事务（见 2.11） |
 | 订阅源更新 | 登记上游 URL/UA、拉取检查、转换并写镜像、查看新增/消失节点、删除登记项 |
 | 自建聚合 | 把多个订阅合并成一个订阅文件（模式 B） |
 | 分流调试 | 输入域名，看当前规则命中哪一条、出站是谁 |
