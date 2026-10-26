@@ -426,6 +426,22 @@ dat 文件本身没有版本号，面板用两条线索判断：
 
 ---
 
+### 应用时报 `failed to read pid file: /var/run/dae.pid` 怎么办
+
+这句话的意思不是配置写错了，而是 **dae 进程当前没在运行**（面板读不到 pid，只能把 0 传给 `dae reload`，CLI 再自己去读 pid 文件也读不到，于是打印用法）。
+
+处理顺序：
+
+```bash
+systemctl status dae            # 或 /etc/init.d/dae status（OpenWrt）
+ls -l /var/run/dae.pid          # 不存在 = 没在跑
+journalctl -u dae -n 30         # 看是缺配置、还是被启动限流挡住
+```
+
+- 缺配置：打开面板「安装与初始化」页 → 生成初始配置 → 启动 dae → 回到内容层重新点应用。
+- 被限流：`systemctl reset-failed dae && systemctl start dae`。
+- 面板 v0.44 起会在 reload 前先判断，直接提示「dae 没有在运行」并自动回滚已写入的文件，不再回显 CLI 用法。
+
 ## 9. 安全建议
 
 1. 首次登录后立刻改密码；不要把面板暴露到公网，需要远程访问用 VPN/Tailscale。

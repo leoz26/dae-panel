@@ -23,6 +23,29 @@ type DaeClient interface {
 // ErrSubscriptionEmpty 表示 dae 因订阅解析出 0 节点而拒绝重载（R1）。
 var ErrSubscriptionEmpty = errors.New("订阅解析出 0 节点，dae 拒绝重载（R1）")
 
+// ErrDaeNotRunning 表示 reload 前读不到 dae 的 pid（进程没在跑，或 /var/run/dae.pid 不存在）。
+var ErrDaeNotRunning = errors.New("dae 没有在运行")
+
+// DaeDownHint 是给用户的操作指引：dae 没跑时应用配置只会失败，先把 dae 拉起来。
+const DaeDownHint = "读不到 " + dae.DefaultPidFile + "。" +
+	"先在「安装与初始化」页点『生成初始配置』和『启动 dae』（或用 systemctl start dae；OpenWrt 用 /etc/init.d/dae start），" +
+	"确认 dae 在运行后再点应用。"
+
+// explainDaeOut 把 dae 的原始报错翻译成用户能读懂的话（识别不了就原样返回）。
+func explainDaeOut(out string) string {
+	if strings.Contains(out, "failed to read pid file") || strings.Contains(out, "no such file or directory") && strings.Contains(out, "dae.pid") {
+		return ErrDaeNotRunning.Error() + "（" + DaeDownHint + "）；原始输出: " + firstLineOf(out)
+	}
+	return out
+}
+
+func firstLineOf(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
 type Manager struct {
 	Dae       DaeClient
 	BackupDir string
@@ -142,6 +165,12 @@ func (m *Manager) Apply(ch Change) (Result, error) {
 	}
 
 	pid := m.Dae.RunningPID()
+	if pid <= 0 {
+		_ = m.restore(backup, ch.Path)
+		res.RolledBack = true
+		res.Message = "dae 没有在运行，已回滚"
+		return res, fmt.Errorf("%w：%s", ErrDaeNotRunning, DaeDownHint)
+	}
 	code, out := m.Dae.Reload(pid)
 	res.ReloadCode = code
 	res.ReloadOut = out
@@ -164,6 +193,7 @@ func (m *Manager) Apply(ch Change) (Result, error) {
 			_ = rollbackOut
 			return res, fmt.Errorf("%w: %s", ErrSubscriptionEmpty, msg)
 		}
+		msg = explainDaeOut(msg)
 		res.Message = "reload 失败，已回滚: " + msg
 		_ = rollbackOut
 		return res, fmt.Errorf("reload 失败(exit %d): %s", code, msg)
@@ -203,6 +233,10 @@ func (m *Manager) Rollback(target string) (Result, error) {
 		return res, fmt.Errorf("恢复失败: %w", err)
 	}
 	pid := m.Dae.RunningPID()
+	if pid <= 0 {
+		res.Message = "文件已恢复，但 dae 没有在运行，未重载"
+		return res, fmt.Errorf("%w：文件已恢复但未重载；%s", ErrDaeNotRunning, DaeDownHint)
+	}
 	code, out := m.Dae.Reload(pid)
 	res.ReloadCode = code
 	res.ReloadOut = out
@@ -264,6 +298,12 @@ func (m *Manager) ApplyMulti(validatePath string, chs []Change) (Result, error) 
 		return res, fmt.Errorf("validate 失败(exit %d): %s", vr.ExitCode, vr.Output)
 	}
 	pid := m.Dae.RunningPID()
+	if pid <= 0 {
+		restoreAll()
+		res.RolledBack = true
+		res.Message = "dae 没有在运行，已回滚"
+		return res, fmt.Errorf("%w：%s", ErrDaeNotRunning, DaeDownHint)
+	}
 	code, out := m.Dae.Reload(pid)
 	res.ReloadCode = code
 	res.ReloadOut = out

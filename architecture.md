@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.43  
+> **文档版本：** v0.44  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -38,6 +38,7 @@
 > **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
 > **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
 > **修订（v0.38）：** 补齐 goose 的完整残留面（`goose-update-geo.{service,timer}` 这类额外 unit 也会被检测并退役）+ 新增 daed（第三个写 dae 配置的面板）告警；n6 的 `/root/goose-retired` 已在留档后整目录删除，详见 §14.28.1。  
+> **修订（v0.44）：** 应用配置时若 dae 没在运行，面板不再把 `dae reload` 的 CLI 用法当错误抛出，而是明确提示「dae 没有在运行」并回滚 + 指路「安装与初始化」页（`ErrDaeNotRunning` / `DaeDownHint` / `explainDaeOut`，见 §14.35）。  
 > **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。实测补充：jsDelivr **只索引 `dist` 分支**，版本号样式的 `<tag>-dist` 分支名会被当成版本解析而 404，故钉版本走 `raw.githubusercontent.com/<tag>-dist`（见 §14.34.2/14.34.4）。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
 > **整理日期：** 2026-10-23  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
@@ -2214,7 +2215,69 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 - **CDN 只是传输层**：面板不因此信任任何内容——仍然验 `sha256sums.txt`，`install.sh` 仍然 `--dry-run` 可用。
 - **不做**：不把二进制提交进 `main`（历史会膨胀）、不依赖第三方上传服务（用户没有 R2/OSS 账号）、不在面板里做「自更新」（仍是 apt/脚本的职责）。
 
-## 15. 本版（v0.43）变更清单
+## 14.35 「应用失败：failed to read pid file /var/run/dae.pid」是什么（v0.44）
+
+### 14.35.1 现象
+
+面板点「应用」后报：
+
+```
+应用失败: reload 失败(exit 1): Error: failed to read pid file: open /var/run/dae.pid: no such file or directory
+Usage: dae reload [pid] [flags]
+Flags:
+  -a, --abort   Abort established connections.
+  -h, --help    help for reload
+```
+
+### 14.35.2 根因：dae 没在运行，不是配置写错
+
+- `dae reload` 的 pid 来源只有两个：命令行参数 `dae reload <pid>`，或默认 pid 文件 `/var/run/dae.pid`（`internal/dae/dae.go` 的 `DefaultPidFile`）。
+- 面板调用时先 `RunningPID()` 读 pid 文件并确认进程存活；**读不到就传 0**，于是 dae CLI 回落到自己读 `/var/run/dae.pid`，也读不到 → 报上面这段并顺带打印用法。
+- 也就是说：**这一行报错等价于「dae 进程当前没在跑」**。文件其实已经写盘并 0600、`dae validate` 也已通过，只是没有任何进程能加载它。
+- 反过来也成立：只要 `/var/run/dae.pid` 存在且进程活着（本例两台机器 `.85` pid 3489、`n6` pid 1933），同样的 apply 会返回 `reloadCode: 0`、`progress 2/OK`。
+
+常见触发场景（按概率排序）：
+
+| 场景 | 判据 | 处理 |
+| --- | --- | --- |
+| dae 装了但从未启动/没有配置 | `ls /var/run/dae.pid` 不存在，`systemctl status dae` 为 inactive/failed | 「安装与初始化」页生成初始配置 → 启动 dae |
+| 用 `--install-dae` 装完 dae，配置仍是空的 | `journalctl -u dae -n 20` 里 `ExecStartPre=dae validate` 失败 | 同上（生成初始配置） |
+| dae 崩溃后被 systemd 启动限流挡住 | `journalctl` 含 `start request repeated too quickly` | `systemctl reset-failed dae && systemctl start dae` |
+| dae 手动跑在前台或换了 pid 路径 | `pgrep -x dae` 有进程但无 pid 文件 | 用 systemd 托管，或 `dae reload <pid>` |
+
+### 14.35.3 改法：reload 前先判「dae 在不在」
+
+`internal/configtx/configtx.go` 新增：
+
+```go
+var ErrDaeNotRunning = errors.New("dae 没有在运行")
+
+const DaeDownHint = "读不到 " + dae.DefaultPidFile + "。" +
+	"先在「安装与初始化」页点『生成初始配置』和『启动 dae』（或用 systemctl start dae；OpenWrt 用 /etc/init.d/dae start），" +
+	"确认 dae 在运行后再点应用。"
+
+func explainDaeOut(out string) string // 把 failed to read pid file / no such file 翻译成上面那句，只带原始输出首行
+```
+
+- `Apply` / `ApplyMulti`：validate 通过、准备 reload 时若 `RunningPID() <= 0` → **把刚写入的文件回滚**、`RolledBack=true`、返回 `ErrDaeNotRunning` + `DaeDownHint`。不再把 dae 的用法说明当错误正文抛给用户。
+- `Rollback`：同样先判，文件已恢复但明确提示「未重载」。
+- 失败分支的 `msg` 统一过 `explainDaeOut`：即使 pid 在调用瞬间消失（竞态），报错也仍是人话。
+- 订阅 apply（`internal/api/subsrc.go`）本来就有 `pid <= 0` 分支（"镜像已更新，但 dae 未运行，未执行 reload"），行为不变。
+
+### 14.35.4 测试
+
+`internal/configtx/configtx_test.go` 新增：
+
+- `TestApplyDaeNotRunning`：`runningPID: 0` → 返回 `ErrDaeNotRunning`、`RolledBack=true`、目标文件回到原文、**reload 调用 0 次**、错误文案含「安装与初始化」。
+- `TestApplyMultiDaeNotRunning`：多文件事务同样回滚。
+- `TestExplainDaeOutPidFile`：pid 文件报错被翻译、**不回显 `Usage:`**、未知错误原样透传。
+
+### 14.35.5 为什么不在 apply 里顺手把 dae 拉起来
+
+- 面板的职责是「写配置 + 让 dae 重载」，**启动/重启进程属于「安装与初始化」页**（显式按钮 + 审计记录），自动拉起会让一次误操作变成「服务被面板悄悄重启」。
+- 唯一例外是既有的「转发自检」：那不是重启 dae，只是在 reload 报 `ipforward on <iface> is off` 时补 sysctl 再重试一次（§14.21.4）。
+
+## 15. 本版（v0.44）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2256,3 +2319,4 @@ https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-li
 33. **新增 §14.33（v0.42）**：面板内「安装与初始化」页——`GET /api/setup/status` + 三个动作（安装 dae / 生成初始配置 / 启动 dae，均可 dry-run），root 校验 + 串行锁 + 已有配置强制 force（避免把线上规则冲成默认值）+ 写前备份 + `dae validate` 失败自动回滚 + 审计 `setup.*`；同时修正 install.sh「首次打开面板可生成初始配置」的不实提示。
 
 34. **CDN 安装链路（v0.43）**：新增 `dist` / `<tag>-dist` 分支发布（`.github/workflows/release.yml`）与 jsDelivr 缓存刷新；`deploy/online-install.sh` 重写为多源回退 + `--http1.1` 重试 + sha256 校验 + `--tag/--base-url/--cdn` 参数，推荐一行命令改为 `https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh`（§14.34）。
+35. **dae 未运行时的应用报错（v0.44）**：`dae reload` 在拿不到 pid 时会读 `/var/run/dae.pid`，读不到就打 `failed to read pid file … Usage: dae reload`——这实际是「dae 没在运行」。`internal/configtx/configtx.go` 新增 `ErrDaeNotRunning`/`DaeDownHint`/`explainDaeOut`，`Apply`/`ApplyMulti`/`Rollback` 在 reload 前判 `RunningPID()<=0` 并回滚 + 指路「安装与初始化」页，失败文案不再回显 CLI 用法（§14.35）。

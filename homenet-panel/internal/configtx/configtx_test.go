@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"homenet-panel/internal/dae"
@@ -98,6 +99,59 @@ func TestApplyReloadFailRollback(t *testing.T) {
 	// reload 应被调用两次：一次失败、一次回滚重载
 	if d.reloadCalls != 2 {
 		t.Fatalf("want 2 reload calls, got %d", d.reloadCalls)
+	}
+}
+
+func TestApplyDaeNotRunning(t *testing.T) {
+	d := &mockDae{validateOK: true, runningPID: 0}
+	m, target := newMgr(t, d)
+	res, err := m.Apply(Change{Path: target, NewContent: []byte("new")})
+	if err == nil {
+		t.Fatalf("expected error when dae not running")
+	}
+	if !errors.Is(err, ErrDaeNotRunning) {
+		t.Fatalf("want ErrDaeNotRunning, got %v", err)
+	}
+	if !res.RolledBack || res.Applied {
+		t.Fatalf("want rolledBack, got %+v", res)
+	}
+	if readFile(t, target) != "original" {
+		t.Fatalf("target should be rolled back, got %q", readFile(t, target))
+	}
+	if d.reloadCalls != 0 {
+		t.Fatalf("reload must not be attempted without pid, got %d calls", d.reloadCalls)
+	}
+	if !strings.Contains(err.Error(), "安装与初始化") {
+		t.Fatalf("error should point to the setup page, got %v", err)
+	}
+}
+
+func TestApplyMultiDaeNotRunning(t *testing.T) {
+	d := &mockDae{validateOK: true, runningPID: 0}
+	m, target := newMgr(t, d)
+	res, err := m.ApplyMulti(target, []Change{{Path: target, NewContent: []byte("new")}})
+	if err == nil || !errors.Is(err, ErrDaeNotRunning) {
+		t.Fatalf("want ErrDaeNotRunning, got %v", err)
+	}
+	if !res.RolledBack {
+		t.Fatalf("want rolledBack, got %+v", res)
+	}
+	if readFile(t, target) != "original" {
+		t.Fatalf("target should be rolled back")
+	}
+}
+
+func TestExplainDaeOutPidFile(t *testing.T) {
+	raw := "Error: failed to read pid file: open /var/run/dae.pid: no such file or directory\nUsage: dae reload"
+	got := explainDaeOut(raw)
+	if !strings.Contains(got, "dae 没有在运行") {
+		t.Fatalf("want friendly text, got %q", got)
+	}
+	if strings.Contains(got, "Usage:") {
+		t.Fatalf("friendly text must not echo the usage blurb: %q", got)
+	}
+	if explainDaeOut("failed to parse config") != "failed to parse config" {
+		t.Fatalf("unknown errors must pass through")
 	}
 }
 
