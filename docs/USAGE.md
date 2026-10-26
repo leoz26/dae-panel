@@ -221,6 +221,21 @@ systemctl restart homenet-panel
 - **符号链接会被拒绝**：若 `/usr/share/dae/*.dat` 是指向 `/usr/share/v2ray-rules-dat/` 的符号链接（apt 装的 `v2ray-rules-dat` 就是这样），面板不覆盖，请用 `apt update && apt install --only-upgrade v2ray-rules-dat`。
 - 相关参数：`--geo-dir`（默认 `/usr/share/dae`）、`--geo-keep`（默认 3）。
 
+### 版本检测（不下载也能看新旧）
+
+dat 文件本身没有版本号，面板用两条线索判断：
+
+- **apt 托管**（apt 装的 dae 会把 `/usr/share/dae/*.dat` 链到 `/usr/share/v2ray-rules-dat/`）：版本 = apt 包版本，面板读 `dpkg-query` 与 `apt-cache policy` 的候选版本。
+- **面板/手工文件**：面板每次成功更新会写 `<备份目录>/geo-version.json`（来源、字节数、sha256、上游构建号、时间）。
+
+点「检测版本」只发一次 GitHub release API 请求（拿上游构建号与资产大小），**不下载正文**；只有在数据源被改成镜像时才用 HEAD 探大小。结论示例：
+
+- `与上游 202610242205 一致`
+- `本机 202610222206，上游已发布 202610242205（apt 源尚未提供；可先 apt update 再看）`
+- `上游构建大小不同（本地 16587463 / 上游 16570425 字节），可能已有新版本`
+
+面板不会替你升级 apt 包；页面会给可复制的 `apt update && apt install --only-upgrade v2ray-rules-dat`。
+
 ## 2.10 出站写什么（direct / block / must_direct / must_block / 组名）
 
 规则右端只能是：`direct`、`block`、`must_direct`、`must_block`，或模型里已定义的组名（如 `hk`/`sg`/`proxy`）。

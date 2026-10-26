@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -55,9 +56,40 @@ func (s *Server) geoTags() map[string]bool {
 	return tags
 }
 
+// geoStatePath 是「上次更新记录」的落盘位置。
+func (s *Server) geoStatePath() string {
+	if s.BackupDir == "" {
+		return ""
+	}
+	return filepath.Join(s.BackupDir, "geo-version.json")
+}
+
 func (s *Server) handleGeo(w http.ResponseWriter, r *http.Request) {
 	st := geodata.Inspect(s.geoDir(), s.BackupDir)
-	writeJSON(w, 200, map[string]any{"data": st, "keep": s.GeoKeep})
+	writeJSON(w, 200, map[string]any{
+		"data":  st,
+		"keep":  s.GeoKeep,
+		"state": geodata.LoadState(s.geoStatePath()),
+	})
+}
+
+// handleGeoVersions 对比本机 dat 与上游最新构建：只做 HEAD 与 GitHub API 查询，不下载正文、不写盘。
+func (s *Server) handleGeoVersions(w http.ResponseWriter, r *http.Request) {
+	urls := map[string]string{}
+	q := r.URL.Query()
+	if v := q.Get("geoip"); v != "" {
+		urls["geoip"] = v
+	}
+	if v := q.Get("geosite"); v != "" {
+		urls["geosite"] = v
+	}
+	rep := geodata.DetectVersions(geodata.VersionOptions{
+		Dir:       s.geoDir(),
+		URLs:      urls,
+		StatePath: s.geoStatePath(),
+	})
+	s.audit(r, "geo.versions", "check", len(rep.Errors) == 0, rep.RemoteTag)
+	writeJSON(w, 200, map[string]any{"report": rep})
 }
 
 func (s *Server) handleGeoUpdate(w http.ResponseWriter, r *http.Request) {
@@ -79,6 +111,7 @@ func (s *Server) handleGeoUpdate(w http.ResponseWriter, r *http.Request) {
 		URLs:      req.URLs,
 		Keep:      s.GeoKeep,
 		DryRun:    req.DryRun,
+		StatePath: s.geoStatePath(),
 	})
 	if err != nil {
 		s.audit(r, "geo.update", strings.Join(req.Targets, ","), false, err.Error())

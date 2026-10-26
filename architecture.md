@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.39  
+> **文档版本：** v0.40  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -1986,7 +1986,55 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 3. 网络不稳的机器上「先下载再判符号链接」会让 dry-run 卡 2 分钟；判断顺序要按代价从低到高排。
 4. 漂移检测只比语义，不比排版，否则全新配置也会报「被手工改过」。
 
-## 15. 本版（v0.39）变更清单
+## 14.31 Geo 版本检测（v0.40）
+
+### 14.31.1 为什么需要「检测版本」
+
+`geoip.dat` / `geosite.dat` 是 protobuf，**文件里没有版本字段**，所以「本地是哪个版本」只能靠两条线索：
+
+1. **apt 托管**（本项目在 n6 上就是这种）：`/usr/share/dae/*.dat` 是指向 `/usr/share/v2ray-rules-dat/*` 的符号链接，版本就是 apt 包版本（`dpkg-query -W -f=${Version} v2ray-rules-dat` → `202610222206.0.0`，折成上游 tag 即 `202610222206`）。
+2. **面板/手工文件**：面板每次成功更新后把「来源 URL、字节数、sha256、上游构建号、时间」写进 `<备份目录>/geo-version.json`；没有记录就只能拿本地大小与上游资产大小对比。
+
+上游版本信息有两个来源，二者都不下载正文：GitHub release API（`/repos/Loyalsoldier/v2ray-rules-dat/releases/latest` → `tag_name` + `published_at` + 资产大小）与文件 `HEAD`（`Content-Length` + `Last-Modified`，需跟随 302 到 `release-assets.githubusercontent.com`）。
+
+### 14.31.2 实现（internal/geodata/version.go）
+
+| 组件 | 作用 |
+| --- | --- |
+| `DetectVersions(VersionOptions) VersionReport` | 汇总本地状态 + 上游构建号 + 逐文件结论；默认超时 15s |
+| `fetchLatestRelease` | 一次 GitHub API 请求拿 tag / 发布时间 / **每个资产的大小** |
+| `headSize` | 仅当数据源被改成镜像（非默认 GitHub 源）时才 HEAD，取大小与 Last-Modified |
+| `aptVersion` | `dpkg-query` 读已装版本、`apt-cache policy` 读候选版本 |
+| `pkgVersionTag` | `202610222206.0.0` → `202610222206` |
+| `LoadState` / `SaveState` | `<备份目录>/geo-version.json`（0600→0644 原子写）；`Update` 成功后回填 |
+| `verdictFor` | 依次判断：本地 tag == 上游 tag → 一致；apt 托管且 tag 不同 → 看候选版本给「apt 可升级」或「apt 源尚未提供」；否则比大小（相同=一致，不同=可能有新版本） |
+
+接口：`GET /api/geo/versions`（可带 `?geoip=&geosite=` 覆盖源），返回 `{report:{remoteTag, remotePublished, files[], hint, errors[]}}`；`GET /api/geo` 增 `state`（上次更新记录）。前端「Geo 数据」页顶部新增「检测版本（只发 HEAD，不下载）」按钮 + 版本对照表 + 复制 apt 命令。
+
+### 14.31.3 两次提速（实机逼出来的）
+
+| 版本 | 问题 | 处理 | n6 实测 |
+| --- | --- | --- | --- |
+| 初版 | apt 托管也去 HEAD GitHub，n6 上两条 HEAD 各 45s 超时 → 接口 91 秒 | apt 托管跳过 HEAD；HEAD/API 并发；单次超时 15s | 1.0s |
+| 二版 | .85 上 GitHub HEAD 全超时（`context deadline exceeded`），只能显示「无法探测上游」 | 默认源改用 **release API 的资产大小**（一次请求），只有自定义镜像才 HEAD | 0.7s，两个文件都拿到上游大小 |
+
+结论：**能被卡住的是 HEAD，不是 API**；能一次拿到的信息就不要逐文件请求。
+
+### 14.31.4 实机结果
+
+| 机器 | remoteTag | 本地 | 结论 |
+| --- | --- | --- | --- |
+| n6（apt 托管，Linux arm64） | 202610242205 | 202610222206（apt 202610222206.0.0） | 「本机 202610222206，上游已发布 202610242205（apt 源尚未提供；可先 apt update 再看）」+ hint |
+| .85（面板文件，Linux amd64） | 202610242205 | geoip 16,587,463B / geosite 11,225,745B（goose 时代） | 「上游构建大小不同（本地 16,587,463 / 上游 16,570,425 字节），可能已有新版本」 |
+
+浏览器端（CDP + n6 真实会话）：点「Geo 数据」→「检测版本」后表格渲染出「apt（符号链接）/ 15.80 MB / 202610222206 / apt 202610222206.0.0 / 15.80 MB / 2026-10-24 22:06:35 / 结论」，DOM 26,710 字节、`{{` 泄漏 0。
+
+### 14.31.5 边界（刻意不做的事）
+
+1. **不自动升级 apt 包**：检测只给结论与命令，`apt install --only-upgrade v2ray-rules-dat` 由用户执行（面板不替用户操作包管理器）。
+2. **不以「大小相同」当作内容一致**：只在没有 tag 可比时作为启发式；面板自己更新过的文件用 sha256 + tag 判定。
+3. **符号链接永不覆盖**：apt 托管的文件，面板即使点了「下载并更新」也只返回 apt 指引。
+## 15. 本版（v0.40）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2021,3 +2069,5 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 29. **goose 完整残留面 + daed 告警（v0.38）**：`install.sh` 的 goose 检测扩到 `goose*.{service,timer}`（含 `/lib/systemd/system`，实测 n6 有 `goose-update-geo.timer` 指向已删二进制），退役时逐个 disable 并归档；新增 daed 检测（实测 n6 装着 daed 2.1.1，disabled/failed）只告警并给处置建议（§14.28.1）。
 
 30. **Geo 数据更新 + 出站白名单（v0.39）**：新增 `internal/geodata`（下载/校验/备份轮转/原子替换/符号链接保护/dry-run）与 `/api/geo`、`/api/geo/update`、`--geo-dir`/`--geo-keep`、前端「Geo 数据」tab；`internal/model/lint.go` 给出站白名单（补 `must_direct`/`must_block`、去掉 dae 不认的 `reject`）与 `LintGeo` 死规则检查，`/api/model` 增 `issues`；模型漂移改为语义比较（排版差异不再误报）；n6 上 purge daed + 官方源重装 dae 2.1.1 + 从零配置（§14.30）。
+
+31. **Geo 版本检测（v0.40）**：`internal/geodata/version.go` 给出本地版本（apt 包版本 / 面板更新记录）+ 上游构建号（GitHub release API）+ 逐文件结论；默认源用 release 资产大小而不是逐文件 HEAD（.85 上 HEAD 全超时、n6 上慢到 91s），apt 托管时跳过 HEAD；接口 `GET /api/geo/versions`、`/api/geo` 增 `state`，前端「Geo 数据」页加「检测版本」按钮与版本对照表；实测 n6 91s→1.0s、.85 0.7s（§14.31）。

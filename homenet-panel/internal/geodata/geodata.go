@@ -5,6 +5,8 @@
 package geodata
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -163,6 +165,7 @@ type UpdateOptions struct {
 	Keep      int // 每个文件保留几份历史备份（0=不清理）
 	DryRun    bool
 	Timeout   time.Duration
+	StatePath string // 记录「上次更新的远端构建」到该文件（空=不记录）
 }
 
 // Update 下载并替换 dat 文件：先备份旧文件，再原子写入新文件；DryRun 只下载校验不落盘。
@@ -188,6 +191,8 @@ func Update(opt UpdateOptions) (Result, error) {
 		targets = []string{"geoip", "geosite"}
 	}
 	client := &http.Client{Timeout: opt.Timeout}
+	var stateEntries []StateFile
+	var stateNames []string
 	for _, t := range targets {
 		name, ok := Resolve(t)
 		if !ok {
@@ -240,7 +245,33 @@ func Update(opt UpdateOptions) (Result, error) {
 		if opt.Keep > 0 {
 			prune(opt.BackupDir, name, opt.Keep)
 		}
+		sum := sha256.Sum256(data)
+		stateEntries = append(stateEntries, StateFile{
+			Source:    url,
+			Bytes:     int64(len(data)),
+			SHA256:    hex.EncodeToString(sum[:]),
+			FetchedAt: time.Now(),
+		})
+		stateNames = append(stateNames, strings.TrimSuffix(name, ".dat"))
 		res.Updated = append(res.Updated, up)
+	}
+	if opt.StatePath != "" && len(stateEntries) > 0 {
+		st := LoadState(opt.StatePath)
+		if st.Files == nil {
+			st.Files = map[string]StateFile{}
+		}
+		tag := ""
+		if rel, terr := fetchLatestRelease(client, defaultAPIURL); terr == nil {
+			tag = rel.tag
+			st.Tag = rel.tag
+		}
+		for i, name := range stateNames {
+			entry := stateEntries[i]
+			entry.Tag = tag
+			st.Files[name] = entry
+		}
+		st.FetchedAt = time.Now()
+		_ = SaveState(opt.StatePath, st)
 	}
 	return res, nil
 }

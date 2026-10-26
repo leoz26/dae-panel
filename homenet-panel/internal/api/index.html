@@ -494,6 +494,31 @@ td input,td select{width:100%}
         <div class="info">dae 的 <code>geoip.dat</code>/<code>geosite.dat</code> 决定 <code>geosite:*</code>、<code>geoip:*</code> 规则能否命中。数据源默认用 Loyalsoldier 的 v2ray-rules-dat（与 goose 时代一致）。更新流程：下载 → 校验（大小 / 必须含 <code>cn</code> tag）→ 备份旧文件到 <code>geo/</code> → 原子替换 → reload dae；任一步失败都不动现有文件。</div>
         <div class="card">
           <div class="row">
+            <button @click="checkVersions">检测版本（只发 HEAD，不下载）</button>
+            <span class="muted" v-if="geoVerMsg">{{geoVerMsg}}</span>
+          </div>
+          <div v-if="geoVer">
+            <div class="muted" style="margin-top:8px">上游最新构建 <code>{{geoVer.remoteTag||'未知'}}</code><span v-if="geoVer.remotePublished"> · 发布于 {{fmtTime(geoVer.remotePublished)}}</span></div>
+            <table class="tbl" style="margin-top:8px">
+              <tr><th>文件</th><th>本地</th><th>本地构建</th><th>上游</th><th>结论</th></tr>
+              <tr v-for="(f,i) in geoVer.files" :key="'gv'+i">
+                <td>{{f.name}}<div v-if="f.managed" style="font-size:11px;color:#ffcc66">{{f.managed}}</div></td>
+                <td>{{f.localBytes?fmtBytes(f.localBytes):'-'}}<div class="muted" style="font-size:11px" v-if="f.localModTime">{{f.localModTime.replace('T',' ').slice(0,19)}}</div></td>
+                <td class="mono">{{f.localTag||'-'}}<div class="muted" style="font-size:11px" v-if="f.pkgInstalled">apt {{f.pkgInstalled}}</div></td>
+                <td>{{f.remoteBytes?fmtBytes(f.remoteBytes):'-'}}<div class="muted" style="font-size:11px" v-if="f.remoteModified">{{f.remoteModified.replace('T',' ').slice(0,19)}}</div></td>
+                <td :style="{color: f.upToDate ? '#8fd18f' : '#ffcc66'}">{{f.verdict}}</td>
+              </tr>
+            </table>
+            <div v-for="(e,i) in geoVer.errors" :key="'gve'+i" style="font-size:12px;color:#ff8888">{{e}}</div>
+            <div v-if="geoVer.hint" style="margin-top:8px">
+              <span style="color:#ffcc66;font-size:12px">{{geoVer.hint}}</span>
+              <button class="ghost" style="margin-left:8px" @click="copyText('apt update && apt install --only-upgrade v2ray-rules-dat')">复制命令</button>
+            </div>
+          </div>
+          <div class="muted" style="margin-top:8px;font-size:12px" v-if="geoData&&geoData.state&&geoData.state.fetchedAt">面板上次更新记录：{{geoData.state.tag||'未知构建'}} · {{fmtTime(geoData.state.fetchedAt)}}</div>
+        </div>
+        <div class="card">
+          <div class="row">
             <button @click="loadGeo">刷新</button>
             <button @click="checkGeo">检查更新（dry-run，不写盘）</button>
             <button class="primary" @click="updateGeo">下载并更新（会 reload dae）</button>
@@ -805,7 +830,7 @@ createApp({
     modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], modelLayout:"", modelLayoutNote:"", previewEntry:"", previewCore:"", modelMsg:"",
     subsData:null, subMsg:"", groupsData:null, latency:{},
     subsrcItems:[], subsrcMsg:"", subsrcLastRun:"", subsrcHours:6, newSrc:{name:"",url:"",ua:""}, auditData:null, auditMsg:"",
-    geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""},
+    geoData:null, geoMsg:"", geoResult:null, modelIssues:[], geoSrc:{geoip:"",geosite:""}, geoVer:null, geoVerMsg:"",
     aggData:null, aggMsg:"", aggBuilt:null, swPreview:null, swMsg:"", swResult:null,
     routeDomain:"", routeRes:null, routeMsg:"",
     ruleProbeDomain:"", ruleProbe:null,
@@ -915,6 +940,15 @@ createApp({
     goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
     exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
     async loadGeo(){ this.geoMsg="加载中…"; const r=await this.api("/api/geo"); if(r.code===200){ this.geoData=r.data.data; this.geoData.keep=r.data.keep; this.geoMsg=""; if(!this.geoSrc.geoip&&r.data.data.urls) this.geoSrc.geoip=r.data.data.urls.geoip||""; if(!this.geoSrc.geosite&&r.data.data.urls) this.geoSrc.geosite=r.data.data.urls.geosite||""; } else this.geoMsg="加载失败 (HTTP "+r.code+")"; },
+    async checkVersions(){
+      this.geoVerMsg="检测中（只发 HEAD 请求，不下载正文）…";
+      const qs=[];
+      if(this.geoSrc.geoip) qs.push("geoip="+encodeURIComponent(this.geoSrc.geoip));
+      if(this.geoSrc.geosite) qs.push("geosite="+encodeURIComponent(this.geoSrc.geosite));
+      const r=await this.api("/api/geo/versions"+(qs.length?"?"+qs.join("&"):""));
+      if(r.code===200){ this.geoVer=(r.data&&r.data.report)||null; this.geoVerMsg=""; }
+      else this.geoVerMsg="检测失败: "+this.pretty(r.data);
+    },
     geoUrls(){ const u={}; if(this.geoSrc.geoip) u.geoip=this.geoSrc.geoip; if(this.geoSrc.geosite) u.geosite=this.geoSrc.geosite; return u; },
     async checkGeo(){ this.geoMsg="检查中（要下载整个 dat；网络慢时会久一点）…"; const r=await this.api("/api/geo/update","POST",{dryRun:true,urls:this.geoUrls()}); this.geoResult=(r.data&&r.data.result)||null; if(r.code===200) this.geoMsg="检查完成（未写盘）"; else this.geoMsg="检查失败: "+this.pretty(r.data); },
     async updateGeo(){
