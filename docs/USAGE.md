@@ -212,6 +212,18 @@ systemctl restart homenet-panel
 
 ---
 
+## 2.8 订阅源与 User-Agent（留空即可）
+
+订阅源页每行都有 User-Agent 输入框，**留空也能拉取**：留空时面板用内置兜底 UA `clash-verge/v1.7.7`，不会把 Go 默认的 `Go-http-client/1.1` 发给上游（很多机场按 UA 判客户端，脚本式 UA 会直接 403）。
+
+UA 优先级：单条订阅的 UA → 进程级 `--sub-ua` → 内置 `clash-verge/v1.7.7`。
+
+遇到 403 的排查顺序：
+
+1. 先排除 UA：换 `clash-verge/v1.7.7` / `mihomo/1.18.0` / `v2rayN/6.31` 试一次。
+2. 再确认链接本身：`curl -I "<订阅地址>"`，404/410 说明 token 过期或一次性链接已用过（一次性 token 只能兑换一次，面板拉取后会转成镜像 `/etc/dae/subs/<name>.sub` 长期复用）。
+3. 返回的是网页（HTML）时面板会直接提示「上游返回的是网页（HTML）而不是订阅内容」。
+
 ## 2.9 Geo 数据（geoip.dat / geosite.dat）
 
 `geosite:*`、`geoip:*` 规则能否命中，取决于 `/usr/share/dae` 下的 `geoip.dat` / `geosite.dat`。面板「Geo 数据」页可查看、检查（dry-run）、下载更新。

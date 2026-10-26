@@ -265,7 +265,7 @@ td input,td select{width:100%}
           <div class="row" style="margin-bottom:8px">
             <input style="width:150px" v-model="newSrc.name" placeholder="名称（如 summer）">
             <input style="flex:1;min-width:260px" v-model="newSrc.url" placeholder="上游订阅 URL（https://...，含 token）">
-            <input style="width:210px" v-model="newSrc.ua" placeholder="User-Agent（留空=默认）">
+            <input style="width:210px" v-model="newSrc.ua" placeholder="User-Agent（留空=clash-verge/v1.7.7）">
             <button class="primary" @click="addSrc">新增</button>
           </div>
           <div class="muted" style="font-size:12px">新增后先在这里「拉取并应用」生成镜像 subs/&lt;名称&gt;.sub，再到「内容层 → 订阅」添加一行 <span class="mono">file://subs/&lt;名称&gt;.sub</span> 并应用，dae 才会真正用上它。名称只能用字母/数字/点/下划线/短横线。</div>
@@ -278,7 +278,7 @@ td input,td select{width:100%}
           </h2>
           <div class="row" style="margin-bottom:8px">
             <input style="flex:1;min-width:260px" v-model="it.url" placeholder="上游订阅 URL（https://...，含 token）">
-            <input style="width:210px" v-model="it.ua" placeholder="User-Agent（留空=默认）" title="部分机场只认特定 UA（如 clash-verge/v1.7.7），留空则用面板默认">
+            <input style="width:210px" v-model="it.ua" placeholder="User-Agent（留空=clash-verge/v1.7.7）" title="部分机场只认特定 UA（如 clash-verge/v1.7.7），留空则用面板默认">
             <button @click="saveSrc(it)">保存</button>
             <button @click="checkSrc(it.name)">检查差异</button>
             <button class="primary" @click="applySrc(it)">拉取并应用</button>

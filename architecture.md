@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.40  
+> **文档版本：** v0.41  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -2034,7 +2034,18 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 1. **不自动升级 apt 包**：检测只给结论与命令，`apt install --only-upgrade v2ray-rules-dat` 由用户执行（面板不替用户操作包管理器）。
 2. **不以「大小相同」当作内容一致**：只在没有 tag 可比时作为启发式；面板自己更新过的文件用 sha256 + tag 判定。
 3. **符号链接永不覆盖**：apt 托管的文件，面板即使点了「下载并更新」也只返回 apt 指引。
-## 15. 本版（v0.40）变更清单
+## 14.32 订阅 UA：为什么留空会 403（v0.41）
+
+现象（用户截图）：订阅源页 `dual` 一行，User-Agent 留空 → 「拉取上游失败: 订阅返回 HTTP 403 Forbidden」，本地 0 节点 / 上游 0 节点。
+
+根因：`internal/subs/subs.go` 的 `fetchWithUA` 在 UA 为空时不设置 `User-Agent` 头，Go 会补默认值 `Go-http-client/1.1`；`s3.dlpublicsub.com`（Cloudflare 后）按 UA 判客户端，脚本式 UA 直接 403，而 `clash-verge/v1.7.7` 等常见客户端 UA 返回 200（同一 URL、同一时刻实测：Go 默认 → 403，clash-verge → 200/38655B）。所以**不是链接失效，也不是协议不支持**。
+
+修法（v0.41）：新增 `var DefaultUA = "clash-verge/v1.7.7"`，UA 解析顺序改为「单条订阅的 ua → 进程级 `--sub-ua` → `DefaultUA`」，即**留空也能拉**；前端占位文案改成「User-Agent（留空=clash-verge/v1.7.7）」。仍保留 per-source UA：少数机场只认特定客户端的 UA（如 `mihomo/…`、`v2rayN/…`），在那一行填即可覆盖。
+
+测试：`internal/subs/subs_test.go` 的 `TestFetchRawUA` 改为断言「留空 → 发出 DefaultUA 且成功」「显式 UA 优先」「`SetUserAgent` 优先于 DefaultUA」，另加 `TestFetchRawNoUAFallsBackToGoDefault`（把 `DefaultUA` 置空时确实回退到 `Go-http-client`）。
+
+实机验证（n6，v0.37.1）：`/api/subsrc` 里 `dual.ua = None`，`POST /api/subsrc/check {name:"dual"}` → `format=clash`、`remoteCount=29`、`localCount=29`、`changed=false`，不再 403。
+## 15. 本版（v0.41）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2071,3 +2082,5 @@ GitHub 直连在该网络下不稳（`unexpected EOF` / `dial tcp ... i/o timeou
 30. **Geo 数据更新 + 出站白名单（v0.39）**：新增 `internal/geodata`（下载/校验/备份轮转/原子替换/符号链接保护/dry-run）与 `/api/geo`、`/api/geo/update`、`--geo-dir`/`--geo-keep`、前端「Geo 数据」tab；`internal/model/lint.go` 给出站白名单（补 `must_direct`/`must_block`、去掉 dae 不认的 `reject`）与 `LintGeo` 死规则检查，`/api/model` 增 `issues`；模型漂移改为语义比较（排版差异不再误报）；n6 上 purge daed + 官方源重装 dae 2.1.1 + 从零配置（§14.30）。
 
 31. **Geo 版本检测（v0.40）**：`internal/geodata/version.go` 给出本地版本（apt 包版本 / 面板更新记录）+ 上游构建号（GitHub release API）+ 逐文件结论；默认源用 release 资产大小而不是逐文件 HEAD（.85 上 HEAD 全超时、n6 上慢到 91s），apt 托管时跳过 HEAD；接口 `GET /api/geo/versions`、`/api/geo` 增 `state`，前端「Geo 数据」页加「检测版本」按钮与版本对照表；实测 n6 91s→1.0s、.85 0.7s（§14.31）。
+
+32. **订阅 UA 兜底（v0.41）**：UA 留空时不再把 `Go-http-client/1.1` 暴露给机场，改用 `DefaultUA = "clash-verge/v1.7.7"`（顺序：单条 ua → `--sub-ua` → DefaultUA）；n6 上留空实测 29/29 通过（§14.32）。

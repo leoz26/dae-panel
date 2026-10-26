@@ -34,7 +34,12 @@ type Source struct {
 // 超时 30s：机场订阅偶尔较慢（实测 dual 上游约 1s，但个别时段会明显变慢）。
 var httpClient = &http.Client{Timeout: 30 * time.Second}
 
-// UserAgent 是拉取 http(s) 订阅时使用的默认 User-Agent（空=Go 默认）。
+// DefaultUA 是 UserAgent 未设置时使用的兜底 UA。
+// 许多机场（Cloudflare 后面那种）按 UA 放行：Go 默认的 "Go-http-client/1.1" 会被判成脚本直接 403，
+// 而常见客户端 UA 能拿到内容，所以留空时用这个值，而不是把 Go 的默认 UA 暴露给上游。
+var DefaultUA = "clash-verge/v1.7.7"
+
+// UserAgent 是拉取 http(s) 订阅时使用的默认 User-Agent（空=用 DefaultUA）。
 // 实测部分机场按 UA 决定返回内容甚至直接 403（如 s3.dlpublicsub.com 只认 clash 客户端 UA）。
 var UserAgent = ""
 
@@ -90,6 +95,9 @@ func fetchWithUA(baseDir, source, ua string) ([]byte, error) {
 		agent := strings.TrimSpace(ua)
 		if agent == "" {
 			agent = UserAgent
+		}
+		if agent == "" {
+			agent = DefaultUA
 		}
 		if agent != "" {
 			req.Header.Set("User-Agent", agent)

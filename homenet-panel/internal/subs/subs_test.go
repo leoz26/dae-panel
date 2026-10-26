@@ -91,24 +91,52 @@ func TestFetchRawUA(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// 默认 UA（Go 默认）应被机场拒绝 → 复现 dual 上游 403
-	if _, err := FetchRaw(t.TempDir(), srv.URL); err == nil {
-		t.Fatalf("默认 UA 应被 403 拒绝")
-	}
-	raw, err := FetchRawUA(t.TempDir(), srv.URL, "clash-verge/v1.7.7")
+	// 留空时用兜底 UA（DefaultUA），不再把 Go 默认 UA 暴露给机场
+	raw, err := FetchRaw(t.TempDir(), srv.URL)
 	if err != nil {
-		t.Fatalf("指定 UA 后应成功: %v", err)
+		t.Fatalf("留空 UA 时应使用 DefaultUA 并成功: %v", err)
 	}
 	if !strings.Contains(string(raw), "vless://") {
 		t.Fatalf("内容异常: %q", raw)
 	}
-	if gotUA != "clash-verge/v1.7.7" {
-		t.Errorf("UA 头未透传: %q", gotUA)
+	if gotUA != DefaultUA {
+		t.Errorf("未发送 DefaultUA: %q", gotUA)
 	}
-	// 进程级默认 UA 也应生效
-	SetUserAgent("clash-verge/v1.7.7")
+
+	// 显式指定 UA 优先
+	if _, err := FetchRawUA(t.TempDir(), srv.URL, "clash-verge/v1.7.7"); err != nil {
+		t.Errorf("指定 UA 应成功: %v", err)
+	}
+
+	// 进程级默认 UA 优先于 DefaultUA
+	SetUserAgent("mihomo/1.18.0")
 	defer SetUserAgent("")
+	if _, err := FetchRaw(t.TempDir(), srv.URL); err == nil {
+		t.Errorf("SetUserAgent 后应使用 mihomo UA 并被 403 拒绝")
+	}
+	if gotUA != "mihomo/1.18.0" {
+		t.Errorf("SetUserAgent 未生效: %q", gotUA)
+	}
+}
+
+func TestFetchRawNoUAFallsBackToGoDefault(t *testing.T) {
+	if DefaultUA == "" {
+		t.Skip("DefaultUA 为空，无需回退")
+	}
+	old := DefaultUA
+	DefaultUA = ""
+	defer func() { DefaultUA = old }()
+
+	var gotUA string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotUA = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
 	if _, err := FetchRaw(t.TempDir(), srv.URL); err != nil {
-		t.Errorf("SetUserAgent 后默认拉取应成功: %v", err)
+		t.Fatalf("应成功: %v", err)
+	}
+	if !strings.HasPrefix(gotUA, "Go-http-client") {
+		t.Errorf("DefaultUA 置空后应回退到 Go 默认 UA，实际 %q", gotUA)
 	}
 }
