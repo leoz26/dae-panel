@@ -78,6 +78,8 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 | `dist` | 最新一次发布的全部产物 + `VERSION` | 可变，永远指向最新 |
 | `<tag>-dist`（如 `v0.38.1-dist`） | 该次发布的全部产物 | 不可变，适合钉版本 |
 
+> 实测：jsDelivr **只索引 `dist` 分支**——叫 `v0.38.1-dist` 的分支在 jsDelivr 上恒 404（它把 `v0.38.1-…` 当版本号解析），但在 `raw.githubusercontent.com` 上正常。所以「最新版走 CDN、钉版本走 raw」。
+
 产物清单：`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`verify-install.sh`、`sha256sums.txt`、`VERSION`。
 
 **推荐：走 CDN（初始环境连不上 github.com 也能装）**
@@ -109,7 +111,7 @@ curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-i
 bash online-install.sh --base-url http://192.168.1.10:8123/hnp --tag v0.38.1
 ```
 
-> jsDelivr 对分支内容有缓存，CI 发布会顺手调 `https://purge.jsdelivr.net/gh/leoz26/dae-panel@dist/<文件>` 刷新；偶发仍缓存旧版时，用 `--tag vX.Y.Z`（走不可变的 `<tag>-dist` 分支）绕开。`
+> jsDelivr 对分支内容有缓存，CI 发布会顺手调 `https://purge.jsdelivr.net/gh/leoz26/dae-panel@dist/<文件>` 刷新；偶发仍缓存旧版时，用 `--tag vX.Y.Z` 钉版本：脚本会先读不到 `@dist/VERSION` 就直接用你给的 tag，资产从 raw 的 `<tag>-dist` 与 GitHub Releases 取。`
 
 **私有仓库（需要只读 token）**：web 下载地址对私有仓库一律 404，必须走 API。用仓库里的在线脚本取资产再执行：
 

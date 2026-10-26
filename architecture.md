@@ -38,7 +38,7 @@
 > **修订（v0.36）：** 安装器补依赖预检：`--install-dae` 按 APT 主版本加 daeuniverse 官方源装 dae，`--retire-goose` 把 goose 移到 `/root/goose-retired`（移动不删除）+ systemd unit 加 `LimitMEMLOCK=infinity`；新增 `deploy/verify-install.sh` 只读自检。  
 > **修订（v0.37）：** 修复单文件布局解析（goose 生成的 `/etc/dae/config.dae` 无 `include` 时读不到主体配置，界面 0 规则、点「应用」会静默清空线上分流规则）+ 空规则应用安全闸；`/api/model` 增加 `layout`/`layoutNote`，新增 §14.29 与两条回归测试；发布 v0.35.4。  
 > **修订（v0.38）：** 补齐 goose 的完整残留面（`goose-update-geo.{service,timer}` 这类额外 unit 也会被检测并退役）+ 新增 daed（第三个写 dae 配置的面板）告警；n6 的 `/root/goose-retired` 已在留档后整目录删除，详见 §14.28.1。  
-> **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
+> **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。实测补充：jsDelivr **只索引 `dist` 分支**，版本号样式的 `<tag>-dist` 分支名会被当成版本解析而 404，故钉版本走 `raw.githubusercontent.com/<tag>-dist`（见 §14.34.2/14.34.4）。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
 > **整理日期：** 2026-10-23  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
@@ -2124,8 +2124,10 @@ GitHub Releases 的资产只能从 github.com 取；jsDelivr 这类 CDN 只转�
 
 ```
 https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh
-https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.1-dist/homenet-panel-linux-amd64
+https://raw.githubusercontent.com/leoz26/dae-panel/v0.38.1-dist/homenet-panel-linux-amd64
 ```
+
+**实测结论（重要）**：jsDelivr 只索引 `dist` 这一个分支。名字里带版本号的 `v0.38.1-dist` 会被 jsDelivr 当成「版本」解析而返回 404（`Couldn't find the requested file /VERSION in leoz26/dae-panel.`），`cdn.statically.io` 与 purge 后重试同样 404；但同一条分支在 `raw.githubusercontent.com` 上 200、文件完整。因此**钉版本的 CDN 路径不可用**，钉版本走 raw 的 `<tag>-dist`，最新版走 jsDelivr 的 `@dist`。
 
 工作流步骤（`.github/workflows/release.yml`，仅在 `refs/tags/v*` 时执行）：
 
@@ -2159,10 +2161,36 @@ https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.1-dist/homenet-panel-linux-am
 | `https://raw.githubusercontent.com/...` | 200 / 8914B |
 | `https://cdn.statically.io/gh/...` | 200 / 8914B（脚本未列入首选，保留作手工镜像） |
 
+发布后再验 `dist` 分支的资产：
+
+| URL | 结果 |
+|---|---|
+| `@dist/VERSION` | 200，内容 `v0.38.1` |
+| `@dist/online-install.sh` | 200 / 6635B（CDN 首字节后可缓存） |
+| `@dist/sha256sums.txt` | 200，两个二进制的 sha256 |
+| `fastly.jsdelivr.net/@dist/online-install.sh` | 200 / 6540B |
+| `gcore.jsdelivr.net/@dist/online-install.sh` | 200 / 6540B |
+| `raw.githubusercontent.com/<repo>/v0.38.1-dist/homenet-panel-linux-arm64` | 200 / 7,602,360B |
+| `cdn.jsdelivr.net/@v0.38.1-dist/...` | **404**（版本号分支名不被索引） |
+
+**端到端实测（两台真机，`--dry-run` 不写盘）**：
+
+- n6（Armbian bookworm / aarch64，**无 curl 只有 wget**）：`wget -qO /tmp/oi.sh https://cdn.jsdelivr.net/gh/leoz26/dae-panel@main/deploy/online-install.sh && bash /tmp/oi.sh --dry-run` → 下载 6635B 脚本 → 8 步预检全过（dae v2.1.1 在跑、BTF 可用、对外网卡 eth0、已有证书与凭证保留、旧 unit 备份）→ `[+] 在线安装完成`。
+- .85（Debian 13 / amd64）：同一命令，前几行输出证明链路正确 ——
+  ```
+  [=] 版本：v0.38.1
+  [=] 来源：jsdelivr@dist fastly@dist gcore@dist raw/v0.38.1-dist raw/dist releases/download/v0.38.1
+  [+] install.sh
+  [+] homenet-panel-linux-amd64（8118456 字节）
+  [+] 校验和一致
+  [=] DRY-RUN：只检查，不写任何文件
+  ```
+
 ### 14.34.5 边界与代价
 
 - **jsDelivr 有分支缓存**：同一个 `@dist` 路径可能短时间内仍返回旧文件。缓解措施是 CI 主动 purge + 提供 `--tag vX.Y.Z`（走不可变的 `<tag>-dist`）。对「钉版本」场景缓存是好事，对「永远最新」场景偶发滞后。
 - **jsDelivr 单文件上限 20MB**：当前二进制 8–9MB，够用；若将来膨胀要换 R2/OSS。
+- **jsDelivr 不支持「版本号样式」的分支名**：这是本轮实测踩到的硬限制（`@v0.38.1-dist` 必 404）。若将来确实需要「CDN 上钉版本」，只能改用不撞版本号命名的分支（如 `pkg` + 目录分层）或对象存储。
 - **CDN 只是传输层**：面板不因此信任任何内容——仍然验 `sha256sums.txt`，`install.sh` 仍然 `--dry-run` 可用。
 - **不做**：不把二进制提交进 `main`（历史会膨胀）、不依赖第三方上传服务（用户没有 R2/OSS 账号）、不在面板里做「自更新」（仍是 apt/脚本的职责）。
 
