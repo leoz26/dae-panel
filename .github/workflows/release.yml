@@ -23,9 +23,14 @@ jobs:
         run: |
           set -e
           mkdir -p dist
-          for arch in amd64 arm64; do
-            ( cd homenet-panel && GOOS=linux GOARCH=$arch CGO_ENABLED=0 \
-                go build -trimpath -ldflags '-s -w' -o ../dist/homenet-panel-linux-$arch ./cmd/homenet-panel )
+          # 名称:GOARCH:GOARM —— 名字是产物名，GOARM 仅 armv7 需要
+          for spec in amd64:amd64:0 arm64:arm64:0 armv7:arm:7 386:386:0; do
+            name=${spec%%:*}; rest=${spec#*:}
+            goarch=${rest%%:*}; goarm=${rest##*:}
+            unset GOARM
+            [ "$goarm" != 0 ] && export GOARM=$goarm   # 只有 GOARCH=arm 用得上
+            ( cd homenet-panel && GOOS=linux GOARCH=$goarch CGO_ENABLED=0 \
+                go build -trimpath -ldflags '-s -w' -o ../dist/homenet-panel-linux-$name ./cmd/homenet-panel )
           done
           cp deploy/install.sh deploy/online-install.sh deploy/verify-install.sh dist/
           ( cd dist && sha256sum homenet-panel-linux-* > sha256sums.txt && cat sha256sums.txt )
@@ -36,7 +41,7 @@ jobs:
         run: |
           echo "$TAG" > dist/VERSION
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" --notes "HomeNet Panel $TAG：linux/amd64 与 linux/arm64 静态二进制 + 在线安装脚本" \
+            --title "$TAG" --notes "HomeNet Panel $TAG：linux/amd64、arm64、armv7、386 静态二进制 + 在线安装脚本" \
             || gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
 
       # 把产物发布到 dist 分支（可变，指向最新）与 <tag>-dist 分支（不可变快照），
@@ -66,7 +71,8 @@ jobs:
         continue-on-error: true
         run: |
           for f in online-install.sh install.sh verify-install.sh sha256sums.txt VERSION \
-                   homenet-panel-linux-amd64 homenet-panel-linux-arm64; do
+                   homenet-panel-linux-amd64 homenet-panel-linux-arm64 \
+                   homenet-panel-linux-armv7 homenet-panel-linux-386; do
             curl -fsS --max-time 20 "https://purge.jsdelivr.net/gh/${{ github.repository }}@dist/$f" >/dev/null || true
             curl -fsS --max-time 20 "https://purge.jsdelivr.net/gh/${{ github.repository }}@${{ github.ref_name }}-dist/$f" >/dev/null || true
           done

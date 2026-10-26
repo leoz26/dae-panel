@@ -5,8 +5,8 @@
 #   curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
 # GitHub 直连（网络能到 github.com 时）：
 #   curl -fsSL https://github.com/leoz26/dae-panel/releases/latest/download/online-install.sh | sudo bash
-# 自建镜像： bash online-install.sh --base-url http://mirror/hnp --tag v0.38.1
-# 钉版本：   bash online-install.sh --tag v0.38.1
+# 自建镜像： bash online-install.sh --base-url http://mirror/hnp --tag v0.39.0
+# 钉版本：   bash online-install.sh --tag v0.39.0
 # 私有仓库： GH_TOKEN=<只读 token> bash online-install.sh
 set -uo pipefail
 
@@ -39,7 +39,10 @@ step() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 case "$(uname -m)" in
   x86_64|amd64) ARCH=amd64;;
   aarch64|arm64) ARCH=arm64;;
-  *) die "不支持的架构 $(uname -m)（只发布 linux/amd64 与 linux/arm64）";;
+  armv7l|armv7) ARCH=armv7;;
+  armv6l) die "ARMv6（例如树莓派 Zero/初代）暂不提供构建：armv7 二进制在 ARMv6 上会 Illegal instruction。请在别的机器上交叉编译（GOARCH=arm GOARM=6）或换设备";;
+  i386|i486|i586|i686|x86) ARCH=386;;
+  *) die "不支持的架构 $(uname -m)（已发布 linux/amd64、arm64、armv7、386）";;
 esac
 
 TMP=$(mktemp -d /tmp/hnp-online.XXXXXX) || die "无法创建临时目录"

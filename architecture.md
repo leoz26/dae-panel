@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.46  
+> **文档版本：** v0.47  
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -11,6 +11,7 @@
 > **修订（v0.9）：** 前端本地化（Vue 内嵌，去 CDN 依赖）；节点测速（并发 TCP 建连延迟）+ 按分组 filter 本地求值命中；模式 B 自建聚合（多订阅合并去重，生成 panel-merged.sub）。新增 §14.6。详见 §14。
 > **修订（v0.10）：** 补记前端本地化方案取舍分析（§14.7）；新增模式 B 一键安全切换（POST /api/aggregate/switch，事务化改订阅引用+分组 filter 并校验可回滚）。详见 §14.7 / §14.8。
 > **修订（v0.11）：** 启用 HTTPS/TLS（`serve --tls-cert/--tls-key`，cookie 置 Secure，自签 SAN 证书）。详见 §14.9。
+> **修订（v0.47）：** 新增 §14.38「构建矩阵扩到 linux/armv7 与 linux/386」：CI 用 `产物名:GOARCH:GOARM` 四元组交叉编译，`online-install.sh` 的 `uname -m` 映射补 armv7/386、armv6 明确拒绝，并说明为什么不做 armv6 与 mips（dae 官方 deb 其实有 x86_32/armv7 包）。
 > **修订（v0.46）：** 新增 §14.37「结构化 DNS 编辑器」：`internal/model/dns.go` 的结构化视图（Parse/Render/Lint）+ `/api/dns/parse`、`/api/dns/render` + 前端「DNS」标签页；校验规则来自 .85 上逐条 `dae validate` 实测（dns 的 qname 不支持 `geolocation:`；动作只有 `reject`，`accept` 仅限响应规则）。`Model.DNS` 仍为原样文本，保存后走同一 apply 事务。
 > **修订（v0.12）：** 新增分流命中调试器（geosite 解码 + 规则本地求值，§14.10）；分流规则可视化编辑增强（排序、出站联表、未保存规则试算，§14.11）。
 > **修订（v0.13）：** 修复 v0.12 尾部截断（§13 的 D8–D12 与整节 §14 丢失，已按实机实测与现有代码重建）；并新增 §14.12「流量 / 命中统计（DNS 旁路）」记录 ③ DNS 查询频度统计与 ② eBPF 预留接口的实现、口径与开销实测。
@@ -1842,7 +1843,7 @@ ExecStart=/usr/local/bin/homenet-panel serve --addr 0.0.0.0:8787 \
 
 `deploy/online-install.sh`（目标机侧）+ `.github/workflows/release.yml`（CI 侧）：
 
-- workflow 打 `v*` tag 触发：`go vet` + `go test` → 交叉编译 amd64/arm64（`-trimpath -ldflags "-s -w"`，8.9MB）→ 拷两个安装脚本 → `sha256sum` → `gh release create`（已存在则 `gh release upload --clobber`）。
+- workflow 打 `v*` tag 触发：`go vet` + `go test` → 交叉编译 amd64/arm64（v0.47 起再加 armv7/386，见 §14.38；`-trimpath -ldflags "-s -w"`，8.9MB）→ 拷两个安装脚本 → `sha256sum` → `gh release create`（已存在则 `gh release upload --clobber`）。
 - 在线脚本识别 `uname -m`，取 `homenet-panel-linux-<arch>` + `install.sh` + `sha256sums.txt`（校验后才继续），再以 `--binary` 调 `install.sh`，结束清理临时目录。
 - **私有仓库必须走 API**：`github.com/.../releases/latest/download/<asset>` 对私有仓库恒返回 404（即使带 token，因为那是网页通道）；正确姿势是 `GET /repos/{owner}/{repo}/releases/{latest|tags/TAG}` 找 `asset.id`，再 `GET /repos/.../releases/assets/{id}` 带 `Accept: application/octet-stream`。脚本里 `asset_url()` 就做这件事（优先 python3，其次 OpenWrt 的 `jsonfilter`，最后 grep 兜底）。
 - 下载器优先级：`curl` → `wget` → `python3 urllib`（.85 上没有 curl，实测走 wget）。
@@ -2363,7 +2364,39 @@ DNSSpec{Upstreams, Request, RequestFallback, Response, ResponseFallback}
 - **不校验 DNS 里的 geosite tag 是否存在**：`internal/model/lint.go` 的 `GeoRefs/LintGeo` 目前只覆盖分流规则；`qname(geosite:xxx)` 写错只是永不命中，不会让 validate 失败。
 - **不改 apply 管线**：DNS 编辑保存后仍走 `POST /api/model/apply`（校验 → 备份 → 写盘 → reload → 失败回滚），没有第二条写配置通道。
 - **不覆盖 dns 块的其他字段**（例如未经验证的 `bind` 等键）：当前只做 upstream + routing.request/response + 兜底，其他写法请用「整段配置(高级)」。
-## 15. 本版（v0.46）变更清单
+## 14.38 构建矩阵扩到 linux/armv7 与 linux/386（v0.47）
+
+### 14.38.1 起因
+
+此前 CI 只发 `linux/amd64` 与 `linux/arm64`，`deploy/online-install.sh` 遇到其它架构直接 die（`只发布 linux/amd64 与 linux/arm64`）。用户要求加 armv7 与 386：树莓派 2/3/4 跑 32 位系统、老 x86 软路由/工控机、部分 OpenWrt x86 镜像都是这两类。
+
+### 14.38.2 改动
+
+| 位置 | 改动 |
+| --- | --- |
+| `.github/workflows/release.yml` | 编译循环从 `for arch in amd64 arm64` 改为 `for spec in amd64:amd64:0 arm64:arm64:0 armv7:arm:7 386:386:0`，`spec` 是 `产物名:GOARCH:GOARM`；只有 `GOARM≠0` 时 `export GOARM`（`unset GOARM` 开头，避免污染下一个架构）；产物名仍是 `homenet-panel-linux-<名字>`，`sha256sum homenet-panel-linux-*` 自动带上新文件 |
+| 同上 | jsDelivr purge 列表补 `homenet-panel-linux-armv7`、`homenet-panel-linux-386`；release notes 文案改为「amd64、arm64、armv7、386」 |
+| `deploy/online-install.sh` | `uname -m` 映射扩容：`armv7l|armv7 → armv7`、`i386|i486|i586|i686|x86 → 386`；**`armv6l` 明确 die**：`GOARM=7` 的二进制在 ARMv6 CPU 上会 `Illegal instruction`，报错里直接说明「暂不提供 armv6 构建，请自行交叉编译 GOARCH=arm GOARM=6 或换设备」；未知架构的提示同步改成「已发布 amd64、arm64、armv7、386」 |
+
+### 14.38.3 为什么没有 armv6 / mips
+
+- **armv6**（树莓派 Zero、初代 A/B）不是「少一个产物」的问题：`GOARM=7` 编出来的指令 ARMv6 不认，装上就是 `Illegal instruction`，比明确拒绝更难排查。要支持得单独加 `GOARM=6` 产物，收益（这些板子的内存/CPU 也基本带不动 dae）不划算，故先拒绝并给出手工编译命令。
+- **mips/mipsle**：面板本身能编（纯 Go、`CGO_ENABLED=0`），但 dae 需要内核 eBPF + BTF，绝大多数 MIPS 家用路由器内核没有 BTF，装了也跑不起来（§4.4.8 平台限制表）。所以不发布，避免给出「能装不能用」的产物。
+- 反过来说，**dae 官方 deb 是覆盖这两类的**：daeuniverse/dae 最新 release 的资产里有 `dae-linux-x86_32.deb`、`dae-linux-armv7.deb`（还有 loongarch64 / mips32 / mips64 / powerpc64 / riscv64 / s390x），所以「面板 386 + dae x86_32」「面板 armv7 + dae armv7」这两条组合在包层面是齐的。
+
+### 14.38.4 验证
+
+| 项目 | 结果 |
+| --- | --- |
+| 本机交叉编译（Go 1.24，`CGO_ENABLED=0 -trimpath -ldflags '-s -w'`） | `/tmp/hnp-armv7` = `ELF 32-bit LSB executable, ARM, EABI5, statically linked, stripped`；`/tmp/hnp-386` = `ELF 32-bit LSB executable, Intel 80386, statically linked, stripped` |
+| 编译循环的 shell 逻辑 | 单独跑 `sh` 干跑：`name=amd64 goarch=amd64 goarm=unset` / `arm64` / `armv7 goarm=7` / `386 goarm=unset` |
+| 脚本语法 | `bash -n` 三个脚本全通过 |
+| 端到端 | 见 §14.38.5：tag `v0.39.0` 的 CI 产物与 CDN 上的四个二进制 |
+
+### 14.38.5 发布与实测
+
+（发布后回填：CI 产物清单、CDN 上 armv7/386 的取回与 sha256 校验结果。）
+## 15. 本版（v0.47）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2408,3 +2441,4 @@ DNSSpec{Upstreams, Request, RequestFallback, Response, ResponseFallback}
 35. **dae 未运行时的应用报错（v0.44）**：`dae reload` 在拿不到 pid 时会读 `/var/run/dae.pid`，读不到就打 `failed to read pid file … Usage: dae reload`——这实际是「dae 没在运行」。`internal/configtx/configtx.go` 新增 `ErrDaeNotRunning`/`DaeDownHint`/`explainDaeOut`，`Apply`/`ApplyMulti`/`Rollback` 在 reload 前判 `RunningPID()<=0` 并回滚 + 指路「安装与初始化」页，失败文案不再回显 CLI 用法（§14.35）。
 36. **计划步骤白话说明（v0.45）**：`internal/access/plan.go` 的 `Step` 新增 `Note` 字段（4 条全部填写），前端在每条步骤详情下渲染蓝色提示框；新增 `TestPlanStepsHavePlainLanguageNotes`；实机 API 与 CDP 浏览器均验证（§14.36）。
 37. **结构化 DNS 编辑器（v0.46）**：新增 `internal/model/dns.go`（`DNSSpec`/`ParseDNS`/`RenderDNS`/`LintDNS`/`DefaultDNSSpec`）、`internal/api/dns.go`（`/api/dns/parse`、`/api/dns/render`）与前端「DNS」标签页；`Model.DNS` 仍是原样文本，编辑结果渲染回文本后走同一 apply 事务。校验依据来自 .85 上逐条 `dae validate`（`qname(geolocation:)`、`-> drop`、请求规则 `-> accept` 都不被 dae 接受）。实机 preview 证明「dns 不改时生成结果与线上逐字节一致」，详见 §14.37。
+38. **构建矩阵扩到 armv7 / 386（v0.47）**：CI 编译循环改为 `产物名:GOARCH:GOARM` 四元组（`amd64`/`arm64`/`armv7`(GOARM=7)/`386`），purge 与 release notes 同步；`deploy/online-install.sh` 的 `uname -m` 映射加 `armv7l→armv7`、`i686→386`，`armv6l` 明确拒绝（GOARM=7 二进制在 ARMv6 上 Illegal instruction）。dae 官方 deb 本身有 `x86_32` 与 `armv7` 包，组合可行。详见 §14.38。

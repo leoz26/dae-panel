@@ -23,6 +23,8 @@
 
 前提：已安装 dae 并能正常 `dae run`；内核具备 BPF/BTF。
 
+发布的静态二进制覆盖 **linux/amd64、arm64、armv7、386**（`uname -m` 为 `x86_64`/`aarch64`/`armv7l`/`i686` 都可直接在线安装）；`armv6l`（树莓派 Zero/初代）与 MIPS 不提供构建。
+
 ```bash
 go build -o bin/homenet-panel ./cmd/homenet-panel
 sudo install -m 0755 bin/homenet-panel /usr/local/bin/homenet-panel

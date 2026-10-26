@@ -80,7 +80,9 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 
 > 实测两点：① **分支**名里带版本号（`v0.38.1-dist`）在 jsDelivr 上恒 404，但同名的 **git 标签**正常；② `@dist` 分支有缓存滞后（purge 后仍可能返回旧脚本）。所以「钉版本用标签，最新版用 `@dist`（可能滞后几分钟）」。
 
-产物清单：`homenet-panel-linux-amd64`、`homenet-panel-linux-arm64`、`install.sh`、`online-install.sh`、`verify-install.sh`、`sha256sums.txt`、`VERSION`。
+产物清单：`homenet-panel-linux-amd64`、`-arm64`、`-armv7`、`-386`、`install.sh`、`online-install.sh`、`verify-install.sh`、`sha256sums.txt`、`VERSION`。
+
+支持的架构（脚本按 `uname -m` 自动选）：`x86_64→amd64`、`aarch64→arm64`、`armv7l→armv7`、`i686/i386→386`。**`armv6l`（树莓派 Zero/初代）会被明确拒绝**——armv7 二进制在 ARMv6 上会 `Illegal instruction`；需要的话自行交叉编译 `GOARCH=arm GOARM=6`。MIPS 不发布（dae 要内核 BTF，多数 MIPS 路由器没有）。
 
 **推荐：走 CDN（初始环境连不上 github.com 也能装）**
 
@@ -88,13 +90,13 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 # 最新（CDN，可能滞后几分钟）
 curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@dist/online-install.sh | sudo bash
 # 钉版本（CDN 标签，立即生效，推荐生产用）
-curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh | sudo bash
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/online-install.sh | sudo bash
 # 透传安装参数：
-curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh | sudo bash -s -- --port 9443 --traffic-iface eth1
+curl -fsSL https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/online-install.sh | sudo bash -s -- --port 9443 --traffic-iface eth1
 
 # 如果 cdn.jsdelivr.net 在你那边打不开，把域名换成下面任意一个（内容相同）：
-#   https://fastly.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh
-#   https://gcore.jsdelivr.net/gh/leoz26/dae-panel@v0.38.4-dist/online-install.sh
+#   https://fastly.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/online-install.sh
+#   https://gcore.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/online-install.sh
 # 没有 curl 时把 curl -fsSL ... | sudo bash 换成：
 #   wget -qO /tmp/oi.sh <上面的URL> && sudo bash /tmp/oi.sh
 ```
@@ -167,7 +169,7 @@ dae 依赖内核 eBPF + BTF，**不是所有设备都能用**：
 | 条件 | 怎么查 | 不满足会怎样 |
 |---|---|---|
 | 内核 ≥ 5.8 且有 BTF | `ls /sys/kernel/btf/vmlinux` | dae 起不来 |
-| 架构 x86_64 / arm64 | `uname -m` | MIPS/ARMv7 路由器基本无望 |
+| 架构 x86_64 / arm64 / armv7 / 386 | `uname -m` | 面板四种都有构建；mips 与 armv6 不发布 |
 | root 权限 | `id -u` = 0 | 无法挂载 eBPF |
 | memlock ≥ 64MB | `ulimit -l` 或 `/proc/self/limits` | 加载 BPF map 失败 |
 
@@ -178,8 +180,12 @@ dae 依赖内核 eBPF + BTF，**不是所有设备都能用**：
 ```bash
 cd homenet-panel
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bin/homenet-panel-linux-amd64 ./cmd/homenet-panel
-# arm64 软路由 / 树莓派：
+# arm64 软路由 / 树莓派（64 位系统）：
 GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o bin/homenet-panel-linux-arm64 ./cmd/homenet-panel
+# armv7（树莓派 2/3/4 跑 32 位系统）：
+GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o bin/homenet-panel-linux-armv7 ./cmd/homenet-panel
+# 386（老 x86 机器 / 32 位 OpenWrt x86 镜像）：
+GOOS=linux GOARCH=386 CGO_ENABLED=0 go build -o bin/homenet-panel-linux-386 ./cmd/homenet-panel
 ```
 产物是静态单文件，目标机不需要 Go 运行时。
 
