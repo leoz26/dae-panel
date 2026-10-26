@@ -99,12 +99,13 @@ if [ -n "$BASE_URL" ]; then
 else
   # CDN 需要具体版本号：先读 dist 分支里的 VERSION
   if [ -z "$TAG" ]; then
-    if get "$CDN/$REPO_SLUG@dist/VERSION" "$TMP/VERSION" 2>/dev/null; then
+    # 先问 GitHub API（权威，@dist/VERSION 在 CDN 上实测会滞后）
+    TAG=$(curl -fsSL --http1.1 --retry 3 -H 'Accept: application/vnd.github+json' \
+          "https://api.github.com/repos/$REPO_SLUG/releases/latest" 2>/dev/null \
+          | grep -o '"tag_name"[^,]*' | head -1 | sed 's/.*"\(.*\)"/\1/')
+    if [ -z "$TAG" ] && get "$CDN/$REPO_SLUG@dist/VERSION" "$TMP/VERSION" 2>/dev/null; then
       TAG=$(tr -d ' \t\r\n' < "$TMP/VERSION")
-    else
-      TAG=$(curl -fsSL --http1.1 --retry 3 -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repos/$REPO_SLUG/releases/latest" 2>/dev/null \
-            | grep -o '"tag_name"[^,]*' | head -1 | sed 's/.*"\(.*\)"/\1/')
+      [ -n "$TAG" ] && warn "GitHub API 不可达，改用 CDN 的 VERSION（可能滞后）：$TAG"
     fi
     [ -n "$TAG" ] || TAG=latest
   fi
@@ -144,23 +145,58 @@ download() {
 }
 
 step "2/4 下载"
-download "online-install.sh" "$TMP/online-install.sh" || warn "未能下载 online-install.sh（不影响安装，仅用于版本自检）"
-download "install.sh" "$TMP/install.sh" || die "下载 install.sh 失败（所有源都不可达：检查网络、代理、或 --base-url 镜像）"
-ok "install.sh"
-download "homenet-panel-linux-$ARCH" "$TMP/homenet-panel" || die "下载二进制失败（该架构可能没有发布产物，或所有源都不可达）"
-ok "homenet-panel-linux-$ARCH（$(wc -c < "$TMP/homenet-panel") 字节）"
 
-if download "sha256sums.txt" "$TMP/sha256sums.txt"; then
-  if command -v sha256sum >/dev/null 2>&1; then
-    WANT=$(grep "homenet-panel-linux-$ARCH" "$TMP/sha256sums.txt" | awk '{print $1}' | head -1)
-    if [ -n "$WANT" ]; then
-      GOT=$(sha256sum "$TMP/homenet-panel" | awk '{print $1}')
-      if [ "$WANT" = "$GOT" ]; then ok "校验和一致"; else die "校验和不匹配（下载损坏或被篡改）"; fi
+# 同一个源必须把三个文件都取到，否则校验和会串味（曾实测：二进制来自 tag、校验和来自 dist）。
+WANT=""
+try_source() {
+  local src="$1" sums
+  get "$src/install.sh" "$TMP/install.sh" 2>/dev/null || return 1
+  [ -s "$TMP/install.sh" ] || return 1
+  get "$src/homenet-panel-linux-$ARCH" "$TMP/homenet-panel" 2>/dev/null || return 1
+  [ -s "$TMP/homenet-panel" ] || return 1
+  if get "$src/sha256sums.txt" "$TMP/sha256sums.txt" 2>/dev/null && [ -s "$TMP/sha256sums.txt" ]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      sums=$(grep "homenet-panel-linux-$ARCH" "$TMP/sha256sums.txt" | awk '{print $1}' | head -1)
+      if [ -n "$sums" ] && [ "$sums" != "$(sha256sum "$TMP/homenet-panel" | awk '{print $1}')" ]; then
+        return 2   # 这个源内部不一致，换下一个源
+      fi
+      WANT="$sums"
     fi
-  else
-    warn "本机没有 sha256sum，跳过校验"
+  fi
+  get "$src/online-install.sh" "$TMP/online-install.sh" 2>/dev/null || true
+  return 0
+}
+
+USED=""
+for src in "${SOURCES[@]}"; do
+  info "尝试来源：$src"
+  try_source "$src"
+  rc=$?
+  if [ "$rc" = 0 ]; then USED="$src"; break; fi
+  [ "$rc" = 2 ] && warn "该源的二进制与 sha256sums.txt 不一致，换下一个源"
+  rm -f "$TMP/install.sh" "$TMP/homenet-panel" "$TMP/sha256sums.txt"
+done
+
+if [ -z "$USED" ] && [ -n "$TOKEN" ]; then
+  info "尝试私有仓库 API"
+  mkdir -p "$TMP/api"
+  ok_api=1
+  for f in install.sh "homenet-panel-linux-$ARCH" sha256sums.txt; do
+    api_asset "$f" "$TMP/api/$f" || { ok_api=0; break; }
+  done
+  if [ "$ok_api" = 1 ]; then
+    cp "$TMP/api/install.sh" "$TMP/install.sh"
+    cp "$TMP/api/homenet-panel-linux-$ARCH" "$TMP/homenet-panel"
+    cp "$TMP/api/sha256sums.txt" "$TMP/sha256sums.txt"
+    USED="api"
   fi
 fi
+
+[ -n "$USED" ] || die "下载失败：所有源都不可达（检查网络、代理，或用 --base-url 指向镜像）"
+[ "$USED" = api ] || info "来源：$USED"
+ok "install.sh"
+ok "homenet-panel-linux-$ARCH（$(wc -c < "$TMP/homenet-panel") 字节）"
+if [ -n "$WANT" ]; then ok "校验和一致"; fi
 
 step "3/4 安装"
 chmod 755 "$TMP/homenet-panel" "$TMP/install.sh"
