@@ -154,6 +154,52 @@ func TestStartDaeSystemd(t *testing.T) {
 	}
 }
 
+func TestStopDaeSystemd(t *testing.T) {
+	opts, r := testOpts(t)
+	r.out["systemctl is-active dae"] = "inactive"
+	res := StopDae(opts)
+	if !res.OK {
+		t.Fatalf("应成功: %+v", res)
+	}
+	if !strings.Contains(strings.Join(r.calls, "\n"), "systemctl stop dae") {
+		t.Errorf("未调用 systemctl stop dae: %v", r.calls)
+	}
+}
+
+func TestStopDaeStaysActive(t *testing.T) {
+	opts, r := testOpts(t)
+	r.out["systemctl is-active dae"] = "active"
+	opts.DryRun = true // 跳过 5 秒轮询，只验命令路径
+	res := StopDae(opts)
+	if !res.OK {
+		t.Fatalf("dry-run 应成功: %+v", res)
+	}
+	if len(res.Steps) == 0 || !strings.Contains(res.Steps[0].Command, "systemctl stop dae") {
+		t.Errorf("dry-run 也应记录命令: %+v", res.Steps)
+	}
+	_ = r
+}
+
+func TestStopDaeNotRoot(t *testing.T) {
+	opts, _ := testOpts(t)
+	opts.IsRoot = func() bool { return false }
+	res := StopDae(opts)
+	if res.OK || !strings.Contains(res.Error, "root") {
+		t.Fatalf("非 root 应被拒绝: %+v", res)
+	}
+}
+
+func TestRestartDaeSystemd(t *testing.T) {
+	opts, r := testOpts(t)
+	res := RestartDae(opts)
+	if !res.OK {
+		t.Fatalf("应成功: %+v", res)
+	}
+	if !strings.Contains(strings.Join(r.calls, "\n"), "systemctl restart dae") {
+		t.Errorf("未调用 systemctl restart dae: %v", r.calls)
+	}
+}
+
 func TestDetectStatus(t *testing.T) {
 	opts, r := testOpts(t)
 	r.out["apt-get --version"] = "apt 2.6.1"

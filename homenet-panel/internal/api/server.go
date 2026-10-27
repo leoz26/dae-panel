@@ -1205,6 +1205,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/setup/install-dae", s.auth(s.handleSetupInstallDae))
 	mux.HandleFunc("/api/setup/init-config", s.auth(s.handleSetupInitConfig))
 	mux.HandleFunc("/api/setup/start-dae", s.auth(s.handleSetupStartDae))
+	mux.HandleFunc("/api/setup/stop-dae", s.auth(s.handleSetupStopDae))
+	mux.HandleFunc("/api/setup/restart-dae", s.auth(s.handleSetupRestartDae))
 	mux.HandleFunc("/api/audit", s.auth(s.handleAudit))
 	mux.HandleFunc("/api/audit/export", s.auth(s.handleAuditExport))
 

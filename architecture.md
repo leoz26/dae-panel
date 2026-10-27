@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.53  
+> **文档版本：** v0.54  
+> **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
 > **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
@@ -2763,7 +2764,74 @@ PersistentKeepalive = 25
 
 3. **全隧道（手机会走上家里代理）是另一件事**：`AllowedIPs` 只写家里网段时，手机上网流量根本不进隧道（"手机流量经家里出海"不会发生）。改成 `0.0.0.0/0` 才会全部经 n6 → dae 按规则分流。实测：baidu 223 ms、cloudflare 1019 ms、github 14.8 s（慢）、ping 1.1.1.1 276 ms；同一时段 journal 出现 `DNS forward to upstream failed … bootstrap resolver returned no usable address for "<节点域名>"` → SERVFAIL（dae 拨节点域名要靠 bootstrap 直连解析，抖一下就会失败几秒）。所以全隧道**可用但代价明显**：家里上行带宽 + 机场节点双重受限，且 DNS 依赖 bootstrap 稳定性。
 
-## 15. 本版（v0.53）变更清单
+## 14.43 规则/DNS 跨机迁移 + 一键停用 dae（v0.54）
+
+### 14.43.1 起因
+
+家里那台 n6（Armbian，旁路由 B2）经过一轮调优后，规则与 DNS 是一份「验证过能用」的现场：DoT 上游、DNS 层广告拦截、境外拒绝 AAAA（机场无 IPv6）、`AI`/`hk`/`sg`/`CF` 四个分组。公司测试机 .85 还停在旧的 v2rayN 迁移版。用户要求把 n6 的规则与 DNS 迁到 .85，但 .224 与 n6 都先不动（n6 等稳定后再统一）。
+
+### 14.43.2 迁移做法（不手改文件，走面板事务）
+
+1. 从 n6 取 `GET /api/model` 的 `model`（`/var/lib/homenet-panel/model.json`，3010 B），得到 global / groups / dns / rules / fallback。
+2. 在 .85 上**只覆盖 `dns` / `groups` / `rules` / `fallback`**，保留 .85 自己的 `global`（tproxy 端口、wan_interface 等与本机网卡相关）与 `subscriptions`（两台机器都是 `file://subs/dual.sub`、`file://subs/CF.sub`）。
+3. 用临时面板实例驱动 `POST /api/model/apply`（.85 的生产口令未知且不得重置）：
+
+```bash
+homenet-panel setpass --auth-path /tmp/hnpm/auth.json --user tmp --password tmp12345
+setsid nohup homenet-panel serve --addr 127.0.0.1:8899 --c /etc/dae/config.dae \
+  --backup-dir /var/lib/homenet-panel/backups --auth-path /tmp/hnpm/auth.json \
+  --audit-path /tmp/hnpm/audit.log --session-path /tmp/hnpm/sessions.json --bytes-interval 0 &
+```
+
+4. 备份先行：`/root/ab/panel-core.dae.before-n6migrate-20261027-153725`、`/root/ab/model.json.before-n6migrate-20261027-153725`。回滚：`cp <备份> /etc/dae/config.d/panel-core.dae && dae reload`。
+
+### 14.43.3 迁移结果
+
+| 项 | n6（来源） | .85（迁移后） |
+| --- | --- | --- |
+| rules | 15 条 | 15 条（+3 条 essential 自动注入 = 线上 19 行） |
+| groups | hk / sg / CF / AI | 同左 |
+| fallback | hk | hk |
+| dns.upstream | alidns `tls://223.5.5.5:853`、cloudflare `tls://1.1.1.1:853` | 同左 |
+| dns 拦截 | `qname(geosite:category-ads-all) -> reject`、`qtype(aaaa) -> reject` | 同左 |
+
+- `/etc/dae/config.d/panel-core.dae` md5 = **ee110cad427fcc148957f9159f429905**，`/var/run/dae.progress` = `2` 加 `OK`，dae 与 homenet-panel 均 active。
+- 实测（.85 本机，DNS 全部经 192.168.1.1 被 dae 接住）：
+
+| 域名 | A | AAAA |
+| --- | --- | --- |
+| doubleclick.net | 0（DNS 层 reject，0 ms） | 0 |
+| www.baidu.com | 2 | 3（国内保留 IPv6） |
+| www.youtube.com | 8 | 0（境外拒绝 AAAA） |
+| www.qq.com | 3 | 3 |
+
+TLS 连通性：youtube 3035 ms / cloudflare 3286 ms / github 2481 ms / baidu 74 ms（均 200 OK）。
+
+### 14.43.4 一键停用 dae
+
+「安装与初始化」页原来只有「安装 / 生成配置 / 启动」，没有停用入口。新增：
+
+- `internal/bootstrap/bootstrap.go`：`StopDae(o)`（procd 走 `/etc/init.d/dae stop`，否则 `systemctl stop dae`，随后轮询 `is-active` 直到非 `active`）、`RestartDae(o)`（同理，轮询 20 次 × 500 ms 直到 `active`）。
+- `internal/api/bootstrap.go` 加路由：`POST /api/setup/stop-dae`、`POST /api/setup/restart-dae`（均 `s.auth` 加审计 `setup.stopDae` / `setup.restartDae`，支持 `{dryRun:true}`）。
+- 前端：按钮「停止 dae」「重启 dae」，各带二次确认（停止会拆掉拦截设备、正在把本机当网关的设备会断网；重启会断掉现有连接，只是应用配置请走 reload）。
+
+实机验证（192.168.1.85）：
+
+| 动作 | 结果 |
+| --- | --- |
+| `stop-dae`（dry-run） | 200，两步均 skipped，未动系统 |
+| `stop-dae` | 200，`systemctl is-active dae` → **inactive**，面板自身仍 active |
+| `start-dae` | 200，**active**（新 pid），`/api/setup/status.daeRunning=true` |
+| `restart-dae` | 200，**active**，pid 87772 |
+
+### 14.43.5 边界与教训
+
+- 停用**不改配置、不改开机自启**：`systemctl stop` 只停本次；要开机不启需 `systemctl disable dae`（OpenWrt 上是 `/etc/init.d/dae disable`），面板不代劳。
+- `restart` 会拆装 netkit 设备对，n6 上曾与硬件看门狗一起导致整机重启——**能 reload 就不要 restart**，按钮的确认文案已写明。
+- 迁移时**不要整份 model 覆盖**：`global` 里的 `wan_interface` / 端口与本机网卡绑定，跨机照搬会把拦截接到不存在的网卡上。
+- 面板 `/api/model/apply` 响应里的 `applied`/`rolledBack` 有时取不到值，判定成功请以 `/var/run/dae.progress`（`2` 加 `OK`）与 `systemctl is-active dae` 为准。
+
+## 15. 本版（v0.54）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2814,3 +2882,4 @@ PersistentKeepalive = 25
 41. **字节统计改用 conntrack 聚合客户端（v0.50）**：新增 `internal/traffic/conntrack.go`（`ConnEntry`/`ParseConntrackLocal`/`LocalSubnets`/`ReadConntrack`），采集器新增 `ClientFn`/`AcctFn` 注入点、`BytesSnapshot` 增 `ClientSource`/`ClientError`/`ClientNote`、`Row` 增 `Detail`；客户端表的字节、连接数、「主要目的」都来自连接跟踪表，socket 路径不再兼任客户端归属。实测 .85（内核 6.12.113）即使 `nf_conntrack_acct=1`（模块参数 Y）也不写 `bytes=`，而 n6（6.18.54）正常 → 增加「本轮无任何非零字节即降级」判定与第三条提示；前端加 `clientError` 横幅、`clientNote` 提示、「主要目的」列与数据源标识；七条回归测试。详见 §14.40。
 42. **Tailscale 保命直连规则（v0.51）**：`EssentialRules` 增加 `dip(100.64.0.0/10) -> direct`（Tailnet/CGNAT 段，否则按 fallback 送去海外节点，表现为 ping 通但打不开）与 `pname(tailscaled, tailscale) -> direct`（控制面 443 / DERP / UDP 41641 打洞）；前端安全规则说明同步；新增 `TestEssentialRulesCoverTailscale`；.85 与 n6 实机 apply 后 validate ok、dae active，原有规则条数不变。详见 §14.41。
 43. **EasyTier WSS 组网与「组网」页（v0.52）**：新增 §14.42——选型（EasyTier 单文件 5.6–7.2 MB；Tailscale 41.1 MB 且 dae 内无相关模块无法内嵌）、WSS 伪装方案（只监听 wss、SNI 用含 `speedtest` 的 AAAA 子域名、路由器放行 TCP 11010）、Caddy 反代实测不可行、`internal/mesh`（`Detect`/`Control`/`ParsePeers`/`ParseRoutes`）+ `GET /api/mesh`、`POST /api/mesh/service` + 前端「组网」页；实测 peer `wss6` 11.89 ms、ping 家里网段 12.9 ms、iperf3 上 60.0 / 下 64.5 Mbit/s。
+45. **§14.43（v0.54）**：n6 规则/DNS 跨机迁移到 .85（只覆盖 dns/groups/rules/fallback，保留 global 与订阅；DoT 双上游 + DNS 层广告拦截 + 境外拒绝 AAAA；实测 doubleclick A=0、baidu AAAA=3、youtube AAAA=0），并新增「一键停用 / 重启 dae」（`StopDae`/`RestartDae` + `/api/setup/{stop,restart}-dae` + 前端按钮与二次确认），实机 stop→inactive、start/restart→active。

@@ -61,6 +61,8 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 | 安装 dae | 加官方 APT 源 + GPG key → `apt-get update` → `apt-get install -y dae` | 面板以 root 运行，系统是 APT 系 |
 | 生成初始配置 | 写 `/etc/dae/config.dae`（include）+ `config.d/panel-core.dae`（tproxy 12345 / wan_interface auto / DNS 223.5.5.5 / fallback direct），写完立刻 `dae validate` | dae 已安装 |
 | 启动 dae | `systemctl enable` + `restart`（OpenWrt 走 `/etc/init.d/dae restart`），并轮询 active | 配置已存在 |
+| 停止 dae | `systemctl stop dae`（OpenWrt 走 `/etc/init.d/dae stop`），轮询直到非 active；**不改配置、不改开机自启** | 面板以 root 运行 |
+| 重启 dae | `systemctl restart dae`，轮询直到 active | 面板以 root 运行 |
 
 要点：
 
@@ -68,6 +70,8 @@ bash deploy/deploy.sh root@10.0.0.5 -- --audit-max-mb 2 --audit-keep 2   # 小 f
 - 「生成初始配置」**只用于空白设备**：只要入口或主体配置任一非空就拒绝（包括面板自己托管过的），确实要覆盖需调 API 带 `force=true`（会先备份成 `*.bak-<时间>`）。
 - `dae validate` 失败会自动回滚到写入前的文件，页面「执行记录」里会显示「已回滚」。
 - 面板以非 root 运行时这一页只读，按钮会返回「需要 root 权限」。
+- **停止 dae 就是「一键停用」**：本机不再代理任何流量，dae 的拦截设备会被拆掉；如果这台机器正被别的设备当网关/旁路由用，那些设备会直接断网。要开机也不再自启，需要另外执行 `systemctl disable dae`（面板不代劳）。
+- **只是想让新配置生效，不要点「重启 dae」**：内容层「应用」走的是 `dae reload`，不断连接；`restart` 会重新创建 netkit 拦截设备，在个别内核上可能挂起。
 
 ## 2.0b 在线安装（一条命令，CDN 优先）
 

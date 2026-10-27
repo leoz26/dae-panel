@@ -590,6 +590,8 @@ td input,td select{width:100%}
             <button @click="runSetup('install-dae')" :disabled="setupBusy">安装 dae</button>
             <button @click="runSetup('init-config')" :disabled="setupBusy">生成初始配置</button>
             <button @click="runSetup('start-dae')" :disabled="setupBusy">启动 dae</button>
+            <button @click="runSetup('stop-dae')" :disabled="setupBusy" style="background:#8a3131">停止 dae</button>
+            <button class="ghost" @click="runSetup('restart-dae')" :disabled="setupBusy">重启 dae</button>
             <button class="ghost" @click="runSetup('install-dae', true)" :disabled="setupBusy">dry-run 安装</button>
             <button class="ghost" @click="runSetup('init-config', true)" :disabled="setupBusy">dry-run 初始化</button>
             <span class="muted" v-if="setupBusy">执行中…</span>
@@ -1157,6 +1159,8 @@ createApp({
     },
     async runSetup(action, dry){
       if(action==="init-config" && !confirm("将写入 "+(this.setupStatus?this.setupStatus.entryPath:"/etc/dae/config.dae")+" 与主体配置（会先备份，dae validate 失败自动回滚）。继续？")) return;
+      if(action==="stop-dae" && !confirm("停止 dae 后：本机不再代理任何流量，dae 的拦截设备会拆掉；如果这台机器正被别的设备当网关/旁路由用，那些设备会直接断网。配置与开机自启都不改，随时点「启动 dae」恢复。继续？")) return;
+      if(action==="restart-dae" && !confirm("重启 dae 会重新创建拦截设备（netkit），正在跑的连接会断。只是想应用新配置的话用「内容层 → 应用」即可（走 reload 不断连）。继续？")) return;
       this.setupBusy=true; this.setupSteps=[]; this.setupError=""; this.setupMsg="";
       try {
         const r = await this.api("/api/setup/"+action,"POST", dry ? {dryRun:true} : {});

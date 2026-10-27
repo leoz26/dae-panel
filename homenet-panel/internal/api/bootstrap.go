@@ -76,3 +76,41 @@ func (s *Server) handleSetupStartDae(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, code, map[string]any{"result": res, "status": bootstrap.Detect(s.setupOptions())})
 }
+
+// handleSetupStopDae 一键停用 dae（不改配置、不改开机自启）。
+func (s *Server) handleSetupStopDae(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DryRun bool `json:"dryRun"`
+	}
+	_ = readJSON(r, &req)
+	setupMu.Lock()
+	defer setupMu.Unlock()
+	opts := s.setupOptions()
+	opts.DryRun = req.DryRun
+	res := bootstrap.StopDae(opts)
+	s.audit(r, "setup.stopDae", "dae", res.OK, res.Error)
+	code := 200
+	if !res.OK {
+		code = 422
+	}
+	writeJSON(w, code, map[string]any{"result": res, "status": bootstrap.Detect(s.setupOptions())})
+}
+
+// handleSetupRestartDae 重启 dae（不重新生成配置）。
+func (s *Server) handleSetupRestartDae(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DryRun bool `json:"dryRun"`
+	}
+	_ = readJSON(r, &req)
+	setupMu.Lock()
+	defer setupMu.Unlock()
+	opts := s.setupOptions()
+	opts.DryRun = req.DryRun
+	res := bootstrap.RestartDae(opts)
+	s.audit(r, "setup.restartDae", "dae", res.OK, res.Error)
+	code := 200
+	if !res.OK {
+		code = 422
+	}
+	writeJSON(w, code, map[string]any{"result": res, "status": bootstrap.Detect(s.setupOptions())})
+}

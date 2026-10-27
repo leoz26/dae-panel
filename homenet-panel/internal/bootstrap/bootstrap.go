@@ -439,6 +439,86 @@ func StartDae(o Options) Result {
 	return res
 }
 
+// StopDae 一键停用 dae（只停服务，不改配置、不改开机自启）。
+func StopDae(o Options) Result {
+	o = o.normalized()
+	res := Result{OK: true, DryRun: o.DryRun}
+	if !o.IsRoot() {
+		res.OK = false
+		res.Error = "需要 root 权限"
+		return res
+	}
+	if _, err := os.Stat("/etc/openwrt_release"); err == nil {
+		if !res.runCmd(o, "停止 dae（procd）", "/etc/init.d/dae", "stop") {
+			return res
+		}
+		res.add("提示").Output = "OpenWrt 上如需开机不再自启，执行 /etc/init.d/dae disable"
+		return res
+	}
+	if !res.runCmd(o, "systemctl stop dae", "systemctl", "stop", "dae") {
+		return res
+	}
+	step := res.add("检查运行状态")
+	if o.DryRun {
+		step.OK = true
+		step.Skipped = true
+		return res
+	}
+	for i := 0; i < 10; i++ {
+		out, _ := o.Runner.Run("systemctl", "is-active", "dae")
+		state := strings.TrimSpace(firstLine(strings.TrimSpace(out)))
+		if state == "" {
+			state = "inactive"
+		}
+		if state != "active" {
+			step.OK = true
+			step.Output = state
+			return res
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	step.OK = false
+	res.OK = false
+	res.Error = "dae 仍在运行：请查看 journalctl -u dae -n 50"
+	return res
+}
+
+// RestartDae 重启 dae（不重新生成配置）。注意：restart 会拆装拦截设备，个别内核上可能挂起挂死，能 reload 就别 restart。
+func RestartDae(o Options) Result {
+	o = o.normalized()
+	res := Result{OK: true, DryRun: o.DryRun}
+	if !o.IsRoot() {
+		res.OK = false
+		res.Error = "需要 root 权限"
+		return res
+	}
+	if _, err := os.Stat("/etc/openwrt_release"); err == nil {
+		res.runCmd(o, "重启 dae（procd）", "/etc/init.d/dae", "restart")
+		return res
+	}
+	if !res.runCmd(o, "systemctl restart dae", "systemctl", "restart", "dae") {
+		return res
+	}
+	step := res.add("检查运行状态")
+	if o.DryRun {
+		step.OK = true
+		step.Skipped = true
+		return res
+	}
+	for i := 0; i < 20; i++ {
+		if out, err := o.Runner.Run("systemctl", "is-active", "dae"); err == nil && strings.TrimSpace(firstLine(strings.TrimSpace(out))) == "active" {
+			step.OK = true
+			step.Output = "active"
+			return res
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	step.OK = false
+	res.OK = false
+	res.Error = "dae 重启后仍是 inactive：请查看 journalctl -u dae -n 50"
+	return res
+}
+
 func writeFile(path string, data []byte, mode os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
