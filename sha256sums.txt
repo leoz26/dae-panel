@@ -1,0 +1,4 @@
+e68fa4070a74da42ed9c06c793c0121b9ba42401b6456ce2eb9919061cfa8dd7  homenet-panel-linux-386
+c0fa49d4fce57592f9c986d8b27d023789e1f044d2fb5142b4665b556bac31e1  homenet-panel-linux-amd64
+01656c23096a558a16640cafce4968b42f1e2b82992a9e28829c4cdf8ed2f26a  homenet-panel-linux-arm64
+52b0d61e9def9ec9dcd95aff9dfac77d58b9fc02c8e88e3c600a056617974878  homenet-panel-linux-armv7
