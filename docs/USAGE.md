@@ -468,6 +468,25 @@ nft add rule ip hnp_mesh post oifname "tun0" ip saddr 192.168.1.0/24 masquerade
 2. **对端要发布网段**：B 的 EasyTier 必须有 `-n 192.168.5.0/24`，否则 mesh 里根本没有这条路由。
 3. **mesh 网络密钥就是边界**：任何加入同一 network-name/network-secret 的节点都能访问双方局域网，别把密钥写进公开仓库。
 
+#### 面板里怎么点（推荐，比手敲 nft 稳）
+
+「组网」标签页底部有「局域网互通」卡片，显示：隧道接口与地址、本机局域网网段、对端发布的网段、当前 NAT 规则、开机重建是否启用、托管脚本路径。
+
+| 按钮 | 作用 |
+|---|---|
+| 刷新状态 | 重新探测（只读，不改系统） |
+| 试运行（dry-run） | 只列出将要执行的命令与文件，不落地 |
+| 启用 | 写 `/usr/local/sbin/hnp-mesh-nat.sh` → 立即执行 → 写 `hnp-mesh-nat.service` 并 `enable --now` |
+| 停用 | `systemctl disable --now hnp-mesh-nat` + `nft delete table ip hnp_mesh`（删表即完全卸载） |
+
+要点：
+
+- 面板只碰三样自有资产（`hnp_mesh` 表、`hnp-mesh-nat.sh`、`hnp-mesh-nat.service`），不修改 dae 配置、不碰系统 `ip nat`/`ip filter` 表、不改路由与 `ip rule`；你自己的上网流量（走 WAN 出去）完全不匹配这条规则。
+- 规则只匹配「出接口是 tunnel 且源地址是本网段」，重复点「启用」不会叠加规则（脚本里有 grep 守卫），可以放心多点。
+- 网段默认取探测值（如 `192.168.1.0/24`），要改就在卡片里填；对端必须像上面第 2 点那样发布网段。
+- 代价：对端看到的所有连接源地址都是本机的 mesh 地址，对端日志里看不到真实客户端 IP。
+- 反方向（对端局域网里的设备访问本网段）不会自动通，需要在那一侧同样启用，并让它的 EasyTier 发布本网段。
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |
@@ -479,6 +498,7 @@ nft add rule ip hnp_mesh post oifname "tun0" ip saddr 192.168.1.0/24 masquerade
 | 分流调试 | 输入域名，看当前规则命中哪一条、出站是谁 |
 | 流量·命中 | 最近 DNS 命中排行，标注归属出口 |
 | 字节统计 | 按节点统计累计与速率（轮询 dae 的 socket 计数器）；「按客户端」来自连接跟踪表 conntrack（见 5.1） |
+| 组网 | EasyTier 节点表 / 路由表 / 服务启停；底部「局域网互通」卡片做 mesh SNAT（见 2.12.1） |
 | 运行探测 | 环境体检、dae 运行态、日志摘要 |
 | 接入向导 | 能力探测 → 推荐档位 → 生成接入计划（dry-run）→ 只读自检 |
 | 审计日志 | 谁在什么时候改了什么；可导出 CSV / JSONL |

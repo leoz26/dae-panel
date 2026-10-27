@@ -1199,6 +1199,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/geo/versions", s.auth(s.handleGeoVersions))
 	mux.HandleFunc("/api/mesh", s.auth(s.handleMesh))
 	mux.HandleFunc("/api/mesh/service", s.auth(s.handleMeshService))
+	mux.HandleFunc("/api/mesh/lan", s.auth(s.handleMeshLan))
+	mux.HandleFunc("/api/mesh/lan/apply", s.auth(s.handleMeshLanApply))
 	mux.HandleFunc("/api/dns/parse", s.auth(s.handleDNSParse))
 	mux.HandleFunc("/api/dns/render", s.auth(s.handleDNSRender))
 	mux.HandleFunc("/api/setup/status", s.auth(s.handleSetupStatus))

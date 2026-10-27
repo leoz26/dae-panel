@@ -98,7 +98,7 @@ td input,td select{width:100%}
         <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
         <button :class="{active:tab===&#39;setup&#39;}" @click="tab=&#39;setup&#39;;loadSetup()">安装与初始化</button>
         <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
-        <button :class="{active:tab===&#39;mesh&#39;}" @click="tab=&#39;mesh&#39;;loadMesh()">组网</button>
+        <button :class="{active:tab===&#39;mesh&#39;}" @click="tab=&#39;mesh&#39;;loadMesh();loadMeshLan()">组网</button>
         <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
         <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
       </div>
@@ -989,6 +989,26 @@ td input,td select{width:100%}
             </table>
           </div>
         </div>
+        <div class="card">
+          <h2>局域网互通 <span class="muted" style="font-size:12px">（让本网段设备经 EasyTier 访问对端局域网；只对隧道出口做 NAT，不影响上网）</span></h2>
+          <div class="row" style="margin-bottom:8px">
+            <button @click="loadMeshLan">刷新状态</button>
+            <button @click="meshLanApply(&#39;enable&#39;, true)">试运行 (dry-run)</button>
+            <button class="primary" @click="meshLanApply(&#39;enable&#39;, false)">启用</button>
+            <button @click="meshLanApply(&#39;disable&#39;, false)">停用</button>
+          </div>
+          <div v-if="meshLanMsg" class="muted" style="margin-bottom:8px">{{meshLanMsg}}</div>
+          <table v-if="meshLan">
+            <tr><th style="width:170px">隧道接口</th><td class="mono">{{meshLan.meshIface||&#39;—&#39;}} <span class="muted">{{(meshLan.meshAddrs||[]).join(&#39; &#39;)}}</span></td></tr>
+            <tr><th>本机局域网</th><td class="mono">{{meshLan.lanIface||&#39;—&#39;}} <span class="muted">{{(meshLan.lanCidrs||[]).join(&#39; &#39;)}}</span></td></tr>
+            <tr><th>对端发布的网段</th><td class="mono">{{(meshLan.peerCidrs||[]).join(&#39;, &#39;)||&#39;—&#39;}}</td></tr>
+            <tr><th>NAT 规则</th><td><span :class="meshLan.enabled?&#39;pill ok&#39;:&#39;pill&#39;">{{meshLan.enabled?&#39;已启用&#39;:&#39;未启用&#39;}}</span> <span class="muted mono" style="margin-left:8px">{{(meshLan.rules||[]).join(&#39; ; &#39;)}}</span></td></tr>
+            <tr><th>开机重建</th><td><span :class="meshLan.serviceEnabled?&#39;pill ok&#39;:&#39;pill&#39;">{{meshLan.serviceEnabled?&#39;已启用&#39;:&#39;未启用&#39;}}</span> <span class="muted mono" style="margin-left:8px">{{meshLan.serviceName}}</span></td></tr>
+            <tr v-if="meshLan.scriptManaged"><th>托管脚本</th><td class="mono muted">{{meshLan.scriptPath}}</td></tr>
+            <tr v-if="meshLan.note"><th>说明</th><td class="muted">{{meshLan.note}}</td></tr>
+          </table>
+          <pre v-if="meshLanSteps.length" style="margin-top:10px">{{meshLanStepsText}}</pre>
+        </div>
       </div>
 
       <!-- 整段配置 -->
@@ -1029,7 +1049,7 @@ createApp({
     ruleProbeDomain:"", ruleProbe:null,
     trafficData:null, trafficMsg:"", trafficAuto:false, trafficTimer:null,
     bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
-    meshData:null, meshMsg:"",
+    meshData:null, meshMsg:"", meshLan:null, meshLanMsg:"", meshLanSteps:[], meshLanStepsText:"",
     accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
     accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""},
     accessPlan:null, accessPlanMsg:"", accessApplyRes:null, accessVerify:null, accessPlanOpt:{mode:"",lanIfaces:"",tproxyPort:12345,dnsMode:"hijack53",snat:"auto",proxyIp:"",testDevice:""}
@@ -1159,6 +1179,19 @@ createApp({
     goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
     exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
     async loadMesh(){ this.meshMsg="加载中…"; const r=await this.api("/api/mesh"); if(r.code===200){ this.meshData=r.data.status; this.meshMsg=""; } else if(r.code!==401) this.meshMsg="加载失败 (HTTP "+r.code+")"; },
+    async loadMeshLan(){ const r=await this.api("/api/mesh/lan"); if(r.code===200){ this.meshLan=r.data.status; } else if(r.code!==401) this.meshLanMsg="加载失败 (HTTP "+r.code+")"; },
+    async meshLanApply(action, dry){
+      if(action==="enable" && !dry && !confirm("启用后，本网段设备访问对端局域网会经本机做 NAT（只作用于隧道出口，不影响上网）。确定？")) return;
+      if(action==="disable" && !confirm("停用会删除 hnp_mesh 表，本网段设备将无法再访问对端局域网。确定？")) return;
+      const body={action:action, dryRun:!!dry};
+      if(this.meshLan){ body.lanCidrs=this.meshLan.lanCidrs||[]; body.meshIface=this.meshLan.meshIface||""; }
+      const r=await this.api("/api/mesh/lan/apply","POST",body);
+      const res=(r.data&&r.data.result)||{};
+      this.meshLanSteps=(res.steps||[]).map(s=>s.title+" · "+(s.command||"")+(s.output?(" → "+s.output):""));
+      this.meshLanStepsText=this.meshLanSteps.join("\n");
+      if(r.code===200){ if(r.data.status) this.meshLan=r.data.status; this.meshLanMsg="已执行"; }
+      else { this.meshLanMsg=((r.data&&r.data.error)||("失败 (HTTP "+r.code+")")); }
+    },
     async meshAction(action){
       const names={start:"启动",restart:"重启",stop:"停止"};
       if(action==="stop" && !confirm("停止组网会断开与对端的隧道，确定？")) return;
