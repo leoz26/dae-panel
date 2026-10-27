@@ -871,6 +871,7 @@ td input,td select{width:100%}
                 <span class="muted" style="margin-left:14px">当前速率 上 <span class="mono">{{fmtRate(bytesData.rateTx)}}</span> / 下 <span class="mono">{{fmtRate(bytesData.rateRx)}}</span></span>
                 <span class="muted" style="margin-left:14px">活跃 socket: {{bytesData.sockets}}</span>
                 <span class="muted" style="margin-left:14px">采样间隔: {{bytesData.intervalMs}}ms</span>
+              <span class="muted" style="margin-left:14px">数据源: {{bytesData.source}}{{bytesData.clientSource?&#39; + &#39;+bytesData.clientSource:&#39;&#39;}}</span>
               </div>
               <div class="row" style="margin-top:6px">
                 <span class="muted">网卡 {{bytesData.ifaceName||&#39;—&#39;}} 累计 收 <span class="mono">{{fmtBytes(bytesData.ifaceRx)}}</span> / 发 <span class="mono">{{fmtBytes(bytesData.ifaceTx)}}</span></span>
@@ -896,19 +897,22 @@ td input,td select{width:100%}
                 </table>
               </div>
               <div style="margin-top:12px">
-                <div class="muted" style="margin-bottom:4px">按客户端（对端为内网地址，即经本机代理的局域网设备）:</div>
+                <div class="muted" style="margin-bottom:4px">按客户端（内网设备，来自连接跟踪表 conntrack）:</div>
+                <div v-if="bytesData.clientError" class="banner">{{bytesData.clientError}}</div>
+                <div v-if="bytesData.clientNote" class="muted" style="margin-bottom:4px">{{bytesData.clientNote}}</div>
                 <table class="tbl">
-                  <thead><tr><th>客户端</th><th style="width:110px">上行</th><th style="width:110px">下行</th><th style="width:120px">速率 上/下</th><th style="width:70px">连接</th><th style="width:120px">最近</th></tr></thead>
+                  <thead><tr><th>客户端</th><th style="width:110px">上行</th><th style="width:110px">下行</th><th style="width:120px">速率 上/下</th><th style="width:70px">连接</th><th>主要目的</th><th style="width:120px">最近</th></tr></thead>
                   <tbody>
                     <tr v-for="r in bytesData.clients" :key="r.key">
-                      <td class="mono">{{r.key}}</td>
+                      <td class="mono">{{r.name||r.key}}</td>
                       <td class="mono">{{fmtBytes(r.tx)}}</td>
                       <td class="mono">{{fmtBytes(r.rx)}}</td>
                       <td class="mono muted">{{fmtRate(r.rateTx)}} / {{fmtRate(r.rateRx)}}</td>
                       <td>{{r.conns}}</td>
+                      <td class="muted">{{r.detail||&#39;—&#39;}}</td>
                       <td class="muted">{{fmtTime(r.lastSeen)}}</td>
                     </tr>
-                    <tr v-if="!bytesData.clients||!bytesData.clients.length"><td colspan="6" class="muted">暂无数据（目前没有内网设备经本机 dae 上网）</td></tr>
+                    <tr v-if="!bytesData.clients||!bytesData.clients.length"><td colspan="7" class="muted">暂无内网设备流量（需要有设备把网关/DNS 指向本机）</td></tr>
                   </tbody>
                 </table>
               </div>

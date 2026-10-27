@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.49  
+> **文档版本：** v0.50  
+> **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
 > **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
@@ -2504,7 +2505,95 @@ nft 表是**内核运行态，不落盘**。面板只在「接入向导 → 应�
 已在 n6 把上限调到 **200M**（`/root/journald.conf.bak-*` 保留原文件），磁盘尚有 21G 空闲。
 下次再出现异常重启，`journalctl -b -1` 才有材料可查。
 
-## 15. 本版（v0.49）变更清单
+## 14.40 字节统计的客户端表改由 conntrack 聚合（v0.50）
+
+### 14.40.1 起因：`ss` 看不到客户端是谁
+
+v0.16 的字节统计只轮询 `ss -tunip` 里 **dae 进程的 socket**。dae 用 tproxy/netkit 把 LAN 设备的连接在本地终结，
+再自己向节点发起新连接，于是 `ss` 里只有 `dae ↔ 节点` 的 socket，**看不到原始客户端 IP**，
+前端「按客户端」表只能显示「（本机）」或直接为空。n6 上 B2 旁路由其实一直在工作
+（`/proc/net/nf_conntrack` 有 `src=192.168.5.83` 96 条、`/api/traffic/hits` 有 `vcode-od.vivo.com.cn 117 次`），
+但面板的客户端表是空的 —— 属于**统计口径**问题，不是功能没生效。
+
+### 14.40.2 数据源：`/proc/net/nf_conntrack`
+
+新增 `internal/traffic/conntrack.go`：
+
+| 项 | 做法 |
+| --- | --- |
+| 读取 | `ConntrackPath()` 依次试 `/proc/net/nf_conntrack`、`/proc/net/ip_conntrack` |
+| 方向归一 | 每行有两次 `src=`（正反两向），按出现顺序切开，归一成「客户端→远端 / 远端→客户端」 |
+| 谁是客户端 | 优先 `LocalSubnets()`（本机所有非回环网段，**含 IPv6 前缀**）；两端都在本机网段或都在外面则丢弃（本机自环、节点间噪声） |
+| 字节 | 读 `bytes=`；不存在则为 0 |
+| 连接数 | 每个存活条目计 1 |
+| 主要目的 | 字节可用时按字节排序；不可用时按连接数排序，文案变成「N 条」 |
+
+采集器 `ConnCollector` 新增 `ClientFn func() ([]ConnEntry, error)`、`AcctFn func() bool`（都可注入，测试用）；
+socket 路径在 conntrack 可用时**不再**承担客户端归属，避免两套口径混用；`BytesSnapshot` 增
+`ClientSource`/`ClientError`/`ClientNote`，`Row` 增 `Detail`（只展示，不参与计算）。
+
+### 14.40.3 降级：不是所有内核都给字节
+
+两个开关：
+
+- `/proc/sys/net/netfilter/nf_conntrack_acct`（**每个 netns 一份**，运行时写 1 即可）
+- `/sys/module/nf_conntrack/parameters/acct`（模块级默认值，写 1 会显示成 `Y`）
+
+实测结论（重要，别再重复踩）：
+
+| 机器 | 内核 | acct 开关 | `/proc/net/nf_conntrack` 里有 `bytes=` |
+| --- | --- | --- | --- |
+| n6（Armbian） | 6.18.54 | netns=1、模块=N | **有**（490 条带 bytes） |
+| .85（Debian 13） | 6.12.113 | netns=1、模块被写成 Y | **没有**（0 条，连新建立的 127.0.0.1 连接也没有） |
+
+也就是说「打开了 sysctl」不等于「真有字节数」。因此采集器每轮除了读 acct 开关，还检查
+**本轮条目里有没有任何非零字节**：
+
+```go
+hasBytes := false
+for _, e := range entries {
+	if e.Out+e.In > 0 {
+		hasBytes = true
+	}
+}
+c.sampled = len(entries) > 0
+c.bytesUse = c.acct && hasBytes // acct 开着但全是 0 → 按连接数口径展示
+```
+
+三种提示（`ClientNote`）：
+
+1. 读不到表 → `ClientError`：「读不到连接跟踪表（旁路由/网关场景需要 nf_conntrack）」
+2. acct 关 → 「内核未开启连接字节记账（net.netfilter.nf_conntrack_acct=0）：客户端表只能看到连接数与主要目的，要统计字节请执行 sysctl -w net.netfilter.nf_conntrack_acct=1 并持久化到 /etc/sysctl.d/」
+3. acct 开但没字节 → 「连接跟踪记账已开，但本机内核没有真的往表里写字节数（实测部分 6.x 内核如此）：客户端表只能看到连接数与主要目的；字节总量请看上方「dae0 网卡总量」与「按节点」两张表。」
+
+前端「字节统计」页相应加了 `clientError` 横幅、`clientNote` 提示、「主要目的」列，
+顶部显示「数据源: ss-sockets+conntrack + conntrack」。
+
+### 14.40.4 测试
+
+`internal/traffic/conntrack_test.go`：
+
+- `TestParseConntrack`：私有地址口径，两个方向归一出 `Out=900 / In=1800`
+- `TestParseConntrackLocalSeesIPv6Clients`：`2408:8256:5087:31e9::/64` 口径能认出公网 IPv6 客户端（`Out=1024/In=4096`）
+- `TestParseConntrackSkipsNoise`：两端都本地/都远端丢弃
+- `TestCollectorClientAggregation`：首轮只记基线、次轮记增量、连接消失后速率归零
+- `TestCollectorConntrackErrorKeepsSocketPath`：读表失败不影响 socket 路径
+- `TestCollectorAcctEnabledButNoBytes`：acct 开、字节全 0 → 明细回落连接数、提示出现
+- `TestCollectorAcctWithBytesReportsNoteFree`：有字节 → 增量正确、无提示
+
+### 14.40.5 实机验证（.85，2026-10-27）
+
+- 部署后 `GET /api/traffic/bytes` → `source=ss-sockets+conntrack`、`clientSource=conntrack`
+- 客户端行：`192.168.1.85（本机） conns 44`，明细 `13.158.55.39:36019 9 条 · 18.142.105.24:36004 9 条 · 150.171.27.11:80 6 条`
+- acct 打开后仍无字节 → `clientNote` 准确给出第 3 条提示（不是静默显示 0）
+
+### 14.40.6 边界
+
+- **字节不是所有环境都有**：本机内核不给就算不出来，面板不假装有（宁可显示连接数与主要目的）。需要精确到设备的字节只能另做（nft counter set 或 eBPF），当前刻意不做。
+- 客户端识别靠「本机网段」，若 LAN 设备与旁路由不在同一网段（三层引流），该设备会被当成远端、不出现。
+- conntrack 表有容量上限（`nf_conntrack_max`），大批连接会挤掉旧条目，累计字节可能偏小。
+
+## 15. 本版（v0.50）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2552,3 +2641,4 @@ nft 表是**内核运行态，不落盘**。面板只在「接入向导 → 应�
 38. **构建矩阵扩到 armv7 / 386（v0.47）**：CI 编译循环改为 `产物名:GOARCH:GOARM` 四元组（`amd64`/`arm64`/`armv7`(GOARM=7)/`386`），purge 与 release notes 同步；`deploy/online-install.sh` 的 `uname -m` 映射加 `armv7l→armv7`、`i686→386`，`armv6l` 明确拒绝（GOARM=7 二进制在 ARMv6 上 Illegal instruction）。dae 官方 deb 本身有 `x86_32` 与 `armv7` 包，组合可行。详见 §14.38。
 39. **DNS 编辑器「+ 添加」按钮无反应（v0.48）**：Go 的 nil 切片被编成 JSON `null`，前端 `null.push` 抛 TypeError，事件处理器静默中止。`DNSSpec.Normalize()` + `handleDNSParse` 规范化 + 前端四处兜底；新增 `TestParseDNSSpecNormalized`/`TestDefaultDNSSpecSerializesAsArrays`；真机 CDP 按自然点击顺序验证表格 4→6 行。详见 §14.37.7。
 40. **重启后自有 nft 表消失 + 启动自检重建（v0.49）**：nft 是内核运行态、不落盘，重启后 `panel_dns` 静默消失（指向主路由的设备绕过 dae）；改为 apply 时把 nft argv 记进 `access-state.json`，面板启动时 `RestoreAccessTables()` 只比对自有表、缺则按记录重建（不 reload、不碰系统原有表、无记录不动手），审计 `access.rebuild`；四条回归测试；n6 实机删表→重启→自动恢复验证通过。
+41. **字节统计改用 conntrack 聚合客户端（v0.50）**：新增 `internal/traffic/conntrack.go`（`ConnEntry`/`ParseConntrackLocal`/`LocalSubnets`/`ReadConntrack`），采集器新增 `ClientFn`/`AcctFn` 注入点、`BytesSnapshot` 增 `ClientSource`/`ClientError`/`ClientNote`、`Row` 增 `Detail`；客户端表的字节、连接数、「主要目的」都来自连接跟踪表，socket 路径不再兼任客户端归属。实测 .85（内核 6.12.113）即使 `nf_conntrack_acct=1`（模块参数 Y）也不写 `bytes=`，而 n6（6.18.54）正常 → 增加「本轮无任何非零字节即降级」判定与第三条提示；前端加 `clientError` 横幅、`clientNote` 提示、「主要目的」列与数据源标识；七条回归测试。详见 §14.40。

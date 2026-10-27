@@ -17,6 +17,7 @@ package traffic
 //   - 采集器重启后，首次看到的 socket 只作为基线，不把它的历史字节算进「本次统计」。
 
 import (
+	"net"
 	"os"
 	"os/exec"
 	"regexp"
@@ -37,6 +38,8 @@ type Row struct {
 	RateTx   float64   `json:"rateTx"`
 	Conns    int       `json:"conns"`
 	LastSeen time.Time `json:"lastSeen"`
+	// Detail 是可读补充（客户端行显示「主要目的」），不参与计算。
+	Detail string `json:"detail,omitempty"`
 }
 
 // BytesSnapshot 是一次字节统计快照。
@@ -58,7 +61,12 @@ type BytesSnapshot struct {
 	IfaceRateTx float64   `json:"ifaceRateTx"`
 	Nodes       []Row     `json:"nodes"`
 	Clients     []Row     `json:"clients"`
-	Error       string    `json:"error,omitempty"`
+	// ClientSource / ClientError 说明客户端表的来源与可用性（conntrack 不可用时为空）。
+	ClientSource string `json:"clientSource,omitempty"`
+	ClientError  string `json:"clientError,omitempty"`
+	// ClientNote 说明客户端表的局限（例如内核没开字节记账，只能看连接数）。
+	ClientNote string `json:"clientNote,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 // Sock 是 ss 输出里的一条 socket。
@@ -183,25 +191,47 @@ type ConnCollector struct {
 	nameFn   func(host, port string) string
 	stop     chan struct{}
 
+	// conntrack 侧（内网客户端归集）
+	localNets     []*net.IPNet
+	localIPs      map[string]bool
+	ctLast        map[string][2]int64
+	clientRemotes map[string]map[string]int64
+	clientConns   map[string]map[string]int64
+	acct          bool
+	bytesUse      bool
+	sampled       bool
+	hasCT         bool
+	ctErr         string
+
 	// 便于单测替换
-	SockFn  func() ([]Sock, error)
-	IfaceFn func() (int64, int64, error)
+	SockFn   func() ([]Sock, error)
+	IfaceFn  func() (int64, int64, error)
+	ClientFn func() ([]ConnEntry, error)
+	// AcctFn 报告内核是否在连接跟踪里记账字节数（测试可注入）。
+	AcctFn func() bool
 }
 
 // NewConnCollector 创建采集器。interval<=0 表示关闭。nameFn 可为 nil（不显示节点名）。
 func NewConnCollector(interval time.Duration, iface string, nameFn func(host, port string) string) *ConnCollector {
 	c := &ConnCollector{
-		interval: interval,
-		iface:    iface,
-		started:  time.Now(),
-		lastSock: map[string][2]int64{},
-		nodes:    map[string]*Row{},
-		clients:  map[string]*Row{},
-		nameFn:   nameFn,
-		stop:     make(chan struct{}),
+		interval:      interval,
+		iface:         iface,
+		started:       time.Now(),
+		lastSock:      map[string][2]int64{},
+		nodes:         map[string]*Row{},
+		clients:       map[string]*Row{},
+		ctLast:        map[string][2]int64{},
+		clientRemotes: map[string]map[string]int64{},
+		clientConns:   map[string]map[string]int64{},
+		nameFn:        nameFn,
+		stop:          make(chan struct{}),
 	}
 	c.SockFn = func() ([]Sock, error) { return ssSocks() }
 	c.IfaceFn = func() (int64, int64, error) { return netDevCounters(c.iface) }
+	c.localNets = LocalSubnets()
+	c.localIPs = localAddrs()
+	c.ClientFn = func() ([]ConnEntry, error) { return readConntrackLocal(ConntrackPath(), c.localNets) }
+	c.AcctFn = conntrackAcctOn
 	return c
 }
 
@@ -304,6 +334,7 @@ func (*ifaceErr) Error() string {
 // Sample 采样一次并累计。
 func (c *ConnCollector) Sample() error {
 	socks, err := c.SockFn()
+	entries, ctErr := c.ClientFn()
 	ifcRx, ifcTx, ifcErr := c.IfaceFn()
 
 	c.mu.Lock()
@@ -346,6 +377,9 @@ func (c *ConnCollector) Sample() error {
 		var bucket map[string]*Row
 		var bkey string
 		if isPrivateHost(host) {
+			if c.hasCT {
+				continue // 客户端归集交给 conntrack，避免两套口径混在一起
+			}
 			bucket, bkey = c.clients, host
 		} else {
 			bucket, bkey = c.nodes, s.Peer
@@ -386,6 +420,7 @@ func (c *ConnCollector) Sample() error {
 			r.Conns = rowConns[k]
 		}
 	}
+	c.sampleClients(entries, ctErr, now, elapsed)
 	if ifcErr == nil {
 		if c.ifLast != [2]int64{} && ifcRx >= c.ifLast[0] && ifcTx >= c.ifLast[1] && elapsed > 0 {
 			c.ifRate = [2]float64{float64(ifcRx-c.ifLast[0]) / elapsed, float64(ifcTx-c.ifLast[1]) / elapsed}
@@ -412,24 +447,27 @@ func (c *ConnCollector) Snapshot() BytesSnapshot {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	sn := BytesSnapshot{
-		Enabled:     true,
-		Source:      "ss-sockets",
-		StartedAt:   c.started,
-		UpdatedAt:   c.updated,
-		IntervalMs:  int(c.interval / time.Millisecond),
-		Sockets:     c.socks,
-		TotalRx:     c.totRx,
-		TotalTx:     c.totTx,
-		RateRx:      c.rateRx,
-		RateTx:      c.rateTx,
-		IfaceName:   c.iface,
-		IfaceRx:     c.ifTot[0],
-		IfaceTx:     c.ifTot[1],
-		IfaceRateRx: c.ifRate[0],
-		IfaceRateTx: c.ifRate[1],
-		Error:       c.errText,
-		Nodes:       copyRows(c.nodes),
-		Clients:     copyRows(c.clients),
+		Enabled:      true,
+		Source:       c.source(),
+		StartedAt:    c.started,
+		UpdatedAt:    c.updated,
+		IntervalMs:   int(c.interval / time.Millisecond),
+		Sockets:      c.socks,
+		TotalRx:      c.totRx,
+		TotalTx:      c.totTx,
+		RateRx:       c.rateRx,
+		RateTx:       c.rateTx,
+		IfaceName:    c.iface,
+		IfaceRx:      c.ifTot[0],
+		IfaceTx:      c.ifTot[1],
+		IfaceRateRx:  c.ifRate[0],
+		IfaceRateTx:  c.ifRate[1],
+		Error:        c.errText,
+		Nodes:        copyRows(c.nodes),
+		Clients:      copyRows(c.clients),
+		ClientSource: c.clientSource(),
+		ClientError:  c.ctErr,
+		ClientNote:   c.clientNote(),
 	}
 	return sn
 }
