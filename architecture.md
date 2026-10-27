@@ -2759,7 +2759,9 @@ PersistentKeepalive = 25
 两个坑：
 
 1. `wg-quick` 会按 AllowedIPs 建路由，若与已有 tun0 的 `192.168.5.0/24` / `10.144.0.0/24` 重叠会 `RTNETLINK answers: File exists` 并整份回滚 —— 同机测试要用 `Table = off` + 手工路由。手机没有冲突，可直接用完整 AllowedIPs。
-2. **远端客户端用不了面板的 DNS 广告拦截**：dae 只劫持 `lan_interface`（eth0）上的 53，n6 上 192.168.5.2:53 并没有进程监听（`ss -lunp` 只有 systemd-resolved 的 127.0.0.53/54），从 wg0 发往 192.168.5.2:53 的查询超时；改成 `DNS = 192.168.5.1`（路由器）才通（实测 baidu 21 ms、doubleclick 12 ms，但没被拦截）。要让远端也吃拦截，需要把 `wg0` 加进 dae 的 `lan_interface`（等于手机流量也走代理），这是另一个决策。
+2. **远端客户端原先拿不到广告拦截，已修**：默认只劫持 `lan_interface`（eth0）上的 53，从 wg0 进来的 DNS 直接超时（n6 上 192.168.5.2:53 没有进程监听，`ss -lunp` 只有 systemd-resolved 的 127.0.0.53/54）。解法是把 `wg0` 一起写进接入计划：`lan_interface: eth0,wg0`，面板同时把 `panel_dns` 表扩成 6 条（eth0 / wg0 各 3 条 `iifname … dport 53 dnat to 192.168.5.2:53`）。实测（.85 作 WireGuard 客户端，结果为单位：答案数 / 耗时）：doubleclick.net 0/14ms、pagead2 0/13ms、baidu 3/169ms、youtube 8/712ms（目标 192.168.5.1）；换成 192.168.5.2 则是 0/12ms、0/13ms、3/13ms、8/13ms ⇒ 广告域名在隧道侧同样被拒，正常域名照常解析。
+
+3. **全隧道（手机会走上家里代理）是另一件事**：`AllowedIPs` 只写家里网段时，手机上网流量根本不进隧道（"手机流量经家里出海"不会发生）。改成 `0.0.0.0/0` 才会全部经 n6 → dae 按规则分流。实测：baidu 223 ms、cloudflare 1019 ms、github 14.8 s（慢）、ping 1.1.1.1 276 ms；同一时段 journal 出现 `DNS forward to upstream failed … bootstrap resolver returned no usable address for "<节点域名>"` → SERVFAIL（dae 拨节点域名要靠 bootstrap 直连解析，抖一下就会失败几秒）。所以全隧道**可用但代价明显**：家里上行带宽 + 机场节点双重受限，且 DNS 依赖 bootstrap 稳定性。
 
 ## 15. 本版（v0.53）变更清单
 
