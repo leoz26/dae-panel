@@ -118,6 +118,24 @@ func TestEssentialRulesCoverDHCPBroadcast(t *testing.T) {
 	}
 }
 
+func TestEssentialRulesCoverTailscale(t *testing.T) {
+	var dip, pname bool
+	for _, r := range EssentialRules {
+		if r.Matcher == "dip(100.64.0.0/10)" && r.Out == "direct" {
+			dip = true
+		}
+		if strings.HasPrefix(r.Matcher, "pname(") && strings.Contains(r.Matcher, "tailscaled") && r.Out == "direct" {
+			pname = true
+		}
+	}
+	if !dip {
+		t.Fatalf("tailnet 地址段 100.64.0.0/10 必须直连，实际 %+v", EssentialRules)
+	}
+	if !pname {
+		t.Fatalf("tailscaled 进程必须直连，实际 %+v", EssentialRules)
+	}
+}
+
 func TestEnsureEssentials(t *testing.T) {
 	// 缺失时前置补入
 	rules := []Rule{{Matcher: "domain(geosite:youtube)", Out: "hk"}}

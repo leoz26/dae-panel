@@ -39,7 +39,12 @@ var EssentialRules = []Rule{
 	// DHCP DISCOVER/REQUEST 的源地址是 0.0.0.0、目的地址是 255.255.255.255，
 	// 不在内网网段里；实测漏掉它时广播仍被塞进 proxy 组（lAddr=0.0.0.0:68）。
 	{Matcher: "dip(255.255.255.255/32)", Out: "direct"},
+	// Tailscale（以及一切 CGNAT 组网）的地址段。不加这条，访问 tailnet 里的其他设备
+	// 会被当成公网流量塞进代理组，表现为「ping 得通但打不开」。
+	{Matcher: "dip(100.64.0.0/10)", Out: "direct"},
 	{Matcher: "pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd)", Out: "direct"},
+	// tailscaled 自己要连控制面(443)、DERP 中继与 UDP 41641 打洞，被代理走就基本连不上。
+	{Matcher: "pname(tailscaled, tailscale)", Out: "direct"},
 }
 
 // EnsureEssentials 把缺失的安全直连规则前置插入，返回新规则表与被补入的匹配器列表。

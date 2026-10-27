@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.50  
+> **文档版本：** v0.51  
+> **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
 > **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
@@ -2593,7 +2594,47 @@ c.bytesUse = c.acct && hasBytes // acct 开着但全是 0 → 按连接数口径
 - 客户端识别靠「本机网段」，若 LAN 设备与旁路由不在同一网段（三层引流），该设备会被当成远端、不出现。
 - conntrack 表有容量上限（`nf_conntrack_max`），大批连接会挤掉旧条目，累计字节可能偏小。
 
-## 15. 本版（v0.50）变更清单
+## 14.41 Tailscale 保命直连规则（v0.51）
+
+### 14.41.1 为什么需要
+
+用户要在面板里加 Tailscale。动手前先补两条「不管加不加 Tailscale，缺了就会出事」的直连规则：
+
+1. **Tailnet 地址段** `100.64.0.0/10`。这是 RFC 6598 的 CGNAT 段，Tailscale 的 100.x 地址就在里面。dae 的 fallback 若指向代理组（.85 与 n6 现在都是 `fallback: hk` 或 proxy），访问 tailnet 内其他设备的包会被当成公网流量送去香港节点——现象是 **tailscale ping 通、但服务打不开**，因为回程根本不在本机。
+2. **`tailscaled` / `tailscale` 进程直连**。tailscaled 要连控制面（`controlplane.tailscale.com:443`）、DERP 中继，还要用 UDP 41641 打洞；这些流量被代理走时打洞基本不可能成功，表现为「一直 relaying」或直接连不上。
+
+### 14.41.2 实现
+
+`homenet-panel/internal/model/model.go` 的 `EssentialRules` 追加两条（仍由 `EnsureEssentials` 无条件前置注入，界面上删不掉）：
+
+```go
+{Matcher: "dip(255.255.255.255/32)", Out: "direct"},
+// Tailscale（以及一切 CGNAT 组网）的地址段。不加这条，访问 tailnet 里的其他设备
+// 会被当成公网流量塞进代理组，表现为「ping 得通但打不开」。
+{Matcher: "dip(100.64.0.0/10)", Out: "direct"},
+{Matcher: "pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd)", Out: "direct"},
+// tailscaled 自己要连控制面(443)、DERP 中继与 UDP 41641 打洞，被代理走就基本连不上。
+{Matcher: "pname(tailscaled, tailscale)", Out: "direct"},
+```
+
+注意 `pname` 的 16 字符上限：`tailscaled`(10) 与 `tailscale`(9) 都在限内；更长的进程名会被 dae 静默截断（`systemd-timesyncd` 就被截成 `systemd-timesync`，validate 只打一行 info）。
+
+前端内容层的黄字说明同步改为「内网/回环/组播目标直连 + Tailscale/CGNAT 网段（100.64.0.0/10）直连 + 本机进程（…、tailscaled 等）直连」；新增测试 `TestEssentialRulesCoverTailscale`（断言两条都在、出站为 direct）。
+
+### 14.41.3 落地与验证（2026-10-27）
+
+| 机器 | 二进制 | 模型 apply | 线上规则行 | validate | dae |
+|---|---|---|---|---|---|
+| 192.168.1.85（Debian 13 / amd64） | 9,138,336B | `applied=true reloadCode=0 reloadOut=OK` | 38: `dip(100.64.0.0/10) -> direct`、39: `pname(tailscaled, tailscale) -> direct` | ok | active |
+| n6（Armbian / arm64） | 8,454,304B | 同上 | 56/57 同两条 | ok | active |
+
+两台原有规则条数不变（.85 11 条、n6 12 条），只是前置多出两条 essentials；n6 的 `dip(1.1.1.1, 1.0.0.1) && dport(853) -> hk`、Cloudflare DoT、AI 组等全部保留。
+
+### 14.41.4 边界
+
+- 这两条只解决「dae 不要把 tailnet 流量吃掉」，**不代表面板已经内嵌 Tailscale**。真要在面板里跑 Tailscale 有两条路：① build tag 引入 `tailscale.com/tsnet`（实测 v1.104.2，+610 模块、hello-world 二进制 30.4MB，用户态 netstack 不能当 subnet router）② 外部跑 tailscaled 当 TUN + subnet router。dae 二进制里没有 tailscale 代码（`grep -a` 命中 0），无法在 dae 内部实现。
+- `100.64.0.0/10` 也让部分运营商的 CGNAT 地址直连，这是正确行为：那些地址本来就不该被送去海外节点。
+## 15. 本版（v0.51）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2642,3 +2683,4 @@ c.bytesUse = c.acct && hasBytes // acct 开着但全是 0 → 按连接数口径
 39. **DNS 编辑器「+ 添加」按钮无反应（v0.48）**：Go 的 nil 切片被编成 JSON `null`，前端 `null.push` 抛 TypeError，事件处理器静默中止。`DNSSpec.Normalize()` + `handleDNSParse` 规范化 + 前端四处兜底；新增 `TestParseDNSSpecNormalized`/`TestDefaultDNSSpecSerializesAsArrays`；真机 CDP 按自然点击顺序验证表格 4→6 行。详见 §14.37.7。
 40. **重启后自有 nft 表消失 + 启动自检重建（v0.49）**：nft 是内核运行态、不落盘，重启后 `panel_dns` 静默消失（指向主路由的设备绕过 dae）；改为 apply 时把 nft argv 记进 `access-state.json`，面板启动时 `RestoreAccessTables()` 只比对自有表、缺则按记录重建（不 reload、不碰系统原有表、无记录不动手），审计 `access.rebuild`；四条回归测试；n6 实机删表→重启→自动恢复验证通过。
 41. **字节统计改用 conntrack 聚合客户端（v0.50）**：新增 `internal/traffic/conntrack.go`（`ConnEntry`/`ParseConntrackLocal`/`LocalSubnets`/`ReadConntrack`），采集器新增 `ClientFn`/`AcctFn` 注入点、`BytesSnapshot` 增 `ClientSource`/`ClientError`/`ClientNote`、`Row` 增 `Detail`；客户端表的字节、连接数、「主要目的」都来自连接跟踪表，socket 路径不再兼任客户端归属。实测 .85（内核 6.12.113）即使 `nf_conntrack_acct=1`（模块参数 Y）也不写 `bytes=`，而 n6（6.18.54）正常 → 增加「本轮无任何非零字节即降级」判定与第三条提示；前端加 `clientError` 横幅、`clientNote` 提示、「主要目的」列与数据源标识；七条回归测试。详见 §14.40。
+42. **Tailscale 保命直连规则（v0.51）**：`EssentialRules` 增加 `dip(100.64.0.0/10) -> direct`（Tailnet/CGNAT 段，否则按 fallback 送去海外节点，表现为 ping 通但打不开）与 `pname(tailscaled, tailscale) -> direct`（控制面 443 / DERP / UDP 41641 打洞）；前端安全规则说明同步；新增 `TestEssentialRulesCoverTailscale`；.85 与 n6 实机 apply 后 validate ok、dae active，原有规则条数不变。详见 §14.41。

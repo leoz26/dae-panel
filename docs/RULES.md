@@ -21,15 +21,17 @@ routing {
 | 一行一意图 | 一行里用 `&&` 组合多个匹配器是**与**关系；想要「或」，在**同一个匹配器**里用逗号，或拆成多行。 |
 | 必须有兜底 | 没命中任何规则的流量走 `fallback`（面板里叫「兜底」）。填 `proxy` 组 = 默认走代理，填 `direct` = 默认直连。 |
 
-## 2. 面板自动注入的 4 条安全规则
+## 2. 面板自动注入的 6 条安全规则
 
-这 4 条由代码前置注入（`internal/model/model.go` 的 `EssentialRules` + `EnsureEssentials`），不在规则表里显示、删不掉，永远排在最前面：
+这 6 条由代码前置注入（`internal/model/model.go` 的 `EssentialRules` + `EnsureEssentials`），不在规则表里显示、删不掉，永远排在最前面：
 
 ```
 dip(192.168.0.0/16) -> direct
 dip(127.0.0.0/8, 169.254.0.0/16, 224.0.0.0/4) -> direct
 dip(255.255.255.255/32) -> direct
+dip(100.64.0.0/10) -> direct
 pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd) -> direct
+pname(tailscaled, tailscale) -> direct
 ```
 
 逐条拆开看：
@@ -83,6 +85,20 @@ pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd) -> 
 2. **`pname` 只对本机进程有效**（dae 文档原文：*only support localhost process when binding to WAN*）。旁路由转发别人的流量时拿不到对方的进程名，所以这条只解决「本机自己人」的问题；LAN 客户端的直连要靠 §2.1 那类目标网段规则。
 3. **写错进程名不会报错**：`pname(nonexistent_proc_name_123)` 实测也 `validate` 通过（只 trim 到 16 字符），只是永远不命中——属于静默失效。
 
+### 2.5 `dip(100.64.0.0/10) -> direct`
+
+- `100.64.0.0/10` 是 RFC 6598 的 **CGNAT 段**（100.64.0.0–100.127.255.255）。**Tailscale 的 100.x 地址就在这个段里**，部分运营商的大内网也用。
+- 不直连会怎样：访问 tailnet 里其他设备（`tailscale status` 里看到的 100.x 地址）会被当成公网流量送进 `fallback` 的代理组，现象是 **`tailscale ping` 通、但 ssh/http 打不开**。
+- 顺带一提：如果你家网段是 10.x/172.16–31.x，见 §2.1 末尾的建议，面板注入的规则不覆盖那两个段。
+
+### 2.6 `pname(tailscaled, tailscale) -> direct`
+
+| 进程 | 为什么必须直连 |
+|---|---|
+| `tailscaled` | 要连控制面 `controlplane.tailscale.com:443`、DERP 中继，并用 UDP 41641 打洞；被代理走基本打不通，表现为一直 relaying 或离线 |
+| `tailscale` | CLI 自己也会发起少量探测请求 |
+
+两个名字都 ≤16 字符，不会被裁断。没有装 Tailscale 的机器上这条规则**永远不命中**，留着无害（dae 写不存在的进程名也 validate 通过）。
 ## 3. 匹配器全表
 
 | 写法 | 含义 | 例 | 实测 |

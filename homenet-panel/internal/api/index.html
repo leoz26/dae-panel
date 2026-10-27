@@ -165,7 +165,7 @@ td input,td select{width:100%}
             <option value="must_block"></option>
           </datalist>
           <div class="muted" style="font-size:12px;margin-bottom:6px">规则自上而下首条命中即生效（顺序敏感，可调序）。出站可从下拉选分组或 direct。</div>
-          <div class="muted" style="font-size:12px;margin-bottom:6px;color:#ffcc66">系统安全规则（自动前置注入，不在此表内、删不掉）：内网/回环/组播目标直连 + 本机进程（面板本身、dae、dhcpcd、systemd-resolved、sshd 等）直连。这样 DHCP 与面板自身的出站请求不会被丢进代理组。</div>
+          <div class="muted" style="font-size:12px;margin-bottom:6px;color:#ffcc66">系统安全规则（自动前置注入，不在此表内、删不掉）：内网/回环/组播目标直连 + Tailscale/CGNAT 网段（100.64.0.0/10）直连 + 本机进程（面板本身、dae、dhcpcd、systemd-resolved、sshd、tailscaled 等）直连。这样 DHCP、面板自身的出站请求与 Tailscale 打洞都不会被丢进代理组。</div>
           <table class="tbl">
             <tr><th style="width:32px">#</th><th>匹配器 (如 domain(geosite:youtube) / ip(geoip:cn) / pname(app))</th><th style="width:150px">出站</th><th style="width:92px">顺序</th><th style="width:60px"></th></tr>
             <tr v-for="(r,i) in model.rules" :key="&#39;r&#39;+i" :class="{hl: ruleHitIndex()===i}">
