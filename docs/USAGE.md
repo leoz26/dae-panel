@@ -426,11 +426,13 @@ MTU = 1380
 [Peer]
 PublicKey = <server.pub>
 AllowedIPs = 10.99.0.0/24, 192.168.5.0/24, 10.144.0.0/24
-Endpoint = [<家里那台的公网 IPv6>]:11010
+Endpoint = 家里那台的域名:11010      # 优先用域名，别写死 IPv6
 PersistentKeepalive = 25
 ```
 
 路由器放行 **UDP 11010**（和 EasyTier 的 wss 不冲突：一个 TCP 一个 UDP）。
+> **Endpoint 写域名，不要写死 IPv6。** 家里那台拿到的公网 IPv6 通常是运营商 SLAAC 下发的动态地址（n6 上 `ip -6 addr` 同时有 `…::1000`、`…:3073:25ff:fe6c:a066`、`…:2dce:f0be:3c53:baf3` 三个 global 地址，前缀一变全换）。用 DDNS 域名（AAAA 记录，TTL 120）做 Endpoint，地址变了也能连上；实测 `wg show` 握手 3 秒前、`ping 192.168.5.1` 18 ms。
+
 
 三个注意点：
 
