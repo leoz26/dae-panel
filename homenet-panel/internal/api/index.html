@@ -98,6 +98,7 @@ td input,td select{width:100%}
         <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
         <button :class="{active:tab===&#39;setup&#39;}" @click="tab=&#39;setup&#39;;loadSetup()">安装与初始化</button>
         <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
+        <button :class="{active:tab===&#39;mesh&#39;}" @click="tab=&#39;mesh&#39;;loadMesh()">组网</button>
         <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
         <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
       </div>
@@ -921,6 +922,73 @@ td input,td select{width:100%}
         </div>
       </div>
 
+      <!-- 组网 -->
+      <div v-if="tab==='mesh'">
+        <div class="card">
+          <h2>组网 <span class="muted" style="font-size:12px">（EasyTier 异地组网，只读状态 + 启停服务）</span></h2>
+          <div class="muted" style="margin-bottom:8px">用 WSS(443/自定义端口) 伪装成访问 <span class="mono">speedtest.*</span> 的 HTTPS 流量打通两台设备；这里读 <span class="mono">easytier-cli</span> 的节点表与路由表。面板本身不生成 EasyTier 配置。</div>
+          <div class="row">
+            <button class="primary" @click="loadMesh">刷新</button>
+            <button @click="meshAction('start')">启动</button>
+            <button @click="meshAction('restart')">重启</button>
+            <button @click="meshAction('stop')">停止</button>
+            <span v-if="meshMsg" class="muted" style="margin-left:12px">{{meshMsg}}</span>
+          </div>
+          <div v-if="meshData">
+            <table style="margin-top:10px">
+              <tbody>
+                <tr><th style="width:160px">安装</th><td>{{meshData.installed?'已安装':'未安装'}} <span class="muted mono" v-if="meshData.version">{{meshData.version}}</span></td></tr>
+                <tr><th>服务</th><td>
+                  <span :class="meshData.running?'pill ok':'pill'">{{meshData.running?'运行中':'未运行'}}</span>
+                  <span class="muted mono" style="margin-left:8px">{{meshData.serviceManager}} / {{meshData.serviceName}}</span>
+                  <span class="muted mono" style="margin-left:8px" v-if="meshData.binPath">{{meshData.binPath}}</span>
+                </td></tr>
+                <tr v-if="meshData.configHint"><th>提示</th><td class="muted">{{meshData.configHint}}</td></tr>
+                <tr v-if="meshData.error"><th>错误</th><td class="banner">{{meshData.error}}</td></tr>
+              </tbody>
+            </table>
+            <div v-if="meshData.note" class="banner" style="margin-top:10px">{{meshData.note}}</div>
+
+            <h3 style="margin-top:16px">节点 <span class="muted" style="font-size:12px">({{(meshData.peers||[]).length}})</span></h3>
+            <table>
+              <thead><tr><th>虚拟 IP</th><th>主机名</th><th>连接</th><th style="width:80px">延迟</th><th style="width:70px">丢包</th><th>收</th><th>发</th><th>隧道</th><th>NAT</th><th>版本</th></tr></thead>
+              <tbody>
+                <tr v-for="(p,i) in (meshData.peers||[])" :key="'p'+i">
+                  <td class="mono">{{p.ip}}</td>
+                  <td>{{p.hostname}}</td>
+                  <td>{{p.cost}}</td>
+                  <td class="mono">{{p.latency}}</td>
+                  <td class="mono muted">{{p.loss}}</td>
+                  <td class="mono muted">{{p.rx}}</td>
+                  <td class="mono muted">{{p.tx}}</td>
+                  <td class="mono">{{p.tunnel}}</td>
+                  <td class="muted">{{p.nat}}</td>
+                  <td class="muted mono">{{p.version}}</td>
+                </tr>
+                <tr v-if="!(meshData.peers||[]).length"><td colspan="10" class="muted">没有节点（服务未运行或尚未连接到对端）</td></tr>
+              </tbody>
+            </table>
+
+            <h3 style="margin-top:16px">路由 <span class="muted" style="font-size:12px">({{(meshData.routes||[]).length}})</span></h3>
+            <table>
+              <thead><tr><th>虚拟 IP</th><th>主机名</th><th>代理网段</th><th>下一跳</th><th>延迟</th><th>路径长度</th><th>路径延迟</th></tr></thead>
+              <tbody>
+                <tr v-for="(r,i) in (meshData.routes||[])" :key="'r'+i">
+                  <td class="mono">{{r.ip}}</td>
+                  <td>{{r.hostname}}</td>
+                  <td class="mono">{{r.proxyCidrs||'—'}}</td>
+                  <td class="mono muted">{{r.nextHopHost||r.nextHop}}</td>
+                  <td class="mono">{{r.latency}}</td>
+                  <td class="mono muted">{{r.pathLen}}</td>
+                  <td class="mono muted">{{r.pathLatency}}</td>
+                </tr>
+                <tr v-if="!(meshData.routes||[]).length"><td colspan="7" class="muted">没有路由</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- 整段配置 -->
       <div v-if="tab===&#39;raw&#39;">
         <div class="card">
@@ -959,6 +1027,7 @@ createApp({
     ruleProbeDomain:"", ruleProbe:null,
     trafficData:null, trafficMsg:"", trafficAuto:false, trafficTimer:null,
     bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
+    meshData:null, meshMsg:"",
     accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
     accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""},
     accessPlan:null, accessPlanMsg:"", accessApplyRes:null, accessVerify:null, accessPlanOpt:{mode:"",lanIfaces:"",tproxyPort:12345,dnsMode:"hijack53",snat:"auto",proxyIp:"",testDevice:""}
@@ -1071,6 +1140,15 @@ createApp({
     async applySrc(it){ if(!(it.url||"").trim()){ this.subsrcMsg="请先保存上游 URL"; return; } const r1=await this.api("/api/subsrc/apply","POST",{name:it.name}); if(r1.code!==200){ this.subsrcMsg="预览失败: "+this.pretty(r1.data&&r1.data.error||r1.data); return; } const d=r1.data; const fmt=(d.format==='clash')?"上游为 Clash YAML，已转为节点链接。":"上游为节点链接。"; const msg=fmt+"上游 "+d.remoteNodes+" 节点（本地 "+d.localNodes+"），新增 "+d.added+"、移除 "+d.removed+"。\n确认覆盖本地镜像并 reload dae？（失败会自动恢复旧文件）"; if(!confirm(msg)) { this.subsrcMsg="已取消"; return; } this.subsrcMsg="应用中…"; const r2=await this.api("/api/subsrc/apply","POST",{name:it.name,confirm:true}); this.subsrcMsg=(r2.code===200)?("已应用: "+(r2.data.message||"OK")):("应用失败: "+this.pretty(r2.data&&r2.data.error||r2.data)); this.loadSubsrc(); this.refreshStatus(); },
     goSubsrc(){ this.tab="subsrc"; this.loadSubsrc(); },
     exportAudit(fmt){ const f=(fmt==="jsonl")?"jsonl":"csv"; window.location.href="/api/audit/export?format="+f; },
+    async loadMesh(){ this.meshMsg="加载中…"; const r=await this.api("/api/mesh"); if(r.code===200){ this.meshData=r.data.status; this.meshMsg=""; } else if(r.code!==401) this.meshMsg="加载失败 (HTTP "+r.code+")"; },
+    async meshAction(action){
+      const names={start:"启动",restart:"重启",stop:"停止"};
+      if(action==="stop" && !confirm("停止组网会断开与对端的隧道，确定？")) return;
+      this.meshMsg=(names[action]||action)+"中…";
+      const r=await this.api("/api/mesh/service","POST",{action});
+      if(r.code===200){ this.meshMsg=r.data.message||"已执行"; if(r.data.status) this.meshData=r.data.status; setTimeout(()=>this.loadMesh(), 1500); }
+      else this.meshMsg="失败: "+((r.data&&r.data.error)||("HTTP "+r.code));
+    },
     async loadGeo(){ this.geoMsg="加载中…"; const r=await this.api("/api/geo"); if(r.code===200){ this.geoData=r.data.data; this.geoData.keep=r.data.keep; this.geoMsg=""; if(!this.geoSrc.geoip&&r.data.data.urls) this.geoSrc.geoip=r.data.data.urls.geoip||""; if(!this.geoSrc.geosite&&r.data.data.urls) this.geoSrc.geosite=r.data.data.urls.geosite||""; } else this.geoMsg="加载失败 (HTTP "+r.code+")"; },
     async loadSetup(){
       const r = await this.api("/api/setup/status","GET");

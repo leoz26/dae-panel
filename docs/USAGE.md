@@ -342,6 +342,51 @@ dat 文件本身没有版本号，面板用两条线索判断：
 想挡 IPv6（例如机场没有 IPv6 出口）就自己加一条 `qtype(aaaa) -> reject`：代价是 IPv6-only 的服务会解析失败。面板**不会**替你做这个决定，也没有这个总开关。
 
 常见默认组合（多数家庭场景够用）：上游 `cn: udp://223.5.5.5:53`、`remote: tcp://8.8.8.8:53`；请求规则 `qname(geosite:cn) -> cn`；请求兜底 `remote`；响应兜底 `accept`。
+## 2.12 组网（EasyTier，异地互通）
+
+面板的「组网」标签页只做两件事：**看**（节点表 / 路由表 / 服务状态）与**启停服务**。它不生成 EasyTier 配置——配置写在你自己的 systemd unit（或 OpenWrt init 脚本）里，面板重启不会影响隧道。
+
+### 它解决什么
+
+外网设备要访问家里局域网（面板、NAS、路由器后台），又不想装 Tailscale（体积大、走官方协调服务器）。做法：
+
+- 家里那台（本例是旁路由 n6）既当**公网入口**又当**子网网关**：
+
+```ini
+# /etc/systemd/system/easytier.service
+ExecStart=/usr/local/bin/easytier-core --network-name hnp-home --network-secret <自己编> \
+    -i 10.144.0.1/24 -l wss://0.0.0.0:11010 -n 192.168.5.0/24
+```
+
+- 外地设备只用客户端模式连过来：
+
+```ini
+ExecStart=/usr/local/bin/easytier-core --network-name hnp-home --network-secret <同上> \
+    -i 10.144.0.2/24 -p wss://speedtest.example.com:11010
+```
+
+- 路由器放行 **TCP 11010**；域名只解析 AAAA 记录（灰云）。`speedtest` 这个词是刻意的：部分运营商对「目标是测速站」的 TLS 流量不做限速，SNI 伪装成它更容易跑满带宽。
+- `-n 192.168.5.0/24` 是子网代理：外地设备可以直接 `ping 192.168.5.2`、打开 `https://192.168.5.2:8787`，不用再单独穿透。
+
+### 不要做的事
+
+- **不要把 ws/wss 放到 Caddy/Nginx 反代后面**：反向代理会改写 ws 握手，实测客户端一直 `wait handshake timeout`。让 EasyTier 自己监听 `-l wss://`。
+- 别用 `systemctl restart dae` 去清 DNS 缓存（个别内核在 netkit 设备拆装时会无响应、触发看门狗重启整机），用 `dae reload`。
+
+### 面板里怎么用
+
+「组网」页显示：是否安装 / 服务是否在跑 / 服务管理器与二进制路径；节点表（虚拟 IP、主机名、连接方式 p2p、延迟、丢包、收发、隧道类型、NAT、版本）；路由表（代理网段、下一跳、路径延迟）。按钮可 `启动 / 重启 / 停止`（停止有二次确认）。
+
+如果节点表只有一行（自己），说明对端没连上：检查对端的 `-p` 地址能否解析、路由器是否放行、`network-name` 与 `network-secret` 是否一致。
+
+> 组网流量记得加直连规则，否则会被 `fallback` 送去海外节点，表现为「能 ping 通但打不开页面」：
+>
+> ```dae
+> dip(10.0.0.0/8, 172.16.0.0/12) -> direct
+> pname(easytier-core, easytier-cli) -> direct
+> domain(suffix: 你的域名) -> direct
+> ```
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |

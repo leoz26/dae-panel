@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.51  
+> **文档版本：** v0.52  
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
 > **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
@@ -2634,7 +2634,81 @@ c.bytesUse = c.acct && hasBytes // acct 开着但全是 0 → 按连接数口径
 
 - 这两条只解决「dae 不要把 tailnet 流量吃掉」，**不代表面板已经内嵌 Tailscale**。真要在面板里跑 Tailscale 有两条路：① build tag 引入 `tailscale.com/tsnet`（实测 v1.104.2，+610 模块、hello-world 二进制 30.4MB，用户态 netstack 不能当 subnet router）② 外部跑 tailscaled 当 TUN + subnet router。dae 二进制里没有 tailscale 代码（`grep -a` 命中 0），无法在 dae 内部实现。
 - `100.64.0.0/10` 也让部分运营商的 CGNAT 地址直连，这是正确行为：那些地址本来就不该被送去海外节点。
-## 15. 本版（v0.51）变更清单
+## 14.42 EasyTier WSS 组网与「组网」页（v0.52）
+
+### 14.42.1 为什么走 WSS 伪装
+
+海外/外地设备与家里设备之间需要一条不依赖面板、可长期存在的通道：面板只监听局域网，出问题时还可能连不上。候选方案对比后选 EasyTier（Rust，单文件 5.6–7.2 MB，支持 wss 入站）：
+
+- Tailscale 官方客户端 41.1 MB；把 tsnet 内嵌进面板要多 30.4 MB，且 **dae 二进制里没有 tailscale/wg-quick/tsnet 模块**（grep 实测 0），无法复用。
+- 运营商对 UDP / 非常规 TCP 做 QoS，而对「目标是白名单测速站」的 TLS 流量通常不拦。社区常见做法：EasyTier 只监听 wss（不走 TCP/UDP 打洞），SNI 用含 `speedtest` 的子域名，让中间设备看起来「正在访问测速站」。
+
+### 14.42.2 拓扑与配置
+
+家庭侧 n6 既当公网入口又当旁路由（B2 已生效），所以组网节点与 dae 同机：
+
+```ini
+# /etc/systemd/system/easytier.service（n6，服务端）
+ExecStart=/usr/local/bin/easytier-core --network-name hnp-home --network-secret <secret> \
+    -i 10.144.0.1/24 -l wss://0.0.0.0:11010 -n 192.168.5.0/24
+
+# /etc/systemd/system/easytier.service（.85 等外地设备，客户端）
+ExecStart=/usr/local/bin/easytier-core --network-name hnp-home --network-secret <secret> \
+    -i 10.144.0.2/24 -p wss://speedtest.leoz26.ccwu.cc:11010
+```
+
+- 虚拟网段 `10.144.0.0/24`；`-n 192.168.5.0/24` 把家庭网段导出成 EasyTier 子网路由，外地设备可直接访问 `192.168.5.x`（面板、NAS、路由器后台）。
+- 域名 `speedtest.leoz26.ccwu.cc` 只解析 **AAAA**（灰云），由 n6 上已有的 `svc add speedtest 11010` 生成与续证；路由器放行 TCP 11010。
+- wss 用 EasyTier 自签证书、客户端不校验：这条通道的信任基于 `network-secret` 与 SNI，不含证书校验。
+
+### 14.42.3 Caddy 反代 wss 实测不可行
+
+最初想把 11010 藏在 Caddy 的 8443 后面（复用 LE 证书）。实测失败，已放弃：
+
+- .85 用 `-p wss://speedtest.leoz26.ccwu.cc:8443` → TLS 握手成功，n6 侧 Caddy 记 `new connection accepted`、EasyTier 记 `new peer added`，但客户端持续 `error=WaitRespError("wait handshake timeout: Elapsed(())")`，每次 5 秒超时；
+- Caddy 侧 remote_addr 被记成 `ws://240e:45742/?proxy=127.0.0.1%3A45742` —— 反向代理改写了 ws 握手，对端认不出自己；
+- 改成 Caddy → EasyTier 的 wss 后端（`tls_insecure_skip_verify`）则 `connect timeout after 19.98s`。
+
+⇒ ws/wss 必须由 EasyTier 自己监听（`-l wss://`），不要套反向代理。n6 上保留 `https://speedtest.leoz26.ccwu.cc:8443` 站点只是门面，**不要 `svc rm speedtest`**，否则 AAAA 会跟着删掉、客户端解析不到。
+
+### 14.42.4 面板「组网」页
+
+新增 `internal/mesh`（只读探测 + 启停，不生成 EasyTier 配置）：
+
+| 元素 | 说明 |
+| --- | --- |
+| `Runner` 接口 | 注入 `exec.Command`，测试用假 runner |
+| `ParseTable/ParsePeers/ParseRoutes` | 解析 `easytier-cli peer` / `route` 的 Markdown 风格表格（跳过 `---` 分隔行） |
+| `Detect(Options)` | `easytier-core --version` 判安装、`systemctl is-active`（或 OpenWrt `/etc/init.d/easytier status`）判运行、读节点表与路由表；节点 ≤ 1 时提示「当前只有本机节点」 |
+| `Control(Options, action)` | systemd `systemctl start/stop/restart easytier`；procd 走 init 脚本 |
+
+API：`GET /api/mesh`（`{status}`）、`POST /api/mesh/service {action}`（start/stop/restart，审计 `mesh.service`）。前端新增「组网」标签页：服务状态行、节点表（虚拟 IP / 主机名 / 连接方式 / 延迟 / 丢包 / 收发 / 隧道 / NAT / 版本）、路由表（代理网段 / 下一跳 / 路径延迟）、刷新与启停按钮（停止有二次确认）。
+
+### 14.42.5 实测数据（2026-10-27）
+
+- `.85` 的 `easytier-cli peer`：`10.144.0.1 armbian p2p lat=11.89ms loss=0% tunnel=wss6`；
+- `ping 10.144.0.1` 12.9 ms、`ping 192.168.5.2`（家里网段）12.9 ms，均 0% 丢包；
+- iperf3（隧道内，8 s × 2 流）：**上行 60.0 Mbit/s / 下行 64.5 Mbit/s**；
+- 面板 `GET /api/mesh`：`installed=true running=true serviceManager=systemd version=easytier-core 2.6.4-8428a89d`，2 个节点 + 2 条路由；headless Chrome 打开「组网」页 DOM 30,901 字节、模板占位符泄漏 0。
+
+### 14.42.6 分流配合
+
+组网流量若不直连会被 `fallback` 送去海外节点，表现为「能 ping 通但打不开页面」。因此两侧模型都补了规则：
+
+```dae
+dip(10.0.0.0/8, 172.16.0.0/12) -> direct          # 虚拟网段
+pname(easytier-core, easytier-cli) -> direct      # 组网进程自身（.85）
+domain(suffix: ccwu.cc) -> direct                 # 入口域名直连（n6）
+```
+
+### 14.42.7 边界与风险
+
+- 面板只读状态 + 启停，**不写 EasyTier 配置**；`network-secret` 不出现在面板里呈现。
+- `--network-secret` 以命令行参数出现，同机 root 用 `ps` 可见；11010 对外只跑 wss，未开其他监听。
+- `systemctl restart dae` 曾在 n6 触发整机重启（netkit 设备拆装时内核无响应 → 硬件看门狗）；诊断 DNS 缓存请用 `dae reload` 而不是 restart。
+- wss 是否真绕过 QoS 尚未做 A/B（需再放行 UDP 11010 与 UDP 直连比吞吐），目前只有 wss6 的性能数据。
+
+## 15. 本版（v0.52）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2684,3 +2758,4 @@ c.bytesUse = c.acct && hasBytes // acct 开着但全是 0 → 按连接数口径
 40. **重启后自有 nft 表消失 + 启动自检重建（v0.49）**：nft 是内核运行态、不落盘，重启后 `panel_dns` 静默消失（指向主路由的设备绕过 dae）；改为 apply 时把 nft argv 记进 `access-state.json`，面板启动时 `RestoreAccessTables()` 只比对自有表、缺则按记录重建（不 reload、不碰系统原有表、无记录不动手），审计 `access.rebuild`；四条回归测试；n6 实机删表→重启→自动恢复验证通过。
 41. **字节统计改用 conntrack 聚合客户端（v0.50）**：新增 `internal/traffic/conntrack.go`（`ConnEntry`/`ParseConntrackLocal`/`LocalSubnets`/`ReadConntrack`），采集器新增 `ClientFn`/`AcctFn` 注入点、`BytesSnapshot` 增 `ClientSource`/`ClientError`/`ClientNote`、`Row` 增 `Detail`；客户端表的字节、连接数、「主要目的」都来自连接跟踪表，socket 路径不再兼任客户端归属。实测 .85（内核 6.12.113）即使 `nf_conntrack_acct=1`（模块参数 Y）也不写 `bytes=`，而 n6（6.18.54）正常 → 增加「本轮无任何非零字节即降级」判定与第三条提示；前端加 `clientError` 横幅、`clientNote` 提示、「主要目的」列与数据源标识；七条回归测试。详见 §14.40。
 42. **Tailscale 保命直连规则（v0.51）**：`EssentialRules` 增加 `dip(100.64.0.0/10) -> direct`（Tailnet/CGNAT 段，否则按 fallback 送去海外节点，表现为 ping 通但打不开）与 `pname(tailscaled, tailscale) -> direct`（控制面 443 / DERP / UDP 41641 打洞）；前端安全规则说明同步；新增 `TestEssentialRulesCoverTailscale`；.85 与 n6 实机 apply 后 validate ok、dae active，原有规则条数不变。详见 §14.41。
+43. **EasyTier WSS 组网与「组网」页（v0.52）**：新增 §14.42——选型（EasyTier 单文件 5.6–7.2 MB；Tailscale 41.1 MB 且 dae 内无相关模块无法内嵌）、WSS 伪装方案（只监听 wss、SNI 用含 `speedtest` 的 AAAA 子域名、路由器放行 TCP 11010）、Caddy 反代实测不可行、`internal/mesh`（`Detect`/`Control`/`ParsePeers`/`ParseRoutes`）+ `GET /api/mesh`、`POST /api/mesh/service` + 前端「组网」页；实测 peer `wss6` 11.89 ms、ping 家里网段 12.9 ms、iperf3 上 60.0 / 下 64.5 Mbit/s。
