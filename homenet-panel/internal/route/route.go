@@ -7,6 +7,37 @@ import (
 	"homenet-panel/internal/geo"
 )
 
+// NormalizeHost 把用户输入归一成可匹配的主机名：
+// 去掉协议、路径、查询串、片段、端口、结尾点与通配前缀，全小写。
+// 支持 "https://www.example.com/a?b#c"、"example.com:443"、"[::1]:443"、"*.example.com"。
+func NormalizeHost(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if i := strings.Index(s, "://"); i >= 0 {
+		s = s[i+3:]
+	}
+	if i := strings.IndexAny(s, "/?#"); i >= 0 {
+		s = s[:i]
+	}
+	if i := strings.LastIndex(s, "@"); i >= 0 {
+		s = s[i+1:]
+	}
+	if strings.HasPrefix(s, "[") {
+		if j := strings.Index(s, "]"); j > 0 {
+			s = s[1:j]
+		}
+	} else if strings.Count(s, ":") == 1 {
+		if j := strings.LastIndex(s, ":"); j >= 0 {
+			s = s[:j]
+		}
+	}
+	s = strings.TrimPrefix(s, "*.")
+	s = strings.TrimSuffix(s, ".")
+	return strings.ToLower(s)
+}
+
 // val 是三态求值结果。
 type val int
 
@@ -283,7 +314,7 @@ type Rule struct {
 
 // Test 对给定域名按规则顺序求值，返回命中结果。
 func Test(domain string, rules []Rule, fallback string, db *geo.DB) TestResult {
-	res := TestResult{Domain: strings.ToLower(strings.TrimSuffix(domain, ".")), Fallback: fallback}
+	res := TestResult{Domain: NormalizeHost(domain), Fallback: fallback}
 	firstKnownMatch := -1
 	sawUnknownBefore := false
 	sawUnknown := false

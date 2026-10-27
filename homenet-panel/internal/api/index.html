@@ -769,9 +769,9 @@ td input,td select{width:100%}
       <div v-if="tab===&#39;route&#39;">
         <div class="card">
           <h2>分流命中调试</h2>
-          <div class="muted" style="margin-bottom:8px">输入域名，按当前 routing 规则顺序本地求值（geosite 用 /usr/share/dae/geosite.dat 判定；ip/pname 等运行时谓词标记为“未知”）。</div>
+          <div class="muted" style="margin-bottom:8px">输入域名，按当前 routing 规则顺序本地求值（geosite 用 /usr/share/dae/geosite.dat 判定；ip/pname 等运行时谓词标记为“未知”）。可以直接粘贴 URL，面板会去掉协议、路径与端口。</div>
           <div class="row">
-            <input v-model="routeDomain" placeholder="例如 www.youtube.com" style="min-width:260px" @keyup.enter="routeTest"/>
+            <input v-model="routeDomain" placeholder="例如 www.youtube.com 或 https://www.youtube.com/watch?v=1" style="min-width:260px" @keyup.enter="routeTest"/>
             <button class="primary" @click="routeTest">测试命中</button>
           </div>
           <div v-if="routeMsg" class="muted" style="margin-top:8px">{{routeMsg}}</div>

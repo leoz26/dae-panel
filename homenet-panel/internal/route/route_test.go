@@ -121,3 +121,24 @@ func TestTestResult(t *testing.T) {
 		t.Errorf("ctx pred should not block; decided=%v chosen=%q", res4.Decided, res4.Chosen)
 	}
 }
+
+func TestNormalizeHost(t *testing.T) {
+	cases := map[string]string{
+		"https://www.claude.com/":    "www.claude.com",
+		"http://example.com/a?b=1#c": "example.com",
+		"example.com:443":            "example.com",
+		"  Example.COM.  ":           "example.com",
+		"*.example.com":              "example.com",
+		"[::1]:443":                  "::1",
+		"user:pw@example.com/path":   "example.com",
+		"telegram.org":               "telegram.org",
+	}
+	for in, want := range cases {
+		if got := NormalizeHost(in); got != want {
+			t.Errorf("NormalizeHost(%q)=%q，期望 %q", in, got, want)
+		}
+	}
+	if got := Test("https://www.claude.com/", []Rule{{Matcher: "domain(suffix: claude.com)", Out: "ai"}}, "direct", nil); got.Chosen != "ai" || !got.Decided {
+		t.Errorf("带协议的 URL 也要能命中：%+v", got)
+	}
+}
