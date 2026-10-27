@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.48  
+> **文档版本：** v0.49  
+> **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
 > **修订（v0.2）：** 依据 `dae-cli-capability-checklist.md`（dae v2.1.1 源码核对底稿）把 CLI 能力与能力边界正式并入 §2.4、§4.1、§4.2、§4.3、§4.5、新增 §4.7 与新增 §13，对应核对表 D/F 条目，详见文末「本版变更清单」。  
 > **修订（v0.3）：** 依据 2026-10-23 对 192.168.1.85（dae v2.1.1）的只读实机实测，回填并修正 §4.1、§4.2、§4.4、§4.5、§4.7（新增 §4.8 共存风险）与 §13（D3/D8 及实机验证补充），详见 §13 末与 §14。  
 > **修订（v0.4）：** 用户决策定稿——goose 是面板前身，面板**取代** goose（非共存/非不管）。据此定稿 §4.8 取代决策、§4.7 迁移路径、§11 禁止双写硬性验收、§4.5 回滚语义、§2.3 接管边界，详见 §14。  
@@ -2442,7 +2443,68 @@ CDN 取回实测（`https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/`�
 架构映射干跑（把 `uname -m` 换成各值跑同一段 `case`）：`x86_64→amd64`、`aarch64→arm64`、`armv7l→armv7`、`i686→386`、`armv6l→die（ARMv6 暂不提供构建）`、`mips→die（不支持的架构）`。
 
 **未验证**：手上没有 32 位 ARM / x86 真机，因此只到「能编译、能下载、校验和一致」这一层，**没有 32 位设备上的实机启动与 eBPF 加载验证**。32 位内核的 BPF/BTF 支持与 `memlock` 限制都要现场复核（`install.sh --dry-run` 与面板「接入向导」的能力表都会先报出来）。
-## 15. 本版（v0.48）变更清单
+## 14.39 重启后自有 nft 表消失了：面板启动自检重建（v0.49）
+
+### 14.39.1 现象（n6 实机，2026-10-27 01:30 整机重启后）
+
+重启后 `nft list tables` 只剩系统自带的 `ip nat / ip filter / ip6 nat / ip6 filter / ip raw`，
+面板建过的 `table inet panel_dns` 不见了。后果不是"面板坏了"，而是**静默失效**：
+
+- 设备把 DNS 直接指向旁路由（本案 `192.168.5.2`）时，dae 仍会抓 53，看起来一切正常；
+- 设备把 DNS 指向主路由（`192.168.5.1`）时，那条 `dnat to <旁路由>:53` 规则已经不在了，**流量绕过 dae**，
+  域名规则（geosite/geolocation）全部失效，只剩 `ip(geoip:)` 与 fallback 生效；
+- 面板界面、`/api/access/verify` 的 6 项自检都不会报错 —— 因为表不存在并不影响 dae 自己跑。
+
+### 14.39.2 根因
+
+nft 表是**内核运行态，不落盘**。面板只在「接入向导 → 应用计划」那一下执行 `nft add table ...`，
+没有任何开机/启动路径去重建它。`/etc/dae/config.d/panel-access.dae` 会保留（文件），但 nft 状态不会。
+所以「重启 = 静默降级」是设计缺口，不是环境问题。
+
+### 14.39.3 修法：apply 时记录命令，启动时按需重建
+
+| 位置 | 改动 |
+| --- | --- |
+| `internal/access/apply.go` | `accessState` 增 `NftCommands [][]string`（`json:"nftCommands"`）；`Apply` 成功后把 `nftPlan(plan)` 的 argv 记进 `access-state.json` |
+| 同上 | 新增 `OwnTableNames()`、`(a *Applier) MissingOwnTables()`（`nft list tables` 解析 + 只比对自有表名）、`(a *Applier) RebuildTables()` |
+| 同上 | `RebuildTables` 语义：无记录 → 什么都不做；记录过的表都在 → 什么都不做（只花一次 `nft list tables`）；缺 → 先删自有表（幂等）再按记录逐条重建，失败返回带命令文本的错误 |
+| `internal/api/access.go` | 新增 `(s *Server) RestoreAccessTables()`：加 `s.mu` 串行、成功写审计 `access.rebuild`、失败 `log.Printf` + 审计 ok=false |
+| `cmd/homenet-panel/main.go` | `serve` 里在打印审计策略之后调用一次 `srv.RestoreAccessTables()` |
+
+三条设计约束（刻意保持）：
+
+1. **只碰自有表**：重建前先按名删 `panel_dns` / `panel_snat` / `panel_tproxy`，绝不 touch 系统原有 `table ip nat` 等；
+2. **不 reload dae**：nft 是数据面，改它不需要 dae 重启；面板重启不会再打断全网连接；
+3. **没有记录就不动手**：老版本 apply 留下的状态文件里没有 `nftCommands`，此时返回 no-op，
+   由用户再点一次「应用计划」补上记录（实机踩过：升二进制后直接删表重启，表没回来）。
+
+### 14.39.4 测试
+
+`internal/access/apply_test.go` 四条：
+
+- `TestRebuildTablesAfterReboot`：apply 一次 → 伪造重启（`nft list tables` 无自有表）→ `RebuildTables` 应重新 `add table inet panel_dns`；
+- `TestRebuildTablesNoopWhenPresent`：表都在时只允许执行一次 `nft list tables`，不得重建；
+- `TestRebuildTablesWithoutRecord`：没有 `nftCommands` 时一条命令都不许执行；
+- `TestRebuildTablesUsesRecordedCommands`：重建必须按记录走完 `add chain ... prerouting` 与后续规则。
+
+`gofmt -l` 干净、`go vet ./...` 与 `go test ./... -count=1` 全绿。
+
+### 14.39.5 实机验证（n6，2026-10-27 08:19）
+
+1. 部署新二进制 → 重新应用一次接入计划，状态文件出现 `nftCommands: 5`；
+2. `nft delete table inet panel_dns`（模拟重启丢失）→ `nft list tables` 确认已消失；
+3. `systemctl restart homenet-panel` → 表自动回来，规则与手工建的一致：
+   `iifname "eth0" ip daddr 192.168.5.2 return` + `udp/tcp dport 53 dnat ip to 192.168.5.2:53`；
+4. 日志 `接入自检：已重建自有 nft 表（重启后内核运行态丢失）`，审计 `access.rebuild` ok=true。
+
+### 14.39.6 顺带记录：为什么上次重启查不到原因
+
+`/etc/systemd/journald.conf` 里 `SystemMaxUse=20M`，`journalctl --disk-usage` 显示 27.7M 已写满并在 00:00 轮转过，
+00:00 之后到 01:30 重启前的那 90 分钟日志已被丢弃 —— 所以"无 panic/oops"并不等于"没崩"。
+已在 n6 把上限调到 **200M**（`/root/journald.conf.bak-*` 保留原文件），磁盘尚有 21G 空闲。
+下次再出现异常重启，`journalctl -b -1` 才有材料可查。
+
+## 15. 本版（v0.49）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2489,3 +2551,4 @@ CDN 取回实测（`https://cdn.jsdelivr.net/gh/leoz26/dae-panel@v0.39.0-dist/`�
 37. **结构化 DNS 编辑器（v0.46）**：新增 `internal/model/dns.go`（`DNSSpec`/`ParseDNS`/`RenderDNS`/`LintDNS`/`DefaultDNSSpec`）、`internal/api/dns.go`（`/api/dns/parse`、`/api/dns/render`）与前端「DNS」标签页；`Model.DNS` 仍是原样文本，编辑结果渲染回文本后走同一 apply 事务。校验依据来自 .85 上逐条 `dae validate`（`qname(geolocation:)`、`-> drop`、请求规则 `-> accept` 都不被 dae 接受）。实机 preview 证明「dns 不改时生成结果与线上逐字节一致」，详见 §14.37。
 38. **构建矩阵扩到 armv7 / 386（v0.47）**：CI 编译循环改为 `产物名:GOARCH:GOARM` 四元组（`amd64`/`arm64`/`armv7`(GOARM=7)/`386`），purge 与 release notes 同步；`deploy/online-install.sh` 的 `uname -m` 映射加 `armv7l→armv7`、`i686→386`，`armv6l` 明确拒绝（GOARM=7 二进制在 ARMv6 上 Illegal instruction）。dae 官方 deb 本身有 `x86_32` 与 `armv7` 包，组合可行。详见 §14.38。
 39. **DNS 编辑器「+ 添加」按钮无反应（v0.48）**：Go 的 nil 切片被编成 JSON `null`，前端 `null.push` 抛 TypeError，事件处理器静默中止。`DNSSpec.Normalize()` + `handleDNSParse` 规范化 + 前端四处兜底；新增 `TestParseDNSSpecNormalized`/`TestDefaultDNSSpecSerializesAsArrays`；真机 CDP 按自然点击顺序验证表格 4→6 行。详见 §14.37.7。
+40. **重启后自有 nft 表消失 + 启动自检重建（v0.49）**：nft 是内核运行态、不落盘，重启后 `panel_dns` 静默消失（指向主路由的设备绕过 dae）；改为 apply 时把 nft argv 记进 `access-state.json`，面板启动时 `RestoreAccessTables()` 只比对自有表、缺则按记录重建（不 reload、不碰系统原有表、无记录不动手），审计 `access.rebuild`；四条回归测试；n6 实机删表→重启→自动恢复验证通过。

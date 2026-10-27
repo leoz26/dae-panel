@@ -196,6 +196,7 @@ func (a *Applier) Apply(opt PlanOptions, expectFingerprint string, confirm bool)
 	}
 	st.AppliedAt = time.Now().Format(time.RFC3339)
 	st.Fingerprint = plan.Fingerprint
+	st.NftCommands = nftPlan(plan)
 	a.writeState(st)
 	res.Message = "已应用：自有片段已写入并 reload 成功"
 	if len(res.Commands) > 0 {
@@ -211,6 +212,8 @@ type accessState struct {
 	OriginalIPForward string `json:"originalIpForward,omitempty"`
 	HadSysctlFile     bool   `json:"hadSysctlFile,omitempty"`
 	OriginalSysctl    string `json:"originalSysctl,omitempty"`
+	// NftCommands 记录本次应用时真正执行过的 nft argv，供面板启动时按需重建（内核运行态不落盘）。
+	NftCommands [][]string `json:"nftCommands,omitempty"`
 }
 
 func (a *Applier) statePath() string { return filepath.Join(a.BackupDir, "access-state.json") }
@@ -342,4 +345,71 @@ func (a *Applier) Rollback(confirm bool) (ApplyResult, error) {
 		res.Message += "，内核 ip_forward 已还原为 0"
 	}
 	return res, nil
+}
+
+// OwnTableNames 返回面板自有的 nft 表名（回滚/重建只碰这些）。
+func OwnTableNames() []string { return append([]string{}, ownTables...) }
+
+// MissingOwnTables 返回当前内核里不存在的自有 nft 表名。
+func (a *Applier) MissingOwnTables() []string {
+	a.ensure()
+	out, err := a.Runner.Run("nft", "list", "tables")
+	present := map[string]bool{}
+	if err == nil {
+		for _, line := range strings.Split(out, "\n") {
+			f := strings.Fields(line)
+			if len(f) >= 3 && f[0] == "table" {
+				present[f[2]] = true
+			}
+		}
+	}
+	missing := []string{}
+	for _, t := range ownTables {
+		if !present[t] {
+			missing = append(missing, t)
+		}
+	}
+	return missing
+}
+
+// RebuildTables 供面板启动自检使用：接入计划建的自有 nft 表是内核运行态、不落盘，
+// 重启后必然消失；这里按 apply 时记录的命令重建，不改 dae 配置、不 reload。
+// 从未应用过接入计划时返回 rebuilt=false（不做任何事）。
+func (a *Applier) RebuildTables() (steps []ApplyStep, rebuilt bool, err error) {
+	a.ensure()
+	st := a.readState()
+	if len(st.NftCommands) == 0 {
+		return nil, false, nil
+	}
+	// panel_dns 由 DNSMode 决定是否该存在；只要求「记录过的命令涉及的表」存在。
+	wanted := map[string]bool{}
+	for _, c := range st.NftCommands {
+		for _, tok := range c {
+			for _, own := range ownTables {
+				if tok == own {
+					wanted[own] = true
+				}
+			}
+		}
+	}
+	missing := []string{}
+	for _, t := range a.MissingOwnTables() {
+		if wanted[t] {
+			missing = append(missing, t)
+		}
+	}
+	if len(missing) == 0 {
+		return nil, false, nil
+	}
+	steps = append(steps, ApplyStep{Name: "nft-rebuild", OK: true, Detail: "自有 nft 表缺失：" + strings.Join(missing, ",") + "（重启后内核运行态丢失），按上次接入计划重建"})
+	steps = append(steps, a.DeleteTables()...)
+	for _, c := range st.NftCommands {
+		cmdText := "nft " + strings.Join(c, " ")
+		if _, e := a.Runner.Run("nft", c...); e != nil {
+			steps = append(steps, ApplyStep{Name: "nft", OK: false, Command: cmdText, Detail: e.Error()})
+			return steps, false, fmt.Errorf("重建 nft 表失败: %s: %w", cmdText, e)
+		}
+		steps = append(steps, ApplyStep{Name: "nft", OK: true, Command: cmdText})
+	}
+	return steps, true, nil
 }

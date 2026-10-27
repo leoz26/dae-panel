@@ -255,6 +255,7 @@ func main() {
 		srv.Register(mux)
 		audit.SetRetention(int64(*auditMaxMB)<<20, *auditKeep)
 		fmt.Printf("审计日志: %s\n", audit.Describe())
+		srv.RestoreAccessTables()
 		if *subsrcHours > 0 {
 			srv.SetCheckHours(*subsrcHours)
 			srv.StartBackground()

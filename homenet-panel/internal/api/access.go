@@ -1,11 +1,13 @@
 package api
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"homenet-panel/internal/access"
+	"homenet-panel/internal/audit"
 )
 
 // handleAccessProbe：只读探测本机接入能力并给出默认档位推荐（P-A 阶段，零副作用）。
@@ -187,4 +189,23 @@ func (s *Server) handleAccessRollback(w http.ResponseWriter, r *http.Request) {
 		s.audit(r, "access.rollback", "接入回滚", true, res.Message)
 	}
 	writeJSON(w, 200, res)
+}
+
+// RestoreAccessTables 启动自检：接入计划建立的自有 nft 表是内核运行态、不落盘，
+// 重启或掉电后必然消失（实机踩过：重启后 panel_dns 消失，内网 DNS 劫持失效）。
+// 这里在面板启动时按上次接入计划重建，不改 dae 配置、不 reload、不碰系统原有防火墙。
+func (s *Server) RestoreAccessTables() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, rebuilt, err := s.accessApplier().RebuildTables()
+	if err != nil {
+		_ = audit.Append(s.AuditPath, audit.Entry{Action: "access.rebuild", OK: false, Detail: err.Error()})
+		log.Printf("接入自检：重建自有 nft 表失败：%v", err)
+		return
+	}
+	if !rebuilt {
+		return
+	}
+	_ = audit.Append(s.AuditPath, audit.Entry{Action: "access.rebuild", OK: true, Detail: "重启后缺失的自有 nft 表已按上次接入计划重建"})
+	log.Printf("接入自检：已重建自有 nft 表（重启后内核运行态丢失）")
 }

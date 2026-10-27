@@ -11,8 +11,9 @@ import (
 )
 
 type nftRunner struct {
-	calls  []string
-	failOn string
+	calls     []string
+	failOn    string
+	tablesOut string
 }
 
 func (f *nftRunner) Run(name string, args ...string) (string, error) {
@@ -20,6 +21,9 @@ func (f *nftRunner) Run(name string, args ...string) (string, error) {
 	f.calls = append(f.calls, cmd)
 	if f.failOn != "" && strings.Contains(cmd, f.failOn) {
 		return "", errors.New("fake nft failure")
+	}
+	if cmd == "nft list tables" {
+		return f.tablesOut, nil
 	}
 	return "", nil
 }
@@ -343,5 +347,78 @@ func TestApplyRestoresPreexistingSysctlFile(t *testing.T) {
 	}
 	if string(b) != original {
 		t.Fatalf("应逐字还原原文件，实际 %q", string(b))
+	}
+}
+
+func TestRebuildTablesAfterReboot(t *testing.T) {
+	a, r, _, _ := newTestApplier(t)
+	fp := PlanFor(testProbe(), PlanOptions{}).Fingerprint
+	if _, err := a.Apply(PlanOptions{}, fp, true); err != nil {
+		t.Fatalf("apply 应成功: %v", err)
+	}
+	// 模拟重启：内核里的自有表全丢
+	r.calls = nil
+	r.tablesOut = "table ip nat\ntable ip filter\n"
+	steps, rebuilt, err := a.RebuildTables()
+	if err != nil {
+		t.Fatalf("重建不应报错: %v", err)
+	}
+	if !rebuilt {
+		t.Fatal("表缺失时应重建")
+	}
+	if !r.saw("add table inet panel_dns") {
+		t.Fatalf("应重建 panel_dns: %v", r.calls)
+	}
+	if len(steps) == 0 {
+		t.Fatal("应留下步骤记录")
+	}
+}
+
+func TestRebuildTablesNoopWhenPresent(t *testing.T) {
+	a, r, _, _ := newTestApplier(t)
+	fp := PlanFor(testProbe(), PlanOptions{}).Fingerprint
+	if _, err := a.Apply(PlanOptions{}, fp, true); err != nil {
+		t.Fatalf("apply 应成功: %v", err)
+	}
+	r.calls = nil
+	r.tablesOut = "table inet panel_dns\ntable ip nat\n"
+	_, rebuilt, err := a.RebuildTables()
+	if err != nil || rebuilt {
+		t.Fatalf("表已存在时不该重建: rebuilt=%v err=%v", rebuilt, err)
+	}
+	if len(r.calls) != 1 {
+		t.Fatalf("只应执行一次 nft list tables，实际: %v", r.calls)
+	}
+}
+
+func TestRebuildTablesWithoutRecord(t *testing.T) {
+	a, r, _, _ := newTestApplier(t)
+	r.tablesOut = "table ip nat\n"
+	_, rebuilt, err := a.RebuildTables()
+	if err != nil || rebuilt {
+		t.Fatalf("没有记录时不该重建: rebuilt=%v err=%v", rebuilt, err)
+	}
+	if len(r.calls) != 0 {
+		t.Fatalf("没有记录时不应执行任何命令: %v", r.calls)
+	}
+}
+
+func TestRebuildTablesUsesRecordedCommands(t *testing.T) {
+	a, r, _, _ := newTestApplier(t)
+	fp := PlanFor(testProbe(), PlanOptions{}).Fingerprint
+	if _, err := a.Apply(PlanOptions{}, fp, true); err != nil {
+		t.Fatalf("apply 应成功: %v", err)
+	}
+	st := a.readState()
+	if len(st.NftCommands) == 0 {
+		t.Fatal("apply 后应把 nft 命令记录进状态文件")
+	}
+	r.calls = nil
+	r.tablesOut = ""
+	if _, _, err := a.RebuildTables(); err != nil {
+		t.Fatalf("重建不应报错: %v", err)
+	}
+	if !r.saw("add chain inet panel_dns prerouting") {
+		t.Fatalf("应按记录重建链与规则: %v", r.calls)
 	}
 }
