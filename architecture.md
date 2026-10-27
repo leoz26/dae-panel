@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.52  
+> **文档版本：** v0.53  
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
 > **修订（v0.49）：** 新增 §14.39：重启后自有 nft 表（panel_dns 等）因是内核运行态而消失，面板改为 apply 时记录 nft 命令、启动时自检按需重建（不 reload、不碰系统原有防火墙）；顺带把 n6 的 journald 上限 20M→200M。
@@ -2708,7 +2708,60 @@ domain(suffix: ccwu.cc) -> direct                 # 入口域名直连（n6）
 - `systemctl restart dae` 曾在 n6 触发整机重启（netkit 设备拆装时内核无响应 → 硬件看门狗）；诊断 DNS 缓存请用 `dae reload` 而不是 restart。
 - wss 是否真绕过 QoS 尚未做 A/B（需再放行 UDP 11010 与 UDP 直连比吞吐），目前只有 wss6 的性能数据。
 
-## 15. 本版（v0.52）变更清单
+44. **EasyTier 门户不可用 → 改用内核 WireGuard（v0.53）**：`--vpn-portal` 在 v2.6.4 上握手不完成（服务端只见入向握手包、无回包；本机回环与外部 IPv6 同现象；源码 `new_for_portal(&key_seed,&key_seed)` 服务端与客户端同源派生可解释），改为 n6 上跑内核 `wg-quick@wg0`（10.99.0.1/24、UDP 11010、MASQUERADE 到 eth0），手机导入标准 WireGuard 配置即可访问 192.168.5.0/24 与 10.144.0.0/24；实测 ping 12.5 ms、`http://192.168.5.1/` 200。详见 §14.42.8。
+
+### 14.42.8 EasyTier 2.6.4 的 WireGuard 门户是坏的，改用内核 WireGuard
+
+手机/外地设备要「装个普通 WireGuard 客户端就能连」，EasyTier 提供了 `--vpn-portal wg://0.0.0.0:11010/10.14.14.0/24` 与 `easytier-cli vpn-portal`（打印客户端配置）。实测 **握手不完成**：
+
+- 服务端日志有 `vpn portal started` 与 `vpn portal client connected client_addr="wg://127.0.0.1:3795"`；
+- 客户端 `wg show`：`latest handshake` 恒为 0、`transfer: 0 B received, … sent`；
+- 服务端 `tcpdump -ni any udp port 11010` 只看到入向 148 字节握手发起包（每 ~5 s 一次），**没有任何回包**；
+- 本机回环（127.0.0.1）与外部 IPv6 两条路径现象相同 ⇒ 不是 dae 拦截、不是防火墙、不是 IPv6。
+
+源码印证（v2.6.4 `easytier/src/tunnel/wireguard.rs`）：`new_for_portal(&key_seed, &key_seed)` 里 server 与 client 用**同一个种子**派生，客户端私钥与服务端私钥同源；`dump_client_config` 打印的 `PublicKey = my_public_key` 同时也是客户端自己的公钥。main 分支后续改成按客户端命名派生（`named_wireguard_keys_are_stable_and_client_scoped`、`portal_key_has_no_network_secret_fallback`），说明 2.6.4 这套派生确实有问题，而 v2.6.4 已是最新发布版。
+
+**结论：门户模式暂时不可用，改用内核 WireGuard**（EasyTier 保留只做站点互通）：
+
+```ini
+# /etc/wireguard/wg0.conf（n6）
+[Interface]
+Address = 10.99.0.1/24
+ListenPort = 11010
+PrivateKey = <server.key>
+MTU = 1380
+PostUp = iptables -t nat -A POSTROUTING -s 10.99.0.0/24 -o eth0 -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -s 10.99.0.0/24 -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = <设备公钥>
+AllowedIPs = 10.99.0.10/32
+```
+
+客户端（手机 WireGuard App 直接导入）：
+
+```ini
+[Interface]
+PrivateKey = <设备私钥>
+Address = 10.99.0.10/32
+DNS = 192.168.5.1
+MTU = 1380
+
+[Peer]
+PublicKey = <server.pub>
+AllowedIPs = 10.99.0.0/24, 192.168.5.0/24, 10.144.0.0/24
+Endpoint = [<n6 公网 IPv6>]:11010
+PersistentKeepalive = 25
+```
+
+实测（.85 作为临时客户端）：`latest handshake` 正常、`ping 10.99.0.1` 12.5 ms、`ping 192.168.5.1` 13.6 ms、**`http://192.168.5.1/` 返回 `HTTP/1.0 200 OK`**（MASQUERADE 生效，家里设备不需要知道 10.99.0.0/24）。
+
+两个坑：
+
+1. `wg-quick` 会按 AllowedIPs 建路由，若与已有 tun0 的 `192.168.5.0/24` / `10.144.0.0/24` 重叠会 `RTNETLINK answers: File exists` 并整份回滚 —— 同机测试要用 `Table = off` + 手工路由。手机没有冲突，可直接用完整 AllowedIPs。
+2. **远端客户端用不了面板的 DNS 广告拦截**：dae 只劫持 `lan_interface`（eth0）上的 53，n6 上 192.168.5.2:53 并没有进程监听（`ss -lunp` 只有 systemd-resolved 的 127.0.0.53/54），从 wg0 发往 192.168.5.2:53 的查询超时；改成 `DNS = 192.168.5.1`（路由器）才通（实测 baidu 21 ms、doubleclick 12 ms，但没被拦截）。要让远端也吃拦截，需要把 `wg0` 加进 dae 的 `lan_interface`（等于手机流量也走代理），这是另一个决策。
+
+## 15. 本版（v0.53）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。

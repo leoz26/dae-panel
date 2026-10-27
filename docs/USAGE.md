@@ -387,6 +387,58 @@ ExecStart=/usr/local/bin/easytier-core --network-name hnp-home --network-secret 
 > domain(suffix: 你的域名) -> direct
 > ```
 
+### 手机 / 笔记本接入：用内核 WireGuard（不要用 EasyTier 的 vpn-portal）
+
+EasyTier 2.6.4 的 `--vpn-portal wg://…` 目前**是坏的**：服务端能打印客户端配置、日志也写「client connected」，但实测客户端 `wg show` 的 `latest handshake` 恒为 0、收发 0 B；服务端抓包只看到入向握手包、没有回包。原因是它用 `network_name + network_secret` 当种子给两端派生密钥（服务端与客户端私钥同源），上游 main 分支后来才改成按客户端派生。
+
+替代做法：在**家里那台**上跑内核 WireGuard，EasyTier 保留只做站点互通。
+
+```bash
+# 家里那台（本例 n6）
+apt install -y wireguard-tools
+cd /etc/wireguard && umask 077
+wg genkey | tee server.key | wg pubkey > server.pub
+```
+
+```ini
+# /etc/wireguard/wg0.conf
+[Interface]
+Address = 10.99.0.1/24
+ListenPort = 11010
+PrivateKey = <server.key>
+MTU = 1380
+PostUp = iptables -t nat -A POSTROUTING -s 10.99.0.0/24 -o eth0 -j MASQUERADE
+PostDown = iptables -t nat -D POSTROUTING -s 10.99.0.0/24 -o eth0 -j MASQUERADE
+
+[Peer]
+PublicKey = <手机公钥>
+AllowedIPs = 10.99.0.10/32
+```
+
+```ini
+# 手机 WireGuard App 导入
+[Interface]
+PrivateKey = <手机私钥>
+Address = 10.99.0.10/32
+DNS = 192.168.5.1
+MTU = 1380
+
+[Peer]
+PublicKey = <server.pub>
+AllowedIPs = 10.99.0.0/24, 192.168.5.0/24, 10.144.0.0/24
+Endpoint = [<家里那台的公网 IPv6>]:11010
+PersistentKeepalive = 25
+```
+
+路由器放行 **UDP 11010**（和 EasyTier 的 wss 不冲突：一个 TCP 一个 UDP）。
+
+三个注意点：
+
+1. `AllowedIPs` 写的是「要访问哪些网段」，不是「全部走隧道」。想全局代理手机流量才写 `0.0.0.0/0`，那样会把家庭宽带当出口，通常不是你要的。
+2. **远端客户端拿不到面板的 DNS 广告拦截**：dae 只劫持 `lan_interface`（eth0）上的 53 端口，WireGuard 客户端发往家里那台 53 端口的查询会被丢弃（实测超时）。所以 `DNS` 填**路由器地址**（如 192.168.5.1）。想让远端也吃拦截，需要把 `wg0` 加进 dae 的 `lan_interface`——那等于手机流量也走代理，自行权衡。
+3. 在同一台机器上同时跑 EasyTier 和 WireGuard 客户端做测试时，两者路由会撞（`RTNETLINK answers: File exists`），要在测试配置里加 `Table = off` 再手工加路由。手机没有这个问题。
+
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |
