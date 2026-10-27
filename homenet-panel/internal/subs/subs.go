@@ -193,6 +193,9 @@ func parseLink(line string) Node {
 	if scheme == "vmess" {
 		return parseVmess(rest)
 	}
+	if scheme == "ssr" {
+		return parseSSR(rest)
+	}
 	// 去掉 fragment(#tag) 与 query(?...)
 	tag := ""
 	if i := strings.Index(rest, "#"); i >= 0 {
@@ -300,4 +303,57 @@ func itoa(i int64) string {
 		b[p] = '-'
 	}
 	return string(b[p:])
+}
+
+// parseSSR 解析 ShadowsocksR 链接。整个载荷（含 /? 之后的参数）是一段 base64url：
+//
+//	ssr://base64(host:port:protocol:method:obfs:base64pass/?obfsparam=&protoparam=&remarks=&group=)
+//
+// remarks 里才是节点名（如「【隧道】香港 P1」），不解析就只能看到一串 base64。
+func parseSSR(rest string) Node {
+	if i := strings.Index(rest, "#"); i >= 0 {
+		rest = rest[:i]
+	}
+	dec, ok := tryBase64(rest)
+	if !ok {
+		return Node{Scheme: "ssr"}
+	}
+	main, query := dec, ""
+	if i := strings.Index(dec, "/?"); i >= 0 {
+		main, query = dec[:i], dec[i+2:]
+	} else if i := strings.Index(dec, "?"); i >= 0 {
+		main, query = dec[:i], dec[i+1:]
+	}
+	main = strings.TrimSuffix(main, "/")
+	host, port := "", ""
+	if i := strings.Index(main, ":"); i >= 0 {
+		host, port = main[:i], main[i+1:]
+	} else {
+		host = main
+	}
+	if i := strings.Index(port, ":"); i >= 0 {
+		port = port[:i] // 剩余字段是协议/加密，丢掉
+	}
+	tag := ""
+	for _, kv := range strings.Split(query, "&") {
+		k, v, found := strings.Cut(kv, "=")
+		if !found {
+			continue
+		}
+		switch k {
+		case "remarks", "group":
+			if s, ok := tryBase64(v); ok {
+				if u, err := url.QueryUnescape(s); err == nil {
+					s = u
+				}
+				if k == "remarks" || tag == "" {
+					tag = s
+				}
+			}
+		}
+	}
+	if tag == "" {
+		tag = host
+	}
+	return Node{Scheme: "ssr", Host: host, Port: port, Tag: tag}
 }

@@ -140,3 +140,26 @@ func TestFetchRawNoUAFallsBackToGoDefault(t *testing.T) {
 		t.Errorf("DefaultUA 置空后应回退到 Go 默认 UA，实际 %q", gotUA)
 	}
 }
+func TestParseSSR(t *testing.T) {
+	// 真实样本（summer 机场）：名字在 base64 载荷的 remarks 参数里。
+	line := "ssr://c28yNjA1MjAtY24tMjd2My5zb25sb2RkMzY1LmNvbTo0MjM0NTphdXRoX2FlczEyOF9zaGExOmFlcy0yNTYtY2ZiOnRsczEuMl90aWNrZXRfYXV0aDpTRFpLYldwTS8_b2Jmc3BhcmFtPU1tWmpOamt5TlRFMk5DNXRhV055YjNOdlpuUXVZMjl0JnByb3RvcGFyYW09TWpVeE5qUTZhSFpHTkZCSmVIRSZyZW1hcmtzPTQ0Q1E2WnFuNllHVDQ0Q1I1WS13NXJtLUlGQXg"
+	n := parseLink(line)
+	if n.Scheme != "ssr" {
+		t.Fatalf("scheme=%q", n.Scheme)
+	}
+	if n.Host != "so260520-cn-27v3.sonlodd365.com" {
+		t.Fatalf("host=%q", n.Host)
+	}
+	if n.Port != "42345" {
+		t.Fatalf("port=%q", n.Port)
+	}
+	if n.Tag != "【隧道】台湾 P1" {
+		t.Fatalf("tag 应取自 remarks，得到 %q", n.Tag)
+	}
+	if strings.Contains(n.Raw, "SDZKbWpM") {
+		t.Fatalf("Raw 未赋值时不该带凭据")
+	}
+	if bad := parseLink("ssr://not-base64!!"); bad.Scheme != "ssr" || bad.Host != "" {
+		t.Fatalf("坏链接应退化为只有 scheme：%+v", bad)
+	}
+}

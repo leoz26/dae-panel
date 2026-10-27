@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.55  
+> **文档版本：** v0.56  
 > **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
@@ -2863,7 +2863,37 @@ TLS 连通性：youtube 3035 ms / cloudflare 3286 ms / github 2481 ms / baidu 74
 - **派生字段绝不进持久结构**。`json:"omitempty"` 不等于「不落盘」；要么 `json:"-"`（连带 API 也不输出）、要么在 Load/Save 两侧强制清零——后者才能既保留 API 字段又不污染文件。
 - 「先删 A 再删 B」的两步操作，只要中间需要用户跨页搬运，就应该在第一步里用一次事务把两件事做完（这里靠 detach），否则用户看到的就是「按钮坏了」。
 - `pkill -f "<模式>"` 的模式若出现在**同一条 ssh 命令的后续文本**里（例如同一个命令串后面还有 `--addr 127.0.0.1:8899`），会连自己所在的 shell 一起杀掉，表现为命令无任何输出。用方括号打断字面量（`889[9]`）也只对自身 argv 生效，仍有上述陷阱；更稳的是先用 `ss -ltnp` 取 pid 再 `kill <pid>`。
-## 15. 本版（v0.55）变更清单
+### 14.45 SSR 订阅解析（v0.56）
+
+#### 14.45.1 现象与根因
+
+用户在「订阅·分组」页看 summer 订阅的 81 个节点，61 条 ssr 链接的「协议」列是 ssr、「地址」列却是一串 base64，备注（tag）也是同一串 base64 —— 看起来「没有任何节点名」，于是他判断按名字筛节点的代理组「无法生效」。
+
+根因在 internal/subs/subs.go 的 parseLink：它只对 vmess 做了专门解析，其余协议一律走通用逻辑（取 #fragment 当名字、取 @ 之后当 host）。ssr 链接的载荷整体是 base64url（host:port:protocol:method:obfs:base64pass 后面接 /?obfsparam=&protoparam=&remarks=&group=），既没有 @ 也没有 #，于是 host 被算成 base64 串、端口为空、tag 回落到 host。dae 自己解析 SSR 是正确的（journal 里 dialer 名字是「【隧道】香港 P1」），所以故障只出现在**面板展示与面板侧的分组预览**上：/api/subs/groups 用同一套解析结果算命中，hk/sg/AI 分别只报 2/2/7，而真实匹配应是 18/7/24。
+
+#### 14.45.2 修法
+
+parseLink 增加 ssr 分支，新增 parseSSR(rest string) Node：整段 base64url 解码 → 按 /? （无则 ?）切出主段与参数 → 主段用第一个冒号切 host、第二个冒号切 port（其余是协议/加密，丢弃）→ 从 remarks（缺失时退到 group）取名字并做二次 base64url 解码与 url.QueryUnescape → 都没有则回落 host。坏链接退化为只有 scheme 的节点，不 panic、不回传凭据。
+
+#### 14.45.3 验证（.85）
+
+| 指标 | 修前 | 修后 |
+| --- | --- | --- |
+| summer 解析异常节点（无端口或 tag 等于 host） | 61 / 81 | 0 / 81 |
+| 分组 hk 命中 | 2 | 18 |
+| 分组 sg 命中 | 2 | 7 |
+| 分组 AI 命中 | 7 | 24 |
+| 分组 proxy 命中 | 81 | 81 |
+| 节点样例 | ssr + 一串 base64 | ssr so260520-cn-27v3.sonlodd365.com:42345 【隧道】台湾 P1 |
+
+浏览器（headless Chrome + CDP）打开「订阅·分组」：页面里出现「【隧道】香港」等名字，页面上不再出现 ssr 加 base64 的假地址，模板泄漏 0。回归测试 TestParseSSR 用真实 summer 链接断言 host/port/tag（【隧道】台湾 P1）与坏链接退化。
+
+#### 14.45.4 教训
+
+- 「解析不出名字」要当成解析 bug 而不是供应商 bug：先拿一条真实链接手工解码，确认字段在哪，再判断是不是上游没给名字。本例名字一直在 remarks 里。
+- 面板展示与 dae 实际行为必须用同一份解析结果对照（journal 的 dialer 名字就是 dae 的真实视图），否则很容易把「面板显示不对」误判成「分流不生效」。
+- 新增协议解析时同步补一条真实样本测试，比构造样本更能挡住字段顺序猜错。
+## 15. 本版（v0.56）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2916,3 +2946,4 @@ TLS 连通性：youtube 3035 ms / cloudflare 3286 ms / github 2481 ms / baidu 74
 43. **EasyTier WSS 组网与「组网」页（v0.52）**：新增 §14.42——选型（EasyTier 单文件 5.6–7.2 MB；Tailscale 41.1 MB 且 dae 内无相关模块无法内嵌）、WSS 伪装方案（只监听 wss、SNI 用含 `speedtest` 的 AAAA 子域名、路由器放行 TCP 11010）、Caddy 反代实测不可行、`internal/mesh`（`Detect`/`Control`/`ParsePeers`/`ParseRoutes`）+ `GET /api/mesh`、`POST /api/mesh/service` + 前端「组网」页；实测 peer `wss6` 11.89 ms、ping 家里网段 12.9 ms、iperf3 上 60.0 / 下 64.5 Mbit/s。
 45. **§14.43（v0.54）**：n6 规则/DNS 跨机迁移到 .85（只覆盖 dns/groups/rules/fallback，保留 global 与订阅；DoT 双上游 + DNS 层广告拦截 + 境外拒绝 AAAA；实测 doubleclick A=0、baidu AAAA=3、youtube AAAA=0），并新增「一键停用 / 重启 dae」（`StopDae`/`RestartDae` + `/api/setup/{stop,restart}-dae` + 前端按钮与二次确认），实机 stop→inactive、start/restart→active。
 46. **§14.44（v0.55）**：订阅删除按钮点不动——前端 `:disabled="it.inModel"` 直接禁用 + `InModel` 作为持久字段被写进 `subsrc.json` 形成脏数据（订阅移出内容层后仍永远「已引用」）。改为派生字段（Load 清零、Save 写副本前清零）+ 删除时支持 `detach` 一次性「摘订阅→apply→删登记」，失败整体回滚；实机临时订阅往返验证 md5 归位、CF 的 inModel 变 false；新增两条回归测试。
+47. **§14.45（v0.56）**：SSR 订阅解析——parseLink 原先只特判 vmess，ssr 链接的 base64url 载荷既无 @ 也无 #，导致面板把 base64 串当 host、端口为空、tag 回落 host，summer 订阅 61/81 节点显示为乱码、分组预览命中数被低估（hk 2 而实际 18）。新增 parseSSR（整段解码 → 拆 host/port → 从 remarks/group 取名字）+ 真实样本回归测试 TestParseSSR；修复后解析异常 0/81、分组命中 18/7/24。
