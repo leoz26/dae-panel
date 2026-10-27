@@ -487,6 +487,54 @@ nft add rule ip hnp_mesh post oifname "tun0" ip saddr 192.168.1.0/24 masquerade
 - 代价：对端看到的所有连接源地址都是本机的 mesh 地址，对端日志里看不到真实客户端 IP。
 - 反方向（对端局域网里的设备访问本网段）不会自动通，需要在那一侧同样启用，并让它的 EasyTier 发布本网段。
 
+## 2.13 在 OpenWrt / iStoreOS 上部署（路由器本机当网关）
+
+路由器本身当网关是最省事的一档（`gateway`），但 OpenWrt 系与 Debian 有 4 处差异，面板都已适配。
+
+### 2.13.1 一句话步骤
+
+```sh
+# 1) 放 dae（OpenWrt 的 apk/opkg 里通常没有，用官方静态包）
+curl -L -o /tmp/dae.tar.xz https://github.com/daeuniverse/dae/releases/download/v2.1.1/dae-linux-x86_64_v3_avx2.tar.xz
+xz -dc /tmp/dae.tar.xz | tar -x -C /tmp && cp /tmp/dae /usr/bin/dae && chmod 755 /usr/bin/dae
+dae --version
+
+# 2) 面板：从开发机推二进制 + 用 install.sh 落盘（procd 会自动识别）
+bash deploy/deploy.sh root@192.168.1.11 -i ~/.ssh/your_key -- --traffic-iface br-lan --password '<面板密码>'
+```
+
+### 2.13.2 平台差异（都已修，知道即可）
+
+| 差异 | 影响 | 面板处理 |
+|---|---|---|
+| 没有 systemd，用 procd | 服务启停、状态判断 | `install.sh` 生成 `/etc/init.d/homenet-panel`；dae 状态走「systemctl → pid 文件 → 二进制」四级判定 |
+| busybox 没有 `install(1)` | 安装脚本报 `install: not found` | 自动改用 `cp` + `chmod` |
+| 没有 `/usr/local/bin` | 二进制落盘失败 | 平台为 openwrt 时装到 `/usr/bin/homenet-panel` |
+| `pgrep -x` 匹配不到 dae | 接入向导/状态栏误报 dae 未运行 | 退回 `/var/run/dae.pid` + `kill -0` 判断 |
+
+另外两点：
+- **字节统计需要 `ss`**：`opkg update && opkg install ss`（busybox 没带）。
+- **内核 6.6 及以下没有 netkit**：dae 日志会写 `Created veth device pair (kernel … does not support Netkit)`，属正常回退，功能不受影响。
+
+### 2.13.3 与 OpenClash / passwall 共存
+
+它们和 dae 都会接管 LAN 流量，**只能留一个**：
+
+```sh
+/etc/init.d/openclash stop && /etc/init.d/openclash disable   # 关
+/etc/init.d/openclash enable && /etc/init.d/openclash start   # 回滚（配置不会被动）
+```
+
+### 2.13.4 路由器上验证清单
+
+```sh
+curl -sk https://127.0.0.1:8787/api/status          # service=active，pid 有值
+curl -sk https://127.0.0.1:8787/api/traffic/bytes   # 200，clients 里能看到内网设备地址
+nslookup doubleclick.net 192.168.1.11               # 应该 No answer（DNS 广告拦截生效）
+```
+
+实测（iStoreOS 24.10.8 / x86_64 / 内核 6.6.144）：接入向导推荐档 `gateway`、自检 5 项通过 0 待确认、三条 Clash 订阅（29/81/1 节点）全部转换成功、11 个标签页浏览器渲染无异常。
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |

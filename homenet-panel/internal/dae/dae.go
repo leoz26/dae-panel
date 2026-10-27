@@ -133,9 +133,23 @@ func (a *Adapter) RunningPID() int {
 }
 
 func (a *Adapter) ServiceActive() string {
-	out, err := exec.Command("systemctl", "is-active", "dae.service").Output()
-	if err != nil {
-		return "unknown"
+	// systemd 系统：以 systemctl 为准
+	if _, err := exec.LookPath("systemctl"); err == nil {
+		if out, err := exec.Command("systemctl", "is-active", "dae.service").Output(); err == nil {
+			if s := strings.TrimSpace(string(out)); s != "" {
+				return s
+			}
+		}
 	}
-	return strings.TrimSpace(string(out))
+	// 无 systemd（OpenWrt/procd 等）：pid 文件里有活进程就算 active
+	if pid := a.RunningPID(); pid > 0 {
+		return "active"
+	}
+	if _, err := os.Stat(a.PidFile); err == nil {
+		return "inactive"
+	}
+	if _, err := exec.LookPath(a.Binary); err == nil {
+		return "inactive"
+	}
+	return "unknown"
 }

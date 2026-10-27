@@ -124,7 +124,7 @@ func Detect(o Options) Status {
 		st.DaeInstalled = true
 		st.DaeVersion = firstLine(strings.TrimSpace(out))
 	}
-	if _, err := o.Runner.Run("pgrep", "-x", "dae"); err == nil {
+	if daeProcessRunning(o.Runner) {
 		st.DaeRunning = true
 	}
 	if info, err := os.Stat(o.EntryPath); err == nil {
@@ -154,6 +154,22 @@ func Detect(o Options) Status {
 		st.Note = "配置已存在但 dae 没在运行：点「启动 dae」"
 	}
 	return st
+}
+
+// daeProcessRunning 判断 dae 是否在跑。pgrep -x 在 busybox/OpenWrt 上匹配不到，
+// 退化到 dae 自己的 pid 文件（/var/run/dae.pid）+ kill -0。
+func daeProcessRunning(r CmdRunner) bool {
+	if out, err := r.Run("pgrep", "-x", "dae"); err == nil && strings.TrimSpace(out) != "" {
+		return true
+	}
+	if out, err := r.Run("cat", "/var/run/dae.pid"); err == nil {
+		if pid := strings.TrimSpace(out); pid != "" {
+			if _, e := r.Run("kill", "-0", pid); e == nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func memlockKB() int {

@@ -86,10 +86,11 @@ type Server struct {
 	Traffic    traffic.Source // 可插拔统计采集源（DNS 旁路；eBPF 预留）
 	TrafficErr error
 
-	Bytes      *traffic.ConnCollector // 字节级流量统计（socket 计数器轮询）
-	bytesMu    sync.Mutex
-	bytesIdx   map[string]string // ip:port -> 节点名
-	bytesIdxAt time.Time
+	Bytes         *traffic.ConnCollector // 字节级流量统计（socket 计数器轮询）
+	bytesMu       sync.Mutex
+	bytesIdx      map[string]string // ip:port -> 节点名
+	bytesIdxAt    time.Time
+	bytesBuilding bool
 }
 
 func New(c Config) *Server {

@@ -47,6 +47,15 @@ done
 run() { if [ "$DRY" = 1 ]; then info "将执行: $*"; else "$@"; fi }
 
 
+dae_running() { # pgrep -x 在 busybox/OpenWrt 上不可靠，退到 pid 文件
+  if pgrep -x dae >/dev/null 2>&1; then return 0; fi
+  if [ -r /var/run/dae.pid ]; then
+    pid=$(cat /var/run/dae.pid 2>/dev/null)
+    [ -n "$pid" ] && [ -d "/proc/$pid" ] && return 0
+  fi
+  return 1
+}
+
 fetch_to() { # fetch_to URL DEST —— curl → wget → python3 三级回退
   local url=$1 dest=$2
   if command -v curl >/dev/null 2>&1; then curl -fsSL -o "$dest" "$url" && return 0; fi
@@ -62,7 +71,7 @@ DAE_BIN=$(command -v dae 2>/dev/null || true)
 if [ -n "$DAE_BIN" ]; then
   DAE_VER=$("$DAE_BIN" --version 2>/dev/null | head -1)
   ok "dae: ${DAE_VER:-$DAE_BIN}"
-  if pgrep -x dae >/dev/null 2>&1; then ok "dae 在运行"; else warn "dae 未运行：面板可打开，但应用配置会失败（reload 报错）"; fi
+  if dae_running; then ok "dae 在运行"; else warn "dae 未运行：面板可打开，但应用配置会失败（reload 报错）"; fi
 else
   warn "未安装 dae：面板将以 degraded 模式运行（只读，不能应用配置）"
   APT=0; command -v apt-get >/dev/null 2>&1 && APT=1
@@ -187,8 +196,18 @@ ok "$ETC_DIR（TLS 证书）"
 
 # ---------- 3. 二进制 ----------
 step "3/8 安装二进制"
+# OpenWrt/iStoreOS 的 /usr/local/bin 可能不存在，装到 /usr/bin（同样在 overlay 上持久）
+if [ "$PLATFORM" = openwrt ]; then BIN_DST=/usr/bin/homenet-panel; fi
+if [ "$DRY" = 1 ]; then info "将确保 $(dirname "$BIN_DST") 存在"; else mkdir -p "$(dirname "$BIN_DST")"; fi
 if [ -f "$BIN_DST" ]; then info "已存在旧版本，将被替换（旧文件备份到 $BIN_DST.bak）"; run cp -a "$BIN_DST" "$BIN_DST.bak"; fi
-run install -m 0755 "$BIN_SRC" "$BIN_DST"
+# 兼容没有 install(1) 的精简系统（OpenWrt/busybox）
+if command -v install >/dev/null 2>&1; then
+  run install -m 0755 "$BIN_SRC" "$BIN_DST"
+else
+  if [ "$DRY" = 1 ]; then info "将执行: cp $BIN_SRC $BIN_DST && chmod 755 $BIN_DST"; else
+    cp -f "$BIN_SRC" "$BIN_DST" && chmod 755 "$BIN_DST" || die "复制二进制失败"
+  fi
+fi
 ok "$BIN_DST"
 
 # ---------- 4. 证书 ----------
@@ -302,7 +321,7 @@ for i in 1 2 3 4 5 6 7 8 9 10; do
 done
 [ "$LISTEN" = 1 ] && ok "端口 $PORT 已监听" || warn "端口 $PORT 未监听，检查日志"
 if command -v dae >/dev/null 2>&1; then
-  if systemctl is-active dae >/dev/null 2>&1 || pgrep -x dae >/dev/null 2>&1; then ok "dae 运行中"; else warn "dae 未运行"; fi
+  if systemctl is-active dae >/dev/null 2>&1 || dae_running; then ok "dae 运行中"; else warn "dae 未运行"; fi
 fi
 if [ -f "$STATE_DIR/model.json" ]; then info "面板模型: $STATE_DIR/model.json"; else info "面板模型: 首次打开页面时会从 $ETC_DIR/../dae/config.dae 解析生成"; fi
 

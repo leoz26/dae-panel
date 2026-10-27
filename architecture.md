@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.57  
+> **文档版本：** v0.58  
+> **修订（v0.58）：** 新增 §14.47：面板移植到 iStoreOS/iStoreOS 系 x86_64 路由器（192.168.1.11）的全部兼容性结论——dae 在 6.6.144 上无 netkit 自动回退 veth、procd 无 systemd、busybox 无 install(1)、/usr/local/bin 不存在、pgrep -x 失效、/api/traffic/bytes 因串行 DNS 解析挂死；四个 bug 已修，全量功能实测通过。
 > **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
@@ -2945,7 +2946,61 @@ table ip hnp_mesh {
 - **grep 守卫要按规则的真实字段顺序**：最初写的是 `grep -q 'ip saddr %s .*oifname "%s"'`，而 nft 实际打印顺序是 `oifname "tun0" ip saddr …`，守卫永远不命中 → 每执行一次就多一条规则。改为 `grep -q 'ip saddr %s masquerade'` 后幂等成立。
 - 另记一条老坑：`ssh '...pkill -f "serve --addr 127.0.0.1:8899"'` 会匹配到这条 ssh 命令自身的命令行而把自己杀掉（表现为命令无输出、后续步骤不执行）；改成 `ss -ltnp | grep :8899` 取 pid 再 `kill`。
 
-## 15. 本版（v0.57）变更清单
+## 14.47 OpenWrt / iStoreOS 兼容性（v0.58：面板移植到 x86_64 路由器）
+
+> 起因：用户要求「把面板移植到 192.168.1.11（iStoreOS，已装 OpenClash），自己测试兼容性并全量移植」。
+> 结论：**面板与 dae 在 OpenWrt 系（iStoreOS 24.10.8 / x86_64 / 内核 6.6.144 / procd）上可用**，代价是 4 处平台差异，已全部在代码里修掉。
+
+### 14.47.1 实测环境
+
+| 项 | 值 |
+|---|---|
+| 系统 | iStoreOS 24.10.8 2026073111（OpenWrt 系），x86_64，内核 6.6.144 |
+| 服务管理 | procd（`/etc/init.d`），**没有 systemd** |
+| 内核能力 | BTF 有（`/sys/kernel/btf/vmlinux` 5,047,156B）、`unprivileged_bpf_disabled=2`、memlock 8192KB |
+| 网络 | `br-lan 192.168.1.11/24`，默认路由 `via 192.168.1.1 dev br-lan`，`ip_forward=1` |
+| 已有代理 | luci-app-openclash 0.47.156（clash 监听 9090、dnsmasq 监听 53），passwall2 / tailscale / naiveproxy |
+| 缺失工具 | 无 python3、无 ss（`opkg install ss`）、无 iptables、`/usr/local/bin` 不存在、busybox 无 `install(1)`、`pgrep -x` 不可靠 |
+
+### 14.47.2 dae 的安装与运行（无 netkit 也跑得起来）
+
+- dae v2.1.1 官方 release 的 `dae-linux-x86_64_v3_avx2.tar.xz`（11,825,180B）解出静态二进制（35,459,234B），musl 上直接可跑；`dae --version` 正常。
+- 自写 `/etc/init.d/dae`（procd，`START=90`、`procd_set_param limits memlock=unlimited`、`respawn 3600 5 0`、`reload_service()` 先 `dae reload` 失败再 stop/start）。
+- **内核 6.6.144 不支持 netkit**：journal 明确 `INFO Created veth device pair (kernel v6.6.144 does not support Netkit)` → dae 自动回退 veth（`ip link` 只见 `dae0@if40`）。功能不受影响，只是拦截路径与 .85 的 netkit 设备对不同。
+
+### 14.47.3 四个移植 bug（都已修）
+
+| # | 现象 | 根因 | 修法 |
+|---|---|---|---|
+| 1 | `install.sh` 报 `install: not found` | busybox 没有 coreutils 的 `install(1)` | `command -v install` 判断，否则 `cp -f` + `chmod 755` |
+| 2 | 二进制装到 `/usr/local/bin` 失败 | OpenWrt 没有该目录 | 平台为 openwrt 时目标改 `/usr/bin/homenet-panel`，并先 `mkdir -p` |
+| 3 | 面板显示 dae「未知状态」、接入向导 `daeRunning=false`、一键启停失灵 | `ServiceActive()` 只认 `systemctl is-active`；busybox 的 `pgrep -x dae` 匹配不到 | `dae.ServiceActive()` 改为 systemctl → `RunningPID()>0` → pid 文件/二进制 → unknown 四级；`bootstrap`/`access` 各加 `daeProcessRunning()`（pgrep → `/var/run/dae.pid` + `kill -0`） |
+| 4 | `/api/traffic/bytes` 挂死 >150s（http=000） | `nodeIndex()` 对 111 个节点**串行** `net.LookupHost`，无超时 | 改成异步：命中 10 分钟缓存直接返回；过期则置 `bytesBuilding` 并后台重建，先返回旧值；重建用 `&net.Resolver{PreferGo:true}` + 3s 超时 + 16 并发 |
+
+### 14.47.4 全量功能实测（192.168.1.11，2026-10-28）
+
+| 功能 | 结果 |
+|---|---|
+| 状态栏 | `service: active`、pid 11362、`progressCode: ReloadDone` |
+| 字节统计 | 200（0.5s）、sockets 3419、clients 4（192.168.1.11/.1/.101/.224）、nodes 29、source `ss-sockets+conntrack` |
+| 接入向导 | probe：platform openwrt、serviceManager procd、hasBpf/hasBtf true、memlockKB -1、ipForward true、daeRunning true、daeLanIfaces [br-lan]、**推荐档 gateway**；plan 4 步 / 6 自检；verify **5 通过 0 待确认** |
+| 安装与初始化 | `{serviceManager: procd, daeRunning: true, configManaged: true, memlockKB: -1}` |
+| Geo 数据 | 更新到上游 `202610262207`（geoip 16,570,425B / geosite 11,270,966B），版本检测一致 |
+| 订阅 | dual 29/29、summer 81/81、CF 1/1（三条都是 Clash YAML，自动转链接后 apply，reloadCode 0） |
+| 审计 | CSV 导出 200/BOM 正确；retention 文案正常 |
+| 浏览器 | headless Chrome + CDP 逐 tab 点击，11 个 tab 全部渲染，`{{` 泄漏 0 |
+| 数据面 | Mac（网关 192.168.1.11）baidu 200、google 200（经代理）、`nslookup doubleclick.net 192.168.1.11` → No answer（DNS 广告拦截对 LAN 生效） |
+
+### 14.47.5 与 OpenClash 共存
+
+两者都会接管 LAN 流量（tproxy/redirect），**不能同时开**。本次做法：`/etc/init.d/openclash stop && disable`（去掉 `/etc/rc.d/S99openclash`），OpenClash 配置一个字节没动，回滚就是 `enable && start`。
+
+### 14.47.6 遗留
+
+- `sockets 3419` 偏多：OpenWrt 上 `ss -tunip` 会把 conntrack 也列出来（.85 只有 60 左右），后续按进程名过滤。
+- 未在该机安装 EasyTier，组网页按设计优雅降级（显示未安装）。
+
+## 15. 本版（v0.58）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3001,3 +3056,5 @@ table ip hnp_mesh {
 47. **§14.45（v0.56）**：SSR 订阅解析——parseLink 原先只特判 vmess，ssr 链接的 base64url 载荷既无 @ 也无 #，导致面板把 base64 串当 host、端口为空、tag 回落 host，summer 订阅 61/81 节点显示为乱码、分组预览命中数被低估（hk 2 而实际 18）。新增 parseSSR（整段解码 → 拆 host/port → 从 remarks/group 取名字）+ 真实样本回归测试 TestParseSSR；修复后解析异常 0/81、分组命中 18/7/24。
 
 48. **§14.46（v0.57）**：局域网互通面板化——`.85` 作网关后，背后设备访问对端 `192.168.5.0/24` 只有 ICMP 通、TCP 卡在 `SYN_SENT [UNREPLIED]`（对端无回程路由）。新增 `internal/mesh/lan.go`（`DetectLan`/`ApplyLan`/`RemoveLan`/`RenderNatScript`/`RenderNatUnit`，只维护自有 `hnp_mesh` 表 + `hnp-mesh-nat.sh` + `hnp-mesh-nat.service`）+ `GET /api/mesh/lan`、`POST /api/mesh/lan/apply` + 「组网」页「局域网互通」卡片（状态表 + dry-run / 启用 / 停用）；修掉 3 个真 bug（dash 不吃无引号花括号、grep 守卫字段顺序错导致规则叠加、Vue 模板里真实换行导致整页空白）。实机连 apply 两次仍只有 1 条 masquerade 规则，Mac 侧 `http://192.168.5.1/` 200。
+
+49. **§14.47（v0.58）**：OpenWrt / iStoreOS 兼容性——面板与 dae 移植到 x86_64 路由器 192.168.1.11（iStoreOS 24.10.8 / 内核 6.6.144 / procd）。dae 因内核不支持 netkit 自动回退 veth 仍可用；修掉 4 个平台 bug：busybox 无 `install(1)`、OpenWrt 无 `/usr/local/bin`、`systemctl is-active` 与 `pgrep -x` 在 procd/busybox 下双双失效（改四级判定 + pid 文件兜底）、`/api/traffic/bytes` 因对 111 个节点串行 DNS 解析挂死 >150s（改异步索引 + 3s 超时 + 16 并发）。全量功能实测：状态/字节统计/接入向导（推荐 gateway、自检 5 通过）/Geo/订阅三源 Clash 转换/审计 CSV/11 个 tab 浏览器无泄漏，数据面 google 200 与 DNS 广告拦截对 LAN 生效。

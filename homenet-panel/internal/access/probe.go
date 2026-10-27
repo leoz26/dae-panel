@@ -153,10 +153,8 @@ func Collect(r Runner, rootDir, daeConfigPath string) *Probe {
 
 	// dae 是否存在/在跑/版本（不同版本子命令不同：v2.1.1 只支持 --version）
 	p.DaeInstalled, p.DaeVersion = detectDae(r)
-	if p.DaeInstalled {
-		if out, err := r.Run("pgrep", "-x", "dae"); err == nil && strings.TrimSpace(out) != "" {
-			p.DaeRunning = true
-		}
+	if p.DaeInstalled && daeProcessRunning(r) {
+		p.DaeRunning = true
 	}
 	p.DaeLanIfaces = daeLanIfaces(daeConfigPath)
 
@@ -418,6 +416,22 @@ func daeConfigFiles(entry string) []string {
 }
 
 // daeLanIfaces 从 dae 配置（含 include 展开）中读取 lan_interface 声明。
+// daeProcessRunning 判断 dae 是否在跑：pgrep -x 在 busybox/OpenWrt 上不可靠，
+// 退化到 dae 的 pid 文件 + kill -0（与 bootstrap 中的同名判断口径一致）。
+func daeProcessRunning(r Runner) bool {
+	if out, err := r.Run("pgrep", "-x", "dae"); err == nil && strings.TrimSpace(out) != "" {
+		return true
+	}
+	if out, err := r.Run("cat", "/var/run/dae.pid"); err == nil {
+		if pid := strings.TrimSpace(out); pid != "" {
+			if _, e := r.Run("kill", "-0", pid); e == nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func daeLanIfaces(configPath string) []string {
 	var out []string
 	seen := map[string]bool{}
