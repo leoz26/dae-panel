@@ -37,7 +37,8 @@ type Entry struct {
 	AddedKeys   []string `json:"addedKeys,omitempty"`
 	RemovedKeys []string `json:"removedKeys,omitempty"`
 	LastApplied string   `json:"lastApplied,omitempty"`
-	// InModel 表示该订阅仍被配置（内容层）引用；只有未引用的登记项才允许从登记表删除。
+	// InModel 表示该订阅仍被配置（内容层）引用。它是每次请求现算的派生字段：
+	// Load 一律清零、从不写回盘（早期版本把它持久化，订阅从内容层移除后仍显示「已引用」）。
 	InModel bool `json:"inModel,omitempty"`
 }
 
@@ -62,6 +63,10 @@ func Load(path string) *Store {
 			if t.Items == nil {
 				t.Items = []Entry{}
 			}
+			// InModel 是派生字段，旧版本可能把它写进文件；读入一律清零，由调用方按模型现算。
+			for i := range t.Items {
+				t.Items[i].InModel = false
+			}
 			return &t
 		}
 	}
@@ -73,7 +78,14 @@ func (s *Store) Save() error {
 	if s.Items == nil {
 		s.Items = []Entry{}
 	}
-	b, err := json.MarshalIndent(s, "", "  ")
+	// 派生字段不落盘：写盘前清零，避免旧值被带进文件。
+	cp := *s
+	cp.Items = make([]Entry, len(s.Items))
+	for i, e := range s.Items {
+		e.InModel = false
+		cp.Items[i] = e
+	}
+	b, err := json.MarshalIndent(&cp, "", "  ")
 	if err != nil {
 		return err
 	}

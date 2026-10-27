@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"homenet-panel/internal/audit"
+	"homenet-panel/internal/configtx"
+	"homenet-panel/internal/model"
 	"homenet-panel/internal/subs"
 	"homenet-panel/internal/subsrc"
 )
@@ -146,6 +148,7 @@ func (s *Server) syncEntries() (*subsrc.Store, []subsrc.Entry) {
 	}
 	for _, e := range st.Items {
 		if !seen[e.Name] {
+			e.InModel = false // 派生字段，只有模型里还在的订阅才算「已引用」
 			out = append(out, e)
 		}
 	}
@@ -207,10 +210,13 @@ func (s *Server) handleSubsrcSetURL(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "item": e})
 }
 
-// handleSubsrcRemove 从登记表里删除一条上游（不删磁盘镜像；仍被内容层引用的拒绝删除）。
+// handleSubsrcRemove 从登记表里删除一条上游（不删磁盘镜像）。
+// 仍被内容层引用时默认拒绝；带 detach=true 会先把它从内容层订阅里摘掉并按事务应用
+// （备份 → dae validate → reload → 失败整体回滚），成功后再删登记。
 func (s *Server) handleSubsrcRemove(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name string `json:"name"`
+		Name   string `json:"name"`
+		Detach bool   `json:"detach"`
 	}
 	if err := readJSON(r, &req); err != nil {
 		writeJSON(w, 400, map[string]any{"error": "bad json"})
@@ -224,10 +230,48 @@ func (s *Server) handleSubsrcRemove(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st, items := s.syncEntries()
+	inModel := false
 	for _, it := range items {
 		if it.Name == name && it.InModel {
-			writeJSON(w, 409, map[string]any{"error": "该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用，再来删除登记"})
+			inModel = true
+		}
+	}
+	out := map[string]any{}
+	if inModel {
+		if !req.Detach {
+			writeJSON(w, 409, map[string]any{"error": "该订阅仍被「内容层 → 订阅」引用：可以带 detach=true 一次性摘掉并应用，或先到「内容层 → 订阅」删除再应用"})
 			return
+		}
+		m, _, err := s.loadModel()
+		if err != nil || m == nil {
+			writeJSON(w, 500, map[string]any{"error": "读取内容层模型失败，已中止（登记未删除）"})
+			return
+		}
+		removed, warnGroups := detachSubscription(m, name)
+		entry, core := model.Render(m)
+		if err := os.MkdirAll(filepath.Dir(s.CorePath), 0o700); err != nil {
+			writeJSON(w, 500, map[string]any{"error": err.Error()})
+			return
+		}
+		mgr := configtx.New(s.Dae, s.BackupDir)
+		mgr.Preflight = preflightHook(false)
+		res, aerr := mgr.ApplyMulti(s.EntryPath, []configtx.Change{
+			{Path: s.EntryPath, NewContent: []byte(entry)},
+			{Path: s.CorePath, NewContent: []byte(core)},
+		})
+		s.audit(r, "subsrc.remove", name, aerr == nil, "摘掉内容层引用后删除登记")
+		if aerr != nil {
+			writeJSON(w, 422, map[string]any{"error": "摘掉内容层引用失败，已回滚（登记未删除）: " + errText(aerr, res.Message), "result": res})
+			return
+		}
+		if serr := s.saveModel(m); serr != nil {
+			out["modelSaveError"] = serr.Error()
+		}
+		out["detached"] = true
+		out["detachedSubscriptions"] = removed
+		out["result"] = res
+		if len(warnGroups) > 0 {
+			out["emptyGroupWarning"] = "这些分组只靠该订阅筛节点，摘掉后会变空: " + strings.Join(warnGroups, ", ")
 		}
 	}
 	if !st.Delete(name) {
@@ -239,7 +283,32 @@ func (s *Server) handleSubsrcRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit(r, "subsrc.remove", name, true, "已从订阅源登记表删除")
-	writeJSON(w, 200, map[string]any{"ok": true})
+	out["ok"] = true
+	writeJSON(w, 200, out)
+}
+
+// detachSubscription 从模型里摘掉名为 name 的订阅，并返回被它牵连（filter 里引用了 subtag(name)）的分组名。
+// 只改内存里的模型，落盘与应用由调用方负责。
+func detachSubscription(m *model.Model, name string) (removed int, warnGroups []string) {
+	kept := m.Subscriptions[:0]
+	for _, sub := range m.Subscriptions {
+		if sub.Name == name {
+			removed++
+			continue
+		}
+		kept = append(kept, sub)
+	}
+	m.Subscriptions = kept
+	seen := map[string]bool{}
+	for _, g := range m.Groups {
+		for _, f := range g.Filters {
+			if strings.Contains(f, "subtag("+name+")") && !seen[g.Name] {
+				seen[g.Name] = true
+				warnGroups = append(warnGroups, g.Name)
+			}
+		}
+	}
+	return removed, warnGroups
 }
 
 // handleSubsrcCheck 只拉取上游做差异比对，不写任何文件（可全量或指定 name）。

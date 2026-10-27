@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.54  
+> **文档版本：** v0.55  
 > **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
 > **修订（v0.50）：** 新增 §14.40：字节统计的「按客户端」表改用 `/proc/net/nf_conntrack` 聚合（此前 `ss` 只能看到 dae 自己的 socket，LAN 客户端永远为空）；实测两台内核在 `nf_conntrack_acct` 上的差异，改为「acct 开着但表里没字节 → 降级显示连接数与主要目的并给出提示」，不静默显示 0。
@@ -2831,7 +2831,39 @@ TLS 连通性：youtube 3035 ms / cloudflare 3286 ms / github 2481 ms / baidu 74
 - 迁移时**不要整份 model 覆盖**：`global` 里的 `wan_interface` / 端口与本机网卡绑定，跨机照搬会把拦截接到不存在的网卡上。
 - 面板 `/api/model/apply` 响应里的 `applied`/`rolledBack` 有时取不到值，判定成功请以 `/var/run/dae.progress`（`2` 加 `OK`）与 `systemctl is-active dae` 为准。
 
-## 15. 本版（v0.54）变更清单
+### 14.44 订阅删除按钮点不动（v0.55）
+
+#### 14.44.1 现象与两个根因
+
+用户点「订阅源更新」页 DUAL 卡片上的「删除」，按钮灰着点不下去，卡片还标着「内容层已引用」。根因是两条叠在一起：
+
+1. **前端把按钮禁掉了**：`internal/api/index.html` 的删除按钮写着 `:disabled="it.inModel"`，只要订阅还出现在内容层（`/api/model` 的 `subscriptions`）就直接不可点；后端 `handleSubsrcRemove` 同样返回 409「该订阅仍被「内容层 → 订阅」引用，请先在那里删除并应用」。设计上「先删内容层再删登记」，但要用户自己在两个页面之间搬运，体验上等于「删不掉」。
+2. **`InModel` 被当成持久字段写进了盘（真 bug）**：`internal/subsrc/subsrc.go` 的 `Entry.InModel` 原本是 `json:"inModel,omitempty"`，而 `internal/api/subsrc.go` 的 `syncEntries()` 拿着 `st.Find(sub.Name)` 返回的**指向 `st.Items` 的指针**把 `InModel` 置 true，下一次 `Save` 就把 `inModel: true` 落进 `/var/lib/homenet-panel/subsrc.json`。订阅后来从内容层移除，没有任何代码把它改回 false ⇒ 该订阅**永远是「已引用」、永远删不掉**。.85 上的 CF 就是这个状态（模型里只有 dual / summer，CF 仍显示已引用）。
+
+#### 14.44.2 修法
+
+| 位置 | 改动 |
+| --- | --- |
+| `internal/subsrc/subsrc.go` | `InModel` 定性为**派生字段**：`Load` 读入后一律清零（清掉历史脏数据），`Save` 写盘前对副本清零（`cp.Items[i].InModel = false`），文件里不再出现该键 |
+| `internal/api/subsrc.go` | `syncEntries()` 末尾对「模型里没有」的登记项显式 `e.InModel = false`；`handleSubsrcRemove` 支持 `{name, detach}` |
+| `internal/api/subsrc.go` | 新增 `detachSubscription(m, name)`：从 `m.Subscriptions` 摘掉同名项，返回 filter 里含 `subtag(<name>)` 的分组名（去重）用于空组警告 |
+| `internal/api/index.html` | 删除按钮去掉 `:disabled`；`removeSrc()` 在有引用时弹二次确认，POST `{name, detach:true}`，成功后提示被警告的空组 |
+
+`detach=true` 的执行顺序是「先改配置、再删登记」：`loadModel` → 摘订阅 → `model.Render` → `configtx.ApplyMulti`（含 preflight、备份、validate、reload，失败整体回滚且**不删登记**）→ `saveModel` → `subsrc.Delete`。这样任何一步失败，内容层与登记表都保持原样。
+
+#### 14.44.3 实机验证（.85）
+
+- 造临时订阅 `tmpdel` 塞进模型并 apply（`reloadCode 0`，订阅变 `[dual, summer, tmpdel]`）→ `POST /api/subsrc/remove {name:'tmpdel', detach:true}` → 200 `detached=true removed=1`，模型回 `[dual, summer]`、登记回 `[dual, summer, CF]`，`/etc/dae/config.d/panel-core.dae` md5 回到操作前的 **87d13f02d30797b945364bc109218372**，dae 与面板均 active（净效果为零）。
+- 修复脏数据后 `/api/subsrc`：`dual inModel=True`、`summer inModel=True`、`CF inModel=None`（即 false）。
+- 浏览器（headless Chrome + CDP）：三个「删除」按钮 `disabled:false`，`{{` 泄漏 0。
+- 回归测试：`internal/subsrc` 的 `TestInModelIsDerivedNotPersisted`（旧文件里的 `inModel:true` 读入清零、`Save` 后文件里不含 `inModel`）、`internal/api` 的 `TestDetachSubscription`（摘 1 条、只警告引用它的分组、重复摘为 0）。
+
+#### 14.44.4 教训
+
+- **派生字段绝不进持久结构**。`json:"omitempty"` 不等于「不落盘」；要么 `json:"-"`（连带 API 也不输出）、要么在 Load/Save 两侧强制清零——后者才能既保留 API 字段又不污染文件。
+- 「先删 A 再删 B」的两步操作，只要中间需要用户跨页搬运，就应该在第一步里用一次事务把两件事做完（这里靠 detach），否则用户看到的就是「按钮坏了」。
+- `pkill -f "<模式>"` 的模式若出现在**同一条 ssh 命令的后续文本**里（例如同一个命令串后面还有 `--addr 127.0.0.1:8899`），会连自己所在的 shell 一起杀掉，表现为命令无任何输出。用方括号打断字面量（`889[9]`）也只对自身 argv 生效，仍有上述陷阱；更稳的是先用 `ss -ltnp` 取 pid 再 `kill <pid>`。
+## 15. 本版（v0.55）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -2883,3 +2915,4 @@ TLS 连通性：youtube 3035 ms / cloudflare 3286 ms / github 2481 ms / baidu 74
 42. **Tailscale 保命直连规则（v0.51）**：`EssentialRules` 增加 `dip(100.64.0.0/10) -> direct`（Tailnet/CGNAT 段，否则按 fallback 送去海外节点，表现为 ping 通但打不开）与 `pname(tailscaled, tailscale) -> direct`（控制面 443 / DERP / UDP 41641 打洞）；前端安全规则说明同步；新增 `TestEssentialRulesCoverTailscale`；.85 与 n6 实机 apply 后 validate ok、dae active，原有规则条数不变。详见 §14.41。
 43. **EasyTier WSS 组网与「组网」页（v0.52）**：新增 §14.42——选型（EasyTier 单文件 5.6–7.2 MB；Tailscale 41.1 MB 且 dae 内无相关模块无法内嵌）、WSS 伪装方案（只监听 wss、SNI 用含 `speedtest` 的 AAAA 子域名、路由器放行 TCP 11010）、Caddy 反代实测不可行、`internal/mesh`（`Detect`/`Control`/`ParsePeers`/`ParseRoutes`）+ `GET /api/mesh`、`POST /api/mesh/service` + 前端「组网」页；实测 peer `wss6` 11.89 ms、ping 家里网段 12.9 ms、iperf3 上 60.0 / 下 64.5 Mbit/s。
 45. **§14.43（v0.54）**：n6 规则/DNS 跨机迁移到 .85（只覆盖 dns/groups/rules/fallback，保留 global 与订阅；DoT 双上游 + DNS 层广告拦截 + 境外拒绝 AAAA；实测 doubleclick A=0、baidu AAAA=3、youtube AAAA=0），并新增「一键停用 / 重启 dae」（`StopDae`/`RestartDae` + `/api/setup/{stop,restart}-dae` + 前端按钮与二次确认），实机 stop→inactive、start/restart→active。
+46. **§14.44（v0.55）**：订阅删除按钮点不动——前端 `:disabled="it.inModel"` 直接禁用 + `InModel` 作为持久字段被写进 `subsrc.json` 形成脏数据（订阅移出内容层后仍永远「已引用」）。改为派生字段（Load 清零、Save 写副本前清零）+ 删除时支持 `detach` 一次性「摘订阅→apply→删登记」，失败整体回滚；实机临时订阅往返验证 md5 归位、CF 的 inModel 变 false；新增两条回归测试。

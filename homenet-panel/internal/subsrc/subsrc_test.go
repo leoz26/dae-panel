@@ -332,3 +332,26 @@ func TestStoreDelete(t *testing.T) {
 		t.Fatalf("删除后应有 b、无 a，实际 %+v", back.Items)
 	}
 }
+func TestInModelIsDerivedNotPersisted(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "subsrc.json")
+	stale := `{"checkHours":6,"items":[{"name":"CF","source":"file://subs/CF.sub","inModel":true}]}`
+	if err := os.WriteFile(p, []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	st := Load(p)
+	if len(st.Items) != 1 || st.Items[0].InModel {
+		t.Fatalf("旧文件里的 inModel 应被清零，得到 %+v", st.Items)
+	}
+	st.Items[0].InModel = true
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "inModel") {
+		t.Fatalf("inModel 不该被写回盘：%s", b)
+	}
+}
