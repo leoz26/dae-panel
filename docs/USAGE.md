@@ -446,6 +446,28 @@ PersistentKeepalive = 25
 3. 在同一台机器上同时跑 EasyTier 和 WireGuard 客户端做测试时，两者路由会撞（`RTNETLINK answers: File exists`），要在测试配置里加 `Table = off` 再手工加路由。手机没有这个问题。
 
 
+### 2.12.1 让「网关指向本机」的设备访问对端局域网
+
+场景：A 机（旁路由/网关）在 192.168.1.0/24，B 机在 192.168.5.0/24，两台已在同一个 EasyTier 网络里，B 用 `-n 192.168.5.0/24` 把自己的局域网发布到 mesh。
+
+只有 A 机能访问 B 的局域网还不够——A 背后的设备（手机、PC，网关填 A）因为 B 侧没有回程路由，TCP 会一直停在 SYN_SENT。做法是在 A 上给通往 tun0 的流量做 SNAT，让对端只看到 A 的 mesh 地址（10.144.0.x）：
+
+```sh
+nft add table ip hnp_mesh
+nft add chain ip hnp_mesh post '{ type nat hook postrouting priority srcnat; policy accept; }'
+nft add rule ip hnp_mesh post oifname "tun0" ip saddr 192.168.1.0/24 masquerade
+```
+
+要开机自动重建（nft 规则不落盘），把上面三行写进一个脚本，再用 systemd oneshot 拉起（`After=network-online.target easytier.service`、`RemainAfterExit=yes`）。
+
+验证（在 A 背后的设备上执行）：`ping 192.168.5.2`、`curl -k https://192.168.5.2:8787/` 都应通；在 A 上看 `grep 192.168.5 /proc/net/nf_conntrack` 会是 `ESTABLISHED` 而不是 `SYN_SENT`。
+
+三个注意点：
+
+1. **只加 SNAT 不要改默认路由**：A 的上网出口仍是原来的 WAN，只有目标落在 mesh 网段（tun0）的流量被 NAT。
+2. **对端要发布网段**：B 的 EasyTier 必须有 `-n 192.168.5.0/24`，否则 mesh 里根本没有这条路由。
+3. **mesh 网络密钥就是边界**：任何加入同一 network-name/network-secret 的节点都能访问双方局域网，别把密钥写进公开仓库。
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |
