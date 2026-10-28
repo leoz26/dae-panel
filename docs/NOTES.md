@@ -12,6 +12,18 @@
 - **踩到的两个坑**：①只搬配置不搬 `model.json` 会让面板 `diverged=true`，用户一点「应用」就覆盖现场规则；②`lan_interface`/`--traffic-iface` 是硬编码网卡名，.85 的 `ens2` 在 .224 不存在，必须改 `enp2s0-ovs`。
 - **验收**：`diverged=false`、首页 114,961 字节与仓库一致、`summer` 订阅 81/81 未变、DOM 无 `{{` 泄漏。
 - **.224 登录方式备忘**：root 的 sshd 是 `PermitRootLogin no`，只能用 `sthho` 登录（Administrators 组，sudo 需密码）；已为它装专用密钥 `~/.ssh/hnp_224_ed25519`，root 操作走 `ssh sthho@192.168.1.224 'sudo -S -p "" bash -s'`。面板地址 https://192.168.1.224:8787（账号 admin，密码已由 `setpass` 重设，见会话记录，不入库）。
+### 18:55 复检 .224 时发现并修掉的两处配置问题
+
+1. **`panel_dns` nft 表把 LAN DNS 变成黑洞**：表里有 `iifname enp2s0-ovs udp/tcp dport 53 dnat to 127.0.0.1:53`，但 .224 上**没有任何进程监听 :53**（systemd-resolved inactive、无 dnsmasq）→ 设备一旦把 DNS 指向 .224 就完全解析不了。已删除该表（`nft delete table inet panel_dns`）。要做 DNS 劫持必须先在本机跑一个解析器并让它监听 127.0.0.1:53。
+2. **dae 的 `qtype(aaaa) -> reject` 把 IPv6-only 域名解析打死**：EasyTier 的接入点 `speedtest.leoz26.ccwu.cc` **只有 AAAA 记录**（DoH 实测：A 无答案、AAAA=2408:8256:5087:31e9:2dce:f0be:3c53:baf3），这台机器上 `getent hosts` 直接失败，easytier-core 报 `hickory dns lookup_ip failed` 连不上。修法是在 reject 之前加例外 `qname(suffix: ccwu.cc) -> googledns`；改完 `getent ahostsv6` 马上返回正确地址，easytier 也连上了对端。已 `POST /api/model/resync` 让面板模型跟上（`diverged=false`）。
+
+### 18:52 EasyTier 迁移（.224 接管 .85 的组网）
+
+- 从 .85 拷来：`/usr/local/bin/easytier-core`+`easytier-cli`（2.6.4-8428a89d）、`/etc/systemd/system/easytier.service`、`hnp-mesh-nat.service`、`/usr/local/sbin/hnp-mesh-nat.sh`（自有 nft 表 `hnp_mesh`，对 192.168.1.0/24 走 tun0 做 masquerade）。
+- **连通性已实测**：用 `-i 10.144.0.3/24` 试跑 35 秒，peer 表同时看到 `10.144.0.1 armbian`（wss6，18ms）与 `10.144.0.2 Debian-te`（= .85，0.8ms）；试跑后已删除 tun0。
+- 服务目前 **disabled + 未启动**：unit 里写的是 `-i 10.144.0.2/24`，与 .85 冲突；等 .85 虚拟机删掉后再 `systemctl enable --now easytier hnp-mesh-nat` 接管这个地址。
+- 面板 https 证书重签后浏览器会报 `tls: unknown certificate`（.224 日志里来自 192.168.1.101），点「继续」或下载 `/panel.crt` 信任即可，不是故障。
+
 - **.85 仍在跑**，待 .224 验收稳定后再停并删除虚拟机。
 
 ## 2026-10-28 · OpenWrt(.11) 卸载 dae + 面板，回到 OpenClash 单跑

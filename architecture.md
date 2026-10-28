@@ -3431,6 +3431,8 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 
 - **只搬配置不搬 `model.json` 会导致 `diverged=true`**，用户一点「应用」就会把线上手调覆盖掉；两者必须成对迁移。
 - **网卡名是配置里的硬编码**：`lan_interface`、`--traffic-iface` 换机器必须改，否则 dae 起得来但 LAN 流量永远进不来（面板日志会写「配置声明了 lan_interface [X]，但打开转发失败」）。
+- **`qtype(aaaa) -> reject` 会打死 IPv6-only 域名**：EasyTier 接入点 `speedtest.leoz26.ccwu.cc` 只有 AAAA 记录，机器侧 `getent hosts` 直接失败（`hickory dns lookup_ip failed`），表现为"网络明明是通的、就是连不上"。修法是给需要的域名加例外且排在 reject 之前（`qname(suffix: ccwu.cc) -> googledns`）。
+- **DNS 劫持表必须先有本地解析器**：`panel_dns` 把 LAN 的 :53 dnat 到 `127.0.0.1:53`；宿主上没有监听 :53 的进程时，这张表等于把 LAN DNS 黑洞掉，症状是"指了网关就上不了网"。
 - 迁移包内含 `subsrc.json`（订阅上游 token）与 `auth.json`（密码哈希），**不能进 git**，用完即从两台机器的 `/tmp` 删除。
 
 ## 15. 本版（v0.65）变更清单
