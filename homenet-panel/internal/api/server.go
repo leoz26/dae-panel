@@ -1194,6 +1194,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/access/verify", s.auth(s.handleAccessVerify))
 	mux.HandleFunc("/api/access/apply", s.auth(s.handleAccessApply))
 	mux.HandleFunc("/api/access/rollback", s.auth(s.handleAccessRollback))
+	mux.HandleFunc("/api/diag/health", s.auth(s.handleDiagHealth))
 
 	mux.HandleFunc("/api/geo", s.auth(s.handleGeo))
 	mux.HandleFunc("/api/geo/update", s.auth(s.handleGeoUpdate))

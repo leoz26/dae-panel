@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.61  
+> **文档版本：** v0.62  
+> **修订（v0.62）：** 新增 §14.50.9（.85 应用健康参数后的对照数据）与 §14.51「健康诊断页」（`internal/diag` 把 dae journal 按节点/错误聚合，`GET /api/diag/health`，前端「健康诊断」tab），并记录前端 `api()` 返回值解包错误这个坑。  
 > **修订（v0.61）：** 新增 §14.50：dae 节点健康检查与选路的源码事实（单次探测失败即判死、`check_tolerance` 默认 0、全组判死无兜底、拨号重试不换节点、探测目标走代理通道）、与 mihomo/OpenClash 的逐项对照、.85 现场 24h 数据（1774 次节点域名解析失败 / 5184 次 i/o timeout / 6646 次重选）、配置层可立即改的参数、面板层 7 项优化、与 daed（**已归档**）/NaiLink 的定位对照，以及 .224 迁移草案。  
 > **修订（v0.60）：** 新增 §14.49：OpenWrt（iStoreOS）上「能连但一半站点失败」的四条归因——procd 的 fd 硬上限 4096、OpenClash 残留的 dnsmasq 假 IP、入口配置被 core 覆盖丢订阅、DoT 上游被掐；给出 ulimit 包装（脚本与面板两侧）、DNS 换 UDP 53 + `bootstrap_resolver` 必须 `ip:port`、`reload` 对 DNS/global 不可靠必须 restart、OOM 与 `bpf_conn_state_map_size` 实测，以及「失败主要来自 DNS」的绕过实验数据。
 > **修订（v0.59）：** 新增 §14.48：OpenWrt 的 opkg/apk 只能装扩展件（ss、geo），dae 本体在任何发行版官方源里都没有 → 面板与 install.sh 都加「官方静态包」路径（架构候选包、整棵文件系统布局、GitHub 加速回退、换二进制后重启服务），iStoreOS 实机 3.8s 装完并自启。
@@ -3280,7 +3281,43 @@ routing {
 - 现场探测（只读）：`192.168.1.224` ping 通 2.5ms，**22 / 443 / 8787 均监听**；`https://192.168.1.224:8787/` 返回 200、86KB，标题「HomeNet Panel 控制台」，但引用 `/assets/vue.js`（当前构建是内嵌 `vue.global.prod.js`）⇒ **那台上已经跑着一份面板，版本与当前分支不同**。
 - 迁移前必须先核对：现有面板版本、dae 是否在跑、`/etc/dae` 布局、`/var/lib/homenet-panel` 里有没有需要保留的 `subsrc.json`/`audit.log`。
 - 迁移清单（草案）：核对 .224 现状 → 在 .224 走一次 `deploy/deploy.sh`（幂等）→ 导入 model/subsrc/audit → 四步就绪检查 → 停 .85 面板与 dae → 观察 24h → 删 .11/.85 虚拟机（用户口径：两台都是虚拟机）。
-## 15. 本版（v0.61）变更清单
+### 14.50.9 应用健康参数后的对照（2026-10-28 13:48 起，.85 实测）
+
+改动（备份 `/root/core.before-health-20261028-134742.dae`）：global 加 `check_interval: 60s` / `check_tolerance: 500ms` / `tcp_check_url: 'http://www.gstatic.com/generate_204'` / `bootstrap_resolver: '223.5.5.5:53'`；4 个组 `min_moving_avg` → `min_avg10`；routing 在 `dip(8.8.8.8, 8.8.4.4) && dport(53)` 之前加 `dip(223.5.5.5, 119.29.29.29) && dport(53) -> direct`。
+
+| 指标（每 60 分钟折算） | 改前（10-27 全天基线） | 改后 13:48 起 10 分钟窗口 | 结论 |
+|---|---|---|---|
+| `bootstrap resolver returned no usable address` | 414 | **0** | 显式 `bootstrap_resolver` 彻底消灭该错误（v2.1.1 的已知缺陷） |
+| `i/o timeout` | 171 | **0**（重启后头 15 分钟有 39，属冷启动） | 明显下降 |
+| DNS `SERVFAIL` | 59 | **0**（冷启动期 15） | 明显下降 |
+| `Group re-selects` | 132 | 36（6 次/10 分钟） | 下降约 3/4，`check_tolerance` + `min_avg10` 生效 |
+| `NOT ALIVE` | — | 0（冷启动期 438，全部节点的首轮探测） | 稳态无误杀 |
+
+**未解决**：`i/o timeout` 的大头其实是 DNS 上游 `tls://223.5.5.5:853`（`WARN DNS forward to upstream failed dialer=direct error=dial tcp <nil>->223.5.5.5:853: i/o timeout`），不是代理拨号。从机器上直测该端口 connect 11ms 能通，属间歇性被掐 ⇒ 处方是把上游改 `udp://223.5.5.5:53`（routing 已加 223.5.5.5/119.29.29.29 的 53 直连）。改 DNS/global 段必须 `systemctl restart dae`，**reload 不生效**，且 restart 后有 45–60 秒预热期（此间 `getaddrinfo` 全 `Temporary failure in name resolution`，不要误判为 DNS 坏了）。
+
+## 14.51 健康诊断页：把 dae 的 journal 聚合成「谁被误杀、超时在哪」（v0.62）
+
+动机：14.50 的结论全靠手工 `grep`/`sed` 跑 journal，用户看不到；把同一套聚合做成面板一页，**只读**，不改任何配置。
+
+### 14.51.1 代码结构
+
+| 文件 | 职责 |
+|---|---|
+| `homenet-panel/internal/diag/diag.go` | `Runner` 接口（默认 `exec.Command.Output`）；8 类事件常量 + `Classify()`；`Parse()` 纯字符串解析并分桶；`advise()` 生成建议；`FromCommand()` 先 `journalctl -u dae --since "<N> min ago" -o short-iso`，失败/为空回落 `logread` |
+| `homenet-panel/internal/api/diag.go` | `GET /api/diag/health?minutes=1..1440&unit=dae` → `{code,report,kinds}`；nodes≤30 / groups≤12 / series 末尾≤240 |
+| `homenet-panel/internal/api/index.html` | 「健康诊断」tab：时间窗口卡 / 结论与建议 / 事件计数 / 被判定不可用的节点 / 分组选点 / 每分钟事件量条形图 |
+
+事件分类（判定顺序即优先级）：`no dialer in this group` → `persistent proxy IP failures` → `NOT ALIVE:` → `Group re-selects` → `Group selects` → `bootstrap resolver returned no usable address` → `i/o timeout` → `SERVFAIL`。解析一律用 `fieldAfter`/`between` 这类纯字符串函数，不用正则（journal 里的引号、方括号、空格会让正则难写易错）。
+
+### 14.51.2 实机输出（.85，60 分钟）
+
+`totalLines=11509`、`events=11234`，counts `{bootstrap:374, io_timeout:161, not_alive:524, proxy_ip_failure:33, reselect:131, select:10006, servfail:5}`；误杀最多的是「【专线】美国F2/F4/F6」各 18 次、「香港F1」16 次；分组 `AI`(selects 2861 / reselects 106 / alive 24)、`hk`(1869/25/18)、`proxy`(5192/0/0)、`sg`(84/0/0)；建议 5 条全部命中（bootstrap 配置、DoT 853、误杀节点、切换过频、SERVFAIL）。
+
+### 14.51.3 踩到的坑（前端解包）
+
+页面初版只有「时间窗口」卡显示、`v-if="diagReport"` 的其它卡全不出现，但「更新于 HH:MM:SS」又确实出现。根因：本项目的 `api()` helper 返回的是 **`{code, data}`**（见 index.html:1192-1199），初版写成了 `this.diagReport=r.report; this.diagKinds=r.kinds` ⇒ 拿到 `undefined`。正确写法 `this.diagReport=r.data.report`。教训：**新增前端方法时先看 `api()` 的返回形状**；页面里 raw `fetch()` 能拿到数据不代表 `api()` 包装后的形状一样，用 CDP 在页面里同时跑两者对照一次最快。
+
+## 15. 本版（v0.62）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3342,3 +3379,4 @@ routing {
 50. **§14.48（v0.59）**：无 APT 环境的依赖安装——OpenWrt/iStoreOS 的 opkg（25.x 起 apk）里没有 dae（`opkg list | grep ^dae` 为空），只有 `ss` 与 `v2ray-geoip/geosite`。新增 `internal/bootstrap/dae_static.go`（`DaeAssetCandidates` 按 arch+avx2 选包、`installDaeStatic` 下载→解包→装 `/usr/bin/dae`→写 procd→重启服务）与 `deploy/install.sh` 的 `install_dae_static()`；修四个坑（静态包是 usr/bin 布局、fetch 4MB/30s 上限、直连 GitHub EOF 需加速回退、换二进制后 procd 不会自启）。实机 3.8s 装完，`/api/status` active。
 51. **§14.49（v0.60）**：OpenWrt 上「能连但一半失败」的归因与修法——procd 传给 dae 的 `RLIMIT_NOFILE` 硬上限 4096（`socket: too many open files`，改 init 脚本 ulimit 包装，`deploy/install.sh` 与 `internal/bootstrap/dae_static.go` 同步，并对已有脚本做缺则重写的升级路径）；OpenClash 停用后 dnsmasq 残留 `noresolv=1`/`server=127.0.0.1#7874` 返回 `198.18.x` 假 IP（清 uci 项）；入口配置被 core 覆盖导致订阅段丢失；DoT 上游被掐改 UDP 53 且 `bootstrap_resolver` 必须 `ip:port`；`dae reload` 对 DNS/global 不可靠必须 restart；发现 9 次 OOM kill 并用 `bpf_conn_state_map_size: 65536` 把 RSS 降到 92–158MB；同时间段两台对比数据与「失败主要来自 DNS」的绕过实验。
 52. **§14.50（v0.61）**：dae 节点健康检查与选路——读 dae v2.1.1 源码定出五个吃亏点（TCP 探测**单次失败即判死**、`check_tolerance` 代码默认 **0** 无迟滞、组内全死直接 `ErrNoAliveDialer` 仅单节点组兜底、拨号重试**不换节点**、探测目标 `cp.cloudflare.com/1.1.1.1/dns.google` 穿节点探测会误杀），与 mihomo（interval 300s + lazy、真实失败只计数不写 alive）逐项对照；给出 .85 现场 24h 数据（节点域名 bootstrap 解析失败 1774 次、i/o timeout 5184、SERVFAIL 1593、重选 6646、VmHWM 635MB）与峰值时段；配置层可立即改的四参数（`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url` 换 gstatic、`bootstrap_resolver: '223.5.5.5:53'` + 直连规则前置）与组策略换 `min_avg10`；面板层 7 项优化（默认注入健康参数、分组 policy 可编辑、健康诊断页、DNS 死锁自检、应用后就绪检查、`homenet-panel doctor`、整目录备份恢复）；与 daed（**已归档**，2026-09-24）/NaiLink（三内核切换、`--check-network`、卸载前备份）的定位对照；以及 .224 迁移草案（该机已跑一份不同版本面板，须先核对）。
+53. **§14.50.9 / §14.51（v0.62）**：把 14.50 的配置处方落到 .85（`check_interval:60s` / `check_tolerance:500ms` / `tcp_check_url` 换 gstatic / `bootstrap_resolver:'223.5.5.5:53'` / 组策略 `min_avg10` / 223.5.5.5·119.29.29.29 的 53 直连），实测 bootstrap 解析失败从 414/h 降到 **0**、i/o timeout 与 SERVFAIL 同步归零、重选从 132/h 降到 36/h；并把这套聚合做成面板「健康诊断」页（新增 `internal/diag`、`GET /api/diag/health`、前端 tab），顺带记录前端 `api()` 返回 `{code,data}` 而初版按扁平结构取值的坑（`this.diagReport=r.report` → `r.data.report`）。

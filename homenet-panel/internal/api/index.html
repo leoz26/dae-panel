@@ -95,6 +95,7 @@ td input,td select{width:100%}
         <button :class="{active:tab===&#39;traffic&#39;}" @click="tab=&#39;traffic&#39;;loadTraffic()">流量/命中</button>
         <button :class="{active:tab===&#39;probe&#39;}" @click="tab=&#39;probe&#39;">运行探测</button>
         <button :class="{active:tab===&#39;bytes&#39;}" @click="tab=&#39;bytes&#39;;loadBytes()">字节统计</button>
+<button :class="{active:tab===&#39;diag&#39;}" @click="tab=&#39;diag&#39;;loadDiag()">健康诊断</button>
         <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
         <button :class="{active:tab===&#39;setup&#39;}" @click="tab=&#39;setup&#39;;loadSetup()">安装与初始化</button>
         <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
@@ -564,6 +565,75 @@ td input,td select{width:100%}
           <h2>提示</h2>
           <ul><li v-for="(n,i) in accessProbe.notes" :key="&#39;nt&#39;+i">{{n}}</li></ul>
         </div>
+      </div>
+
+      <!-- 健康诊断 -->
+      <div v-if="tab==='diag'">
+      <div class="info">读 dae 的运行日志做聚合：谁被探测误杀、超时集中在哪里、DNS 是否在拖后腿、分组是不是在疯狂换节点。只读，不改任何配置。</div>
+      <div class="card">
+      <h2>时间窗口</h2>
+      <div class="row">
+      <select v-model.number="diagMinutes" @change="loadDiag()">
+      <option :value="15">最近 15 分钟</option>
+      <option :value="60">最近 1 小时</option>
+      <option :value="360">最近 6 小时</option>
+      <option :value="1440">最近 24 小时</option>
+      </select>
+      <button @click="loadDiag()">刷新</button>
+      <span class="muted" v-if="diagMsg">{{diagMsg}}</span>
+      </div>
+      <div class="muted" style="margin-top:8px" v-if="diagReport">{{diagReport.source}} · 读到 {{diagReport.totalLines}} 行日志，其中 {{diagReport.events}} 条健康事件</div>
+      <div class="banner" v-if="diagReport && diagReport.error">{{diagReport.error}}</div>
+      </div>
+
+      <div class="card" v-if="diagReport">
+      <h2>结论与建议</h2>
+      <ul><li v-for="(a,i) in diagReport.advice" :key="'da'+i">{{a}}</li></ul>
+      </div>
+
+      <div class="card" v-if="diagReport">
+      <h2>事件计数</h2>
+      <table class="tbl">
+      <tr><th>事件</th><th style="width:90px">次数</th></tr>
+      <tr v-for="(k,i) in diagKinds" :key="'dk'+i">
+      <td>{{k.name}}</td>
+      <td :class="(diagReport.counts[k.key]||0)>0 && (k.key==='no_dialer'||k.key==='servfail') ? 'err' : 'mono'">{{diagReport.counts[k.key]||0}}</td>
+      </tr>
+      </table>
+      </div>
+
+      <div class="card" v-if="diagReport && diagReport.nodes && diagReport.nodes.length">
+      <h2>被判定不可用的节点</h2>
+      <table class="tbl">
+      <tr><th>节点</th><th style="width:110px">NOT ALIVE</th><th style="width:120px">代理IP连败</th><th style="width:150px">最近一次</th></tr>
+      <tr v-for="(n,i) in diagReport.nodes" :key="'dn'+i">
+      <td class="mono">{{n.name}}</td><td>{{n.notAlive}}</td><td>{{n.proxyIPFailure}}</td><td class="muted">{{fmtTime(n.lastSeen)}}</td>
+      </tr>
+      </table>
+      </div>
+
+      <div class="card" v-if="diagReport && diagReport.groups && diagReport.groups.length">
+      <h2>分组选点</h2>
+      <table class="tbl">
+      <tr><th>分组</th><th style="width:90px">选点</th><th style="width:100px">重新选点</th><th style="width:100px">判死次数</th><th style="width:110px">最多存活</th></tr>
+      <tr v-for="(gp,i) in diagReport.groups" :key="'dg'+i">
+      <td class="mono">{{gp.name}}</td><td>{{gp.selects}}</td>
+      <td :class="gp.reselects>diagReport.windowMinutes ? 'err' : ''">{{gp.reselects}}</td>
+      <td>{{gp.notAlive}}</td><td>{{gp.aliveDialers}}</td>
+      </tr>
+      </table>
+      <div class="muted">经验值：重新选点次数明显超过窗口分钟数，说明在抖，考虑 check_tolerance 500ms + 组策略 min_avg10。</div>
+      </div>
+
+      <div class="card" v-if="diagReport && diagReport.series && diagReport.series.length">
+      <h2>每分钟事件量</h2>
+      <div class="muted">柱高 = 该分钟的事件条数（含全部类型）。悬停看时间与条数。</div>
+      <div style="display:flex;align-items:flex-end;gap:2px;height:88px;margin-top:10px">
+      <div v-for="(b,i) in diagReport.series" :key="'db'+i"
+       :title="fmtTime(b.ts)+' · '+seriesSum(b)+' 条'"
+       :style="{width:'6px',height:barH(b),background:seriesSum(b)>=10?'#ff8888':'#66aaff'}"></div>
+      </div>
+      </div>
       </div>
 
       <!-- 审计日志 -->
@@ -1049,6 +1119,7 @@ createApp({
     ruleProbeDomain:"", ruleProbe:null,
     trafficData:null, trafficMsg:"", trafficAuto:false, trafficTimer:null,
     bytesData:null, bytesMsg:"", bytesAuto:false, bytesTimer:null,
+    diagReport:null, diagMsg:"", diagMinutes:60, diagKinds:[],
     meshData:null, meshMsg:"", meshLan:null, meshLanMsg:"", meshLanSteps:[], meshLanStepsText:"",
     accessProbe:null, accessRec:null, accessGuide:[], accessMsg:"",
     accessAns:{dhcpGateway:"", dhcpDns:"", canDisableDhcp:"", pbr:""},
@@ -1093,6 +1164,9 @@ createApp({
     async runVerify(){ const r=await this.api("/api/access/verify"); if(r.code===200){ this.accessVerify=r.data; this.accessPlanMsg="自检完成："+r.data.summary; } else { this.accessPlanMsg="自检失败 (HTTP "+r.code+")"; } },
     copyText(s){ try{ navigator.clipboard.writeText(s); this.accessPlanMsg="片段已复制"; }catch(e){ this.accessPlanMsg="复制失败，请手动选择文本"; } },
     async loadBytes(){ const r=await this.api("/api/traffic/bytes"); if(r.code===200){ this.bytesData=r.data; this.bytesMsg=(r.data&&r.data.enabled)?("更新于 "+new Date().toLocaleTimeString()):"字节统计未启用"; } else this.bytesMsg="加载失败 (HTTP "+r.code+")"; },
+    async loadDiag(){ this.diagMsg="读取日志中…"; const r=await this.api("/api/diag/health?minutes="+this.diagMinutes); if(r.code===200){ this.diagReport=r.data.report; this.diagKinds=(r.data&&r.data.kinds)||[]; this.diagMsg="更新于 "+new Date().toLocaleTimeString(); } else this.diagMsg="加载失败 (HTTP "+r.code+")"; },
+    seriesSum(b){ if(!b||!b.counts) return 0; let s=0; for(const k in b.counts){ s+=b.counts[k]; } return s; },
+    barH(b){ const s=this.seriesSum(b); return Math.max(3, Math.min(80, 3+s*5))+"px"; },
     toggleBytesAuto(){ if(this.bytesAuto){ this.loadBytes(); if(this.bytesTimer) clearInterval(this.bytesTimer); this.bytesTimer=setInterval(()=>this.loadBytes(),10000); } else { if(this.bytesTimer){ clearInterval(this.bytesTimer); this.bytesTimer=null; } } },
     fmtBytes(v){ var n=Number(v)||0; var u=["B","KB","MB","GB","TB"]; var i=0; while(n>=1024 && i<u.length-1){ n=n/1024; i++; } return (i===0? n.toFixed(0) : n.toFixed(2))+" "+u[i]; },
     fmtRate(v){ return this.fmtBytes(v)+"/s"; },
