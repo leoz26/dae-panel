@@ -21,7 +21,7 @@ honk 与 doona 是**两个独立仓库**：honk 是引擎，doona 是它的前�
 - 内核选项：`CONFIG_BPF`、`BPF_SYSCALL`、`BPF_JIT`、`CGROUP_BPF`、`NET_SCHED`、`NET_CLS_ACT`、`NET_XGRESS`、`NET_NS`；默认开启的 held-first-packet UDP 还要 `NFT_CT`、`NFT_QUEUE`、`NETFILTER_NETLINK_QUEUE`。
 - **cgroup v2 + 根 cgroup 的 sock_ops 槽位**：若有别的程序（如 `bpftool cgroup attach` 装的 legacy 程序）占着，honk 直接拒绝启动。
 - 架构：`x86_64` / `aarch64`，gnu 或 musl；**不支持 MIPS**，也没有 Windows/macOS datapath。
-- 数据面：TC eBPF + `dae0`/`daens` + **NFQUEUE 320**；netkit 可选（不支持时回退 veth）。**没有 `tproxy_port`**（dae 是 tproxy 12345）。
+- 数据面：TC eBPF + `dae0`/`daens` + **NFQUEUE 320**；netkit 可选（不支持时回退 veth）。`global.tproxy_port` **存在**（默认也是 12345，改端口需重启）；`tproxy_port_protect` 只是兼容开关、运行时并不读取。
 - 明确行为：「honk does not insert local-interface routing rules」（routing 参考首段）——内网直连要用户/面板自己写，这一点与 dae 一致。
 
 ## 3. honk 的优势（对本项目有意义的）
@@ -39,7 +39,7 @@ honk 与 doona 是**两个独立仓库**：honk 是引擎，doona 是它的前�
 1. **官方自我定性是 alpha**：「Early alpha, not recommended for production. Expect breaking changes, incomplete features, and limited real-world validation.」
 2. **已有破坏性变更先例**：README 明写 VLESS 升级时 `vless_mode` 被移除、**所有 VLESS 节点 ID 重新推导**，并要求迁移静态链接与缓存订阅内容。
 3. **多数用户态子系统是 AI 编写、部分未经审阅**：README「Review status」勾选表里 `Configuration parser (dae extensions)`、`Trojan-GFW` 仍未勾；且写明在所有未审代码处理完之前**不会发 `test.1` 标签**。TODO 还有「评估 AF_XDP/XDP」「加 honk 专属 REST API」「加 inbound」。
-4. **缺功能**：没有 FakeIP 引擎、没有完整 mihomo 兼容、没有 Windows/macOS 数据面。
+4. **缺功能 / 语义差异**：目前没有 FakeIP 引擎、没有完整 mihomo 兼容、没有 Windows/macOS 数据面；`auto_config_kernel_parameter` 只是兼容开关（运行时按自己固定的一套 sysctl 走，会钉 `net.ipv6.conf.all.forwarding=1`、给 WAN 口写 `accept_ra=2`、给 LAN 口写 `rp_filter=0`）。
 5. **内核门槛把 OpenWrt 大部分设备挡在门外**：iStoreOS 24.10 是 6.6.x（我们那台 6.6.144），honk 直接拒绝；要 25.x 或自编 6.12+ 且开 `NET_XGRESS`/`NFT_QUEUE`。
 6. **许可**：honk 是 GPL-3.0（dae 是 AGPL-3.0），本项目 MIT。只要**不链接**（走配置文件与 HTTP API），MIT 不受影响；一旦嵌入/链接就传染。
 7. **生态位置在变**：dae 上游能量明显向 honk 转移（dae 稳定版停在 v2.1.1、honk 一周三个 beta），但 dae 仍有 6349★ 存量与稳定行为，短期不会消失。
@@ -70,3 +70,32 @@ honk 与 doona 是**两个独立仓库**：honk 是引擎，doona 是它的前�
 - 核对时间：2026-10-28。
 - 数据源：GitHub REST API（repos / releases）+ honk 仓库 `README.md`、`doc/en/how-to-start.md`、`doc/en/configuration.md`、`doc/en/reference/{routing,groups,subscription,cli,dialect}.md` + doona `README.md`。
 - 相关章节：`architecture.md` §14.50（dae 健康检查与选路，含 daed/NaiLink 对照）、§14.53（本条摘要）。
+
+## 8. 我们现有规则能否完整迁移到 honk（2026-10-28 逐条比对）
+
+比对对象：`192.168.1.85` 上 `/etc/dae/config.d/panel-core.dae` 的真实内容（`global` 8 行 + 5 个 group + `dns` 两段 + `routing` 26 条），对照 honk `doc/en/reference/{global,groups,dns,routing,dialect}.md`。
+
+**结论：结构上没有迁移不了的规则，但有 4 处会「静默改变行为」或直接报错的地方。**
+
+### 8.1 完全兼容的部分
+
+| 我们用的写法 | honk 对应 | 说明 |
+| --- | --- | --- |
+| `global`：`dial_mode: domain`、`tproxy_port: 12345`、`wan_interface: auto`、`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url`、`bootstrap_resolver: '223.5.5.5:53'` | 同名同义 | honk 默认 `check_interval 30s` / `check_tolerance 50ms`（dae 默认 0），我们显式写了值，不受默认值差异影响 |
+| `group`：`policy: min_avg10` + 多行 `filter: subtag(x) && name(keyword: 'y')` | `policy: min_avg10`（= `urltest` 别名）、`filter: subtag(...)` / `name(keyword:)` / `group(...)` | 策略名 `min_moving_avg`、`min_avg10`、`min_last_delay` 全部保留 |
+| `dns.routing.request/response`：`qname(geosite:…)`、`qname(suffix: a,suffix: b)`、`qtype(aaaa) -> reject`、`fallback:` | 同一套 DNS 专用匹配器：`qname(...)`、`qtype(...)`、`sip(...)`、`upstream(...)`、`ip(...)` | 我们现场**已经在用 `qname` 而不是 `domain`**，所以 DNS 段几乎可以原样搬 |
+| `routing`：`dip(192.168.0.0/16)`、`dip(geoip:private)`、`dip(...) && dport(53)`、`domain(suffix:)`、`domain(geosite:)`、`dport(7844)`、`fallback: hk` | 同名同义；`fallback:`（别名 `default:`） | honk 无规则命中时**默认是 `direct`**，dae 也默认 direct，但我们都显式写了 `fallback: hk` |
+| `-> direct` / `-> block` | 同名 | `block` 在 honk 里是终态拦截 |
+
+### 8.2 会出问题的 4 处（按严重度）
+
+1. **`ip(...)` 在 traffic routing 里不存在 → 配置直接被拒**。我们现场有两条用旧写法：`ip(geoip:telegram) -> hk`、`ip(geoip:cn) -> direct`。honk 的流量匹配器表里只有 `dip(...)`（`ip` 只是内部字段名，不是配置别名），且 honk 对未知谓词是**整份配置报错并给出行列号**，不会静默忽略。迁移必须把这两条改成 `dip(geoip:telegram)` / `dip(geoip:cn)`（dae 两种都认）。
+2. **`pname` 截断长度不同：dae 16 字节、honk 15 字节**。我们的保命规则是 `pname(homenet-panel, dae, dhcpcd, systemd-resolved, sshd, systemd-timesyncd) -> direct`：`systemd-resolved`（16 字节）与 `systemd-timesyncd`（17 字节）在 honk 里会被截成 `systemd-resolve` / `systemd-timesyn`，**永不匹配** → 这两条直连保护静默失效（本机 DNS/时间同步被丢进代理）。迁移时要改成 ≤15 字节的前缀写法。另外 honk 的 `pname` 是**子串**匹配，dae 是整名匹配，`pname(dae)` 在 honk 里也会命中 `daemon` 之类，需要收紧。
+3. **组级 `check_interval` 被接受但运行时忽略**。我们给 `dnsnode` 写了 `check_interval: 30s`（希望 DNS 专组探测更勤），honk 认这个键但「当前运行时不看它，一律用全局 interval」。想把 DNS 组探得更勤，只能改 `global.check_interval`（会影响所有组）。组级 `check_tolerance` 仍有效（映射到 `tolerance`，重载即可生效）。
+4. **`geosite:category-ai-!cn` 里的 `!` 要实测**。honk 的 `!` 是「否定紧跟的那个匹配器」的语法；这个 `!` 在参数中间，理论上属于字面量，但 honk 对参数的引号/转义规则与 dae 不同（`dialect.md` 有大表），必须拿 `honk-core validate` 实测一次，必要时用引号包住。
+
+### 8.3 顺带会变化的引擎级行为
+
+- **`auto_config_kernel_parameter` 不再是「开/关 sysctl」**：honk 只把它当兼容开关，实际按自己固定的一套走（钉 `net.ipv6.conf.all.forwarding=1`、给 WAN 写 `accept_ra=2`、给 LAN 写 `rp_filter=0`）。我们的接入向导里「由 dae 自己配 ip_forward」这条假设要重新核。
+- **没有 `/var/run/dae.progress`**：我们的事务靠 reload 后读进度码（2=成功 / 3=失败）判断，honk 只有 `reload` 退出码，失败回滚的判定逻辑要重写。
+- **`experimental` 段里未知内容一律报错**（包括 legacy `udp_nfqueue`），不具备 dae 的宽容度。
