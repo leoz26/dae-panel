@@ -6,41 +6,96 @@
 <title>HomeNet Panel 控制台</title>
 <script src="/assets/vue.js"></script>
 <style>
-:root{--bg:#0f1420;--card:#1b2233;--line:#24304a;--fg:#e7ecf5;--muted:#8b97ad;--acc:#4c8dff;--ok:#2ecc71;--err:#ff5c5c;--warn:#e6b450}
-*{box-sizing:border-box}body{margin:0;background:#0f1420;color:#e7ecf5;font:14px/1.5 -apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:12px 20px;background:#141b29;border-bottom:1px solid #24304a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-header b{font-size:16px}h1{font-size:13px;color:#8b97ad;font-weight:400;margin:0}
-.wrap{padding:16px;max-width:1200px;margin:0 auto}
-.card{background:#1b2233;border:1px solid #24304a;border-radius:10px;padding:14px;margin-bottom:14px}
-.tbl{width:100%;border-collapse:collapse;font-size:13px}.tbl th,.tbl td{border-bottom:1px solid #24304a;padding:5px 8px;text-align:left}.tbl .mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}.hl{background:#22304d}.bad{border-color:#ff5c5c!important}
-.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.note{margin:6px 0 2px;padding:8px 10px;border-left:3px solid #4c8bf5;background:rgba(76,139,245,.08);border-radius:4px;font-size:12.5px;line-height:1.65;white-space:pre-line;color:#c8d4e6}
-    .muted{color:#8b97ad}
-.card h2{font-size:12px;margin:0 0 10px;color:#8b97ad;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
-button{background:#24304a;color:#e7ecf5;border:1px solid #34406a;border-radius:7px;padding:6px 12px;cursor:pointer;margin:3px 4px 3px 0;font-size:13px}
-button:hover{background:#2c3a5c}button.primary{background:#2f6bff;border-color:#2f6bff}button.danger{background:#7a2b2b;border-color:#a33}
-button.sm{padding:2px 8px;font-size:12px}
-input,textarea,select{background:#0d1220;color:#cfe0ff;border:1px solid #24304a;border-radius:7px;padding:6px 8px;font-size:13px}
-textarea{width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px}
-pre{background:#0d1220;border:1px solid #24304a;border-radius:8px;padding:10px;overflow:auto;max-height:300px;font-size:12px;margin:0}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.pill{background:#0d1220;border:1px solid #24304a;border-radius:20px;padding:3px 10px;font-size:12px}
-.ok{color:#2ecc71}.err{color:#ff5c5c}.warn{color:#e6b450}.muted{color:#8b97ad}
+/* ============ Design Tokens ============ */
+:root{
+  color-scheme:dark;
+  --bg-app:#0b0f17;--bg-sidebar:#0e1420;--bg-panel:#121a27;--bg-elevated:#182233;--bg-hover:#1d2a3d;--bg-input:#0d1420;
+  --border-default:#253247;--border-strong:#34445d;
+  --text-primary:#e7edf6;--text-secondary:#9aa9bd;--text-muted:#6e7d92;
+  --accent:#60a5fa;--accent-hover:#93c5fd;
+  --success:#34d399;--warning:#fbbf24;--danger:#fb7185;--info:#60a5fa;
+  --sidebar-width:232px;--header-height:60px;--content-max-width:1600px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
+  --font-ui:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --transition-fast:120ms ease;
+}
+/* ============ Base ============ */
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg-app);color:var(--text-primary);font:14px/1.5 var(--font-ui)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+/* ============ Layout: sidebar + topbar + content ============ */
+.shell{display:flex;min-height:100vh}
+.sidebar{width:var(--sidebar-width);flex-shrink:0;background:var(--bg-sidebar);border-right:1px solid var(--border-default);padding:var(--space-4) 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar .brand{padding:0 var(--space-4) var(--space-4);border-bottom:1px solid var(--border-default);margin-bottom:var(--space-3)}
+.sidebar .brand b{font-size:15px;display:block}
+.sidebar .brand h1{font-size:11px;color:var(--text-muted);font-weight:400;margin:2px 0 0}
+.nav-group{padding:var(--space-3) var(--space-4) var(--space-1);font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
+a.nav-item,.nav-item,a.nav-item:hover,a.nav-item:visited,a.nav-item:active{display:flex;align-items:center;gap:10px;padding:8px var(--space-4);color:var(--text-secondary);cursor:pointer;font-size:13.5px;border-left:2px solid transparent;text-decoration:none!important;transition:background var(--transition-fast),color var(--transition-fast)}
+.nav-item:hover{background:var(--bg-hover);color:var(--text-primary)}
+.nav-item.active{background:var(--bg-hover);color:var(--accent);border-left-color:var(--accent)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{min-height:var(--header-height);padding:8px var(--space-6);background:var(--bg-sidebar);border-bottom:1px solid var(--border-default);display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:10}
+.topbar .spacer{margin-left:auto;display:flex;gap:var(--space-2);align-items:center}
+.wrap{padding:var(--space-6);max-width:var(--content-max-width);width:100%;margin:0 auto}
+.menu-btn{display:none}
+/* ============ Components ============ */
+.card{background:var(--bg-panel);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:var(--space-5);margin-bottom:var(--space-4);min-width:0}
+.card h2{font-size:12px;margin:0 0 var(--space-3);color:var(--text-secondary);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{border-bottom:1px solid var(--border-default);padding:6px 8px;text-align:left;vertical-align:top}
+.tbl th{color:var(--text-muted);font-weight:500;font-size:12px}
+.tbl tbody tr:hover td,.tbl tr:hover td{background:var(--bg-hover)}
 table{width:100%;border-collapse:collapse}
-th,td{text-align:left;padding:5px 6px;border-bottom:1px solid #24304a;vertical-align:top;font-size:13px}
-th{color:#8b97ad;font-weight:500;font-size:12px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--border-default);vertical-align:top;font-size:13px}
+th{color:var(--text-muted);font-weight:500;font-size:12px}
 td input,td select{width:100%}
-.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
-.tabs button.active{background:#2f6bff;border-color:#2f6bff}
-.login{max-width:360px;margin:12vh auto;background:#1b2233;border:1px solid #24304a;border-radius:12px;padding:26px}
-.login h2{color:#e7ecf5;font-size:18px;margin:0 0 18px;text-transform:none;letter-spacing:0}
-.login input{width:100%;margin-bottom:12px}.login button{width:100%;padding:9px}
-.remember{display:flex;align-items:center;gap:8px;color:#aab6c8;font-size:12px;margin:2px 0 12px}
+.mono,.tbl .mono{font-family:var(--font-mono);font-size:12px}
+.hl{background:var(--bg-hover)}.bad{border-color:var(--danger)!important}
+.ok{color:var(--success)}.err{color:var(--danger)}.warn{color:var(--warning)}.muted{color:var(--text-secondary)}
+.note{margin:6px 0 2px;padding:8px 10px;border-left:3px solid var(--accent);background:rgb(96 165 250 / 8%);border-radius:var(--radius-sm);font-size:12.5px;line-height:1.65;white-space:pre-line;color:var(--text-secondary)}
+.pill{display:inline-flex;align-items:center;gap:5px;background:var(--bg-input);border:1px solid var(--border-default);border-radius:999px;padding:3px 10px;font-size:12px;color:var(--text-secondary);white-space:nowrap}
+.pill::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--text-muted)}
+.pill.ok{border-color:rgb(52 211 153 / 25%);background:rgb(52 211 153 / 10%);color:var(--success)}
+.pill.ok::before{background:var(--success)}
+.pill.err{border-color:rgb(251 113 133 / 25%);background:rgb(251 113 133 / 10%);color:var(--danger)}
+.pill.err::before{background:var(--danger)}
+.pill.warn{border-color:rgb(251 191 36 / 25%);background:rgb(251 191 36 / 10%);color:var(--warning)}
+.pill.warn::before{background:var(--warning)}
+button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 12px;cursor:pointer;margin:2px 4px 2px 0;font:inherit;font-size:13px;transition:background var(--transition-fast),border-color var(--transition-fast)}
+button:hover{background:var(--bg-hover)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#08111f;font-weight:600}
+button.primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+button.danger{border-color:rgb(251 113 133 / 40%);background:transparent;color:var(--danger)}
+button.danger:hover{background:rgb(251 113 133 / 10%)}
+button.sm{min-height:24px;padding:1px 8px;font-size:12px}
+button:disabled{opacity:.5;cursor:not-allowed}
+input,textarea,select{background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-default);border-radius:var(--radius-sm);padding:6px 8px;font:inherit;font-size:13px}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+textarea{width:100%;font-family:var(--font-mono);font-size:12px;line-height:1.6}
+pre{background:var(--bg-input);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:10px;overflow:auto;max-height:300px;font-family:var(--font-mono);font-size:12px;line-height:1.55;margin:0;color:var(--text-primary)}
+code{font-family:var(--font-mono);font-size:12px;background:var(--bg-elevated);padding:1px 4px;border-radius:4px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.login{max-width:380px;margin:12vh auto;background:var(--bg-panel);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:26px}
+.login h2{color:var(--text-primary);font-size:18px;margin:0 0 18px}
+.login input{width:100%;margin-bottom:12px}
+.login button{width:100%;padding:9px;min-height:38px}
+.remember{display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:12px;margin:2px 0 12px}
 .remember input{width:auto;margin:0}
-.tlsHint{margin-top:14px;color:#8b97a8;font-size:11px;line-height:1.6}
-.tlsHint a{color:#6ea8fe}
-.banner{background:#3a1f1f;border:1px solid #a33;border-radius:8px;padding:10px 14px;color:#ffb3b3;font-size:13px;margin-bottom:12px}
-.info{background:#122234;border:1px solid #244a6a;border-radius:8px;padding:8px 12px;color:#a9c7e8;font-size:12px;margin-bottom:10px}
-.mono{font-family:ui-monospace,Menlo,monospace}
+.tlsHint{margin-top:14px;color:var(--text-muted);font-size:11px;line-height:1.6}
+.tlsHint a{color:var(--accent)}
+.banner{background:rgb(251 113 133 / 10%);border:1px solid rgb(251 113 133 / 35%);border-radius:var(--radius-md);padding:10px 14px;color:#fda4af;font-size:13px;margin-bottom:var(--space-3)}
+.info{background:rgb(96 165 250 / 8%);border:1px solid rgb(96 165 250 / 25%);border-radius:var(--radius-md);padding:8px 12px;color:#a9c7e8;font-size:12px;margin-bottom:var(--space-3);line-height:1.65}
+/* ============ Responsive ============ */
+@media (max-width:768px){
+  .sidebar{position:fixed;left:0;top:0;z-index:30;transform:translateX(-100%);transition:transform 160ms ease}
+  .sidebar.open{transform:translateX(0)}
+  .menu-btn{display:inline-flex}
+  .wrap{padding:var(--space-4)}
+  .topbar{padding:8px var(--space-4)}
+}
 </style>
 </head>
 <body>
@@ -72,37 +127,28 @@ td input,td select{width:100%}
     <div class="tlsHint">改完密码后，本浏览器仍保持登录（勾了「记住我」则 30 天免登录）。</div>
   </div>
   <div v-else>
-    <header>
-      <b>HomeNet Panel</b><h1>dae 配置管理控制台</h1>
-      <span class="pill" :class="status.service===&#39;active&#39;?&#39;ok&#39;:&#39;err&#39;">dae: {{status.service||&#39;?&#39;}}</span>
-      <span class="pill">pid {{status.pid||&#39;-&#39;}}</span>
-      <span class="pill">{{status.progressCode||&#39;&#39;}}</span>
-      <span v-if="status.subsrcChanged>0" class="pill err" style="cursor:pointer" @click="goSubsrc()" title="点击查看变化明细">订阅 {{status.subsrcChanged}} 条有变化</span>
-      <span style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <span class="muted">{{user}}</span>
-        <button @click="refreshStatus">刷新状态</button>
-        <button @click="logout">退出</button>
-      </span>
-    </header>
-    <div class="wrap">
-      <div class="tabs">
-        <button :class="{active:tab===&#39;content&#39;}" @click="tab=&#39;content&#39;">内容层</button>
-        <button :class="{active:tab===&#39;dns&#39;}" @click="tab=&#39;dns&#39;;loadDns()">DNS</button>
-        <button :class="{active:tab===&#39;subgrp&#39;}" @click="tab=&#39;subgrp&#39;;loadSubs()">订阅·分组</button>
-        <button :class="{active:tab===&#39;subsrc&#39;}" @click="tab=&#39;subsrc&#39;;loadSubsrc()">订阅源更新</button>
-        <button :class="{active:tab===&#39;agg&#39;}" @click="tab=&#39;agg&#39;;loadAgg()">自建聚合</button>
-        <button :class="{active:tab===&#39;route&#39;}" @click="tab=&#39;route&#39;">分流调试</button>
-        <button :class="{active:tab===&#39;traffic&#39;}" @click="tab=&#39;traffic&#39;;loadTraffic()">流量/命中</button>
-        <button :class="{active:tab===&#39;probe&#39;}" @click="tab=&#39;probe&#39;">运行探测</button>
-        <button :class="{active:tab===&#39;bytes&#39;}" @click="tab=&#39;bytes&#39;;loadBytes()">字节统计</button>
-<button :class="{active:tab===&#39;diag&#39;}" @click="tab=&#39;diag&#39;;loadDiag()">健康诊断</button>
-        <button :class="{active:tab===&#39;access&#39;}" @click="tab=&#39;access&#39;;loadAccess()">接入向导</button>
-        <button :class="{active:tab===&#39;setup&#39;}" @click="tab=&#39;setup&#39;;loadSetup()">安装与初始化</button>
-        <button :class="{active:tab===&#39;geo&#39;}" @click="tab=&#39;geo&#39;;loadGeo()">Geo 数据</button>
-        <button :class="{active:tab===&#39;mesh&#39;}" @click="tab=&#39;mesh&#39;;loadMesh();loadMeshLan()">组网</button>
-        <button :class="{active:tab===&#39;audit&#39;}" @click="tab=&#39;audit&#39;;loadAudit()">审计日志</button>
-        <button :class="{active:tab===&#39;raw&#39;}" @click="tab=&#39;raw&#39;">整段配置(高级)</button>
-      </div>
+    <div class="shell">
+      <aside class="sidebar" :class="{open:navOpen}">
+        <div class="brand"><b>HomeNet Panel</b><h1>dae 配置管理控制台</h1></div>
+        <template v-for="g in navGroups" :key="g.label">
+          <div class="nav-group">{{g.label}}</div>
+          <a v-for="it in g.items" :key="it.id" class="nav-item" :class="{active:tab===it.id}" @click="goTab(it)" href="javascript:void(0)">{{it.label}}</a>
+        </template>
+      </aside>
+      <div class="main">
+        <header class="topbar">
+          <button class="menu-btn sm" @click="navOpen=!navOpen">☰ 菜单</button>
+          <span class="pill" :class="status.service==='active'?'ok':'err'">dae {{status.service||'?'}}</span>
+          <span class="pill">pid {{status.pid||'-'}}</span>
+          <span class="pill" v-if="status.progressCode">{{status.progressCode}}</span>
+          <span v-if="status.subsrcChanged>0" class="pill err" style="cursor:pointer" @click="goSubsrc()" title="点击查看变化明细">订阅 {{status.subsrcChanged}} 条有变化</span>
+          <span class="spacer">
+            <span class="muted">{{user}}</span>
+            <button class="sm" @click="refreshStatus">刷新状态</button>
+            <button class="sm" @click="logout">退出</button>
+          </span>
+        </header>
+        <div class="wrap">
 
       <!-- 内容层 -->
       <div v-if="tab===&#39;content&#39;">
@@ -147,15 +193,18 @@ td input,td select{width:100%}
         <div class="card">
           <h2>分组 (group)</h2>
           <table>
-            <tr><th style="width:120px">名称</th><th style="width:150px">策略</th><th>过滤(filter，每行一条)</th><th style="width:70px"></th></tr>
+            <tr><th style="width:120px">名称</th><th style="width:150px">策略</th><th>过滤(filter，每行一条)</th><th style="width:180px">组级调优（可选，如 check_interval）</th><th style="width:70px"></th></tr>
             <tr v-for="(g,i) in model.groups" :key="&#39;g&#39;+i">
               <td><input v-model="g.name"/></td>
               <td><select v-model="g.policy"><option>min_moving_avg</option><option>min_avg10</option><option>min_avg40</option><option>min_last_delay</option><option>random</option><option>fixed</option></select></td>
               <td><textarea rows="2" :value="(g.filters||[]).join(&#39;\n&#39;)" @input="g.filters=splitLines($event.target.value)"></textarea></td>
+              <td><textarea rows="2" :value="(g.extra||[]).join(&#39;\n&#39;)" @input="g.extra=splitLines($event.target.value)"></textarea></td>
               <td><button class="danger sm" @click="model.groups.splice(i,1)">删除</button></td>
             </tr>
           </table>
           <button @click="model.groups.push({name:&#39;&#39;,policy:&#39;min_moving_avg&#39;,filters:[]})">+ 添加分组</button>
+          <button @click="addDNSGroup()">+ DNS 专用组（dnsnode）</button>
+          <div class="hint">dnsnode 用来把「8.8.8.8/8.8.4.4 的 DNS 查询」单独送到一条就近专线，避免落到业务组被拖死。已有同名组时不会重复添加。</div>
         </div>
         <div class="card">
           <h2>分流规则 (routing)</h2>
@@ -1098,6 +1147,8 @@ td input,td select{width:100%}
           <pre style="margin-top:10px">{{applyText}}</pre>
         </div>
       </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1105,8 +1156,17 @@ td input,td select{width:100%}
 const { createApp } = Vue;
 createApp({
   data(){ return {
+        tab:'content',navOpen:false,
+        navGroups:[
+          {label:'总览',items:[{id:'content',label:'内容层'},{id:'diag',label:'健康诊断'},{id:'probe',label:'运行探测'}]},
+          {label:'订阅与分组',items:[{id:'subsrc',label:'订阅源更新'},{id:'subgrp',label:'订阅·分组'},{id:'agg',label:'自建聚合'},{id:'geo',label:'Geo 数据'}]},
+          {label:'DNS 与分流',items:[{id:'dns',label:'DNS'},{id:'route',label:'分流调试'}]},
+          {label:'流量观测',items:[{id:'traffic',label:'流量/命中'},{id:'bytes',label:'字节统计'}]},
+          {label:'接入与组网',items:[{id:'access',label:'接入向导'},{id:'mesh',label:'组网'},{id:'setup',label:'安装与初始化'}]},
+          {label:'系统',items:[{id:'audit',label:'审计日志'},{id:'raw',label:'整段配置(高级)'}]}
+        ],
     authed:false, user:"", loginUser:"admin", loginPass:"", loginErr:"", loginRemember:true, loginNote:"", mustChange:false, oldPass:"", newPass:"", newPass2:"", passErr:"",
-    tab:"content", status:{}, resultText:"", applyText:"",
+    status:{}, resultText:"", applyText:"",
     target:"/etc/dae/config.dae", content:"", allowGoose:false,
     model:{global:"",dns:"",subscriptions:[],groups:[],rules:[],fallback:""},
     modelSource:"", modelErr:"", modelDiverged:false, modelDrift:[], modelLayout:"", modelLayoutNote:"", previewEntry:"", previewCore:"", modelMsg:"",
@@ -1172,6 +1232,13 @@ createApp({
     fmtRate(v){ return this.fmtBytes(v)+"/s"; },
     fmtTime(t){ if(!t) return "—"; try{ return new Date(t).toLocaleTimeString(); }catch(e){ return String(t); } },
     splitLines(s){ return (s||"").split("\n").map(function(x){return x.trim();}).filter(function(x){return x.length>0;}); },
+    addDNSGroup(){
+      const gs=this.model.groups||[];
+      if(gs.some(function(g){return g.name==="dnsnode";})){ this.modelMsg="已有 dnsnode 分组，未重复添加"; return; }
+      gs.push({name:"dnsnode",policy:"min_avg10",extra:["check_interval: 30s","check_tolerance: 1s"],
+        filters:["name(keyword: '香港')","name(keyword: '日本')","name(keyword: '新加坡')","name(keyword: '台湾')"]});
+      this.modelMsg="已添加 dnsnode 分组：请按自己的机场改 filter（专线/家宽节点通常比隧道节点稳），然后点预览确认";
+    },
     key(n){ return n.host+"|"+n.port; },
     latText(n){ var e=this.latency[this.key(n)]; if(!e) return "—"; if(e.error) return "✗"; return e.ms+"ms"; },
     latClass(n){ var e=this.latency[this.key(n)]; if(!e) return "muted"; if(e.error) return "err"; if(e.ms<300) return "ok"; if(e.ms<800) return "warn"; return "err"; },
@@ -1201,6 +1268,7 @@ createApp({
     async changePass(){ this.passErr=""; if(this.newPass!==this.newPass2){ this.passErr="两次输入的新密码不一致"; return; } const r=await this.api("/api/passwd","POST",{oldPassword:this.oldPass,newPassword:this.newPass}); if(r.code===200){ this.mustChange=false; this.oldPass=""; this.newPass=""; this.newPass2=""; this.refreshStatus(); this.loadModel(); } else { this.passErr=(r.data&&r.data.error)||"修改失败"; } },
     async doLogin(){ this.loginErr=""; const res=await this.api("/api/login","POST",{username:this.loginUser,password:this.loginPass,remember:this.loginRemember}); if(res.code===200){ this.authed=true; this.user=res.data.user||this.loginUser; this.loginPass=""; const me=await this.api("/api/me"); this.mustChange=!!(me.code===200&&me.data&&me.data.mustChange); if(!this.mustChange){ this.refreshStatus(); this.loadModel(); } } else { this.loginErr=(res.data&&res.data.error)||"登录失败"; } },
     async logout(){ await this.api("/api/logout","POST"); this.authed=false; },
+    goTab(it){ this.tab=it.id; this.navOpen=false; const fn={'dns':'loadDns','subgrp':'loadSubs','subsrc':'loadSubsrc','agg':'loadAgg','traffic':'loadTraffic','bytes':'loadBytes','diag':'loadDiag','access':'loadAccess','setup':'loadSetup','geo':'loadGeo','mesh':'loadMesh','audit':'loadAudit'}[it.id]; if(fn && this[fn]){ if(it.id==='mesh'){ this.loadMesh(); this.loadMeshLan(); } else this[fn](); } },
     async refreshStatus(){ const r=await this.api("/api/status"); if(r.code===200) this.status=r.data; },
     async call(url, method, body){ this.resultText="请求中…"; const r=await this.api(url,method,body); this.resultText=this.pretty(r.data); this.refreshStatus(); },
     async doRawApply(){ this.applyText="应用中…"; const r=await this.api("/api/apply","POST",{target:this.target,content:this.content,allowGoose:this.allowGoose}); this.applyText=this.pretty(r.data); this.refreshStatus(); },

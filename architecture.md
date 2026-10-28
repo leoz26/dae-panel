@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.62  
+> **文档版本：** v0.63  
+> **修订（v0.63）：** 新增 §14.52：模型往返保真（`Group.Extra` 保存组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter）与调优默认值（`EnsureGlobalDefaults` 只补缺失键、`DeriveBootstrapResolver` 从 DNS 上游推导、`dnsnode` 一键添加）；.85 resync 后 `diverged=false` 且渲染结果与线上逐字节一致，点「应用」不再抹掉现场调优。  
 > **修订（v0.62）：** 新增 §14.50.9（.85 应用健康参数后的对照数据）与 §14.51「健康诊断页」（`internal/diag` 把 dae journal 按节点/错误聚合，`GET /api/diag/health`，前端「健康诊断」tab），并记录前端 `api()` 返回值解包错误这个坑。  
 > **修订（v0.61）：** 新增 §14.50：dae 节点健康检查与选路的源码事实（单次探测失败即判死、`check_tolerance` 默认 0、全组判死无兜底、拨号重试不换节点、探测目标走代理通道）、与 mihomo/OpenClash 的逐项对照、.85 现场 24h 数据（1774 次节点域名解析失败 / 5184 次 i/o timeout / 6646 次重选）、配置层可立即改的参数、面板层 7 项优化、与 daed（**已归档**）/NaiLink 的定位对照，以及 .224 迁移草案。  
 > **修订（v0.60）：** 新增 §14.49：OpenWrt（iStoreOS）上「能连但一半站点失败」的四条归因——procd 的 fd 硬上限 4096、OpenClash 残留的 dnsmasq 假 IP、入口配置被 core 覆盖丢订阅、DoT 上游被掐；给出 ulimit 包装（脚本与面板两侧）、DNS 换 UDP 53 + `bootstrap_resolver` 必须 `ip:port`、`reload` 对 DNS/global 不可靠必须 restart、OOM 与 `bpf_conn_state_map_size` 实测，以及「失败主要来自 DNS」的绕过实验数据。
@@ -3342,7 +3343,39 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 
 页面初版只有「时间窗口」卡显示、`v-if="diagReport"` 的其它卡全不出现，但「更新于 HH:MM:SS」又确实出现。根因：本项目的 `api()` helper 返回的是 **`{code, data}`**（见 index.html:1192-1199），初版写成了 `this.diagReport=r.report; this.diagKinds=r.kinds` ⇒ 拿到 `undefined`。正确写法 `this.diagReport=r.data.report`。教训：**新增前端方法时先看 `api()` 的返回形状**；页面里 raw `fetch()` 能拿到数据不代表 `api()` 包装后的形状一样，用 CDP 在页面里同时跑两者对照一次最快。
 
-## 15. 本版（v0.62）变更清单
+## 14.52 模型往返保真 + 调优默认值（v0.63：让「应用」不再抹掉现场调优）
+
+### 14.52.1 问题
+
+线上（.85）在 13:47 / 14:20 / 14:41 做过三处现场调优（健康参数、DoT→UDP、dnsnode 专组），但面板 `/api/model` 一直报 `diverged=true`：点「应用」会用渲染结果整段覆盖 `config.d/panel-core.dae`，等于把调优抹掉。两个原因：
+
+1. `parseGroups` 只认 `policy:` 与 `filter:`，**组级 `check_interval` / `check_tolerance` 被静默丢弃** → 模型里没有 → 渲染也就没有。
+2. 渲染顺序与现场不同（现场是 policy → 组长参数 → filter；渲染是 policy → filter → 组长参数），内容一致也会被判 drift。
+
+### 14.52.2 改动
+
+| 位置 | 改动 |
+| --- | --- |
+| `internal/model/model.go` | `Group.Extra []string`（json `extra`）：保存 policy/filter 之外的键行；`parseGroups` 收下它们，`Render` 按 **policy → extra → filter** 输出；前端分组表新增「组级调优（可选）」列，可直接编辑。 |
+| `internal/model/defaults.go` | 新增：`DefaultGlobalLines`（`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url: 'http://www.gstatic.com/generate_204'`）+ `EnsureGlobalDefaults`（**只补缺失键，绝不覆盖现场值**）；`DeriveBootstrapResolver` 从 dns 段第一个 IP 形式 upstream 推导 `bootstrap_resolver: 'ip:port'`（dae 不接受 `udp://` 写法）；`DNSGroupTemplate` / `EnsureDNSGroupRule`。 |
+| `internal/api/index.html` | 「+ DNS 专用组（dnsnode）」按钮：一键添加 `dnsnode`（`min_avg10` + 组长 `check_interval: 30s` / `check_tolerance: 1s` + 港/日/新/台四条 filter），已有同名组时不重复添加。 |
+
+`EnsureDNSGroupRule` 的语义：存在 `dnsnode` 组时保证 `dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode`；无论有无都保证 `dip(223.5.5.5, 119.29.29.29) && dport(53) -> direct`（国内 DNS 直连，避免把 223.5.5.5 送进业务组）。
+
+**为什么 dnsnode 不做成自动创建**：机场若没有「专线」类节点，这个组会是空组，路由进去等于 DNS 全挂（`no dialer in this group`）。它必须是显式动作，而不是新装机的默认值——这一点与 `EssentialRules`（缺了必出事，所以强制注入）性质不同。
+
+### 14.52.3 验证
+
+- 新增测试：`TestParseGroupsKeepsExtra`、`TestEnsureGlobalDefaultsInjectsMissingKeys`、`TestEnsureGlobalDefaultsKeepsExistingValues`（含幂等）、`TestDeriveBootstrapResolver`、`TestEnsureDNSGroupRule`（含幂等与「无组时不加」）、`TestDNSGroupTemplate`；全仓 `go test ./... -count=1` 全绿，`gofmt -l` / `go vet ./...` 干净。
+- .85 实机：`POST /api/model/resync` 后 `diverged=false`、`drift=[]`；`/api/model/preview` 渲染结果与 `/etc/dae/config.d/panel-core.dae` **逐字节 diff 为空**；分组 extra 正确回读（`dnsnode: ['check_interval: 30s','check_tolerance: 1s']`），`bootstrap_resolver` / `check_*` / `tcp_check_url` 均在模型 global 里。
+- 回退点：`/root/model.json.bak-20261028-151105`（resync 前的模型）；二进制回退用上一个 tag。
+
+### 14.52.4 边界
+
+- 面板不会主动改写线上已有的值；调优默认值只在「缺这个键」时补。
+- 「应用」仍会整段重写 core（模型即真源的必然结果），但现在重写的内容包含现场调优，效果是幂等的。
+- 组内键顺序仍以 policy → extra → filter 为准；如果线上是别的顺序，第一次「应用」会把顺序规范化，之后不再报 drift。
+## 15. 本版（v0.63）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3405,3 +3438,4 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 51. **§14.49（v0.60）**：OpenWrt 上「能连但一半失败」的归因与修法——procd 传给 dae 的 `RLIMIT_NOFILE` 硬上限 4096（`socket: too many open files`，改 init 脚本 ulimit 包装，`deploy/install.sh` 与 `internal/bootstrap/dae_static.go` 同步，并对已有脚本做缺则重写的升级路径）；OpenClash 停用后 dnsmasq 残留 `noresolv=1`/`server=127.0.0.1#7874` 返回 `198.18.x` 假 IP（清 uci 项）；入口配置被 core 覆盖导致订阅段丢失；DoT 上游被掐改 UDP 53 且 `bootstrap_resolver` 必须 `ip:port`；`dae reload` 对 DNS/global 不可靠必须 restart；发现 9 次 OOM kill 并用 `bpf_conn_state_map_size: 65536` 把 RSS 降到 92–158MB；同时间段两台对比数据与「失败主要来自 DNS」的绕过实验。
 52. **§14.50（v0.61）**：dae 节点健康检查与选路——读 dae v2.1.1 源码定出五个吃亏点（TCP 探测**单次失败即判死**、`check_tolerance` 代码默认 **0** 无迟滞、组内全死直接 `ErrNoAliveDialer` 仅单节点组兜底、拨号重试**不换节点**、探测目标 `cp.cloudflare.com/1.1.1.1/dns.google` 穿节点探测会误杀），与 mihomo（interval 300s + lazy、真实失败只计数不写 alive）逐项对照；给出 .85 现场 24h 数据（节点域名 bootstrap 解析失败 1774 次、i/o timeout 5184、SERVFAIL 1593、重选 6646、VmHWM 635MB）与峰值时段；配置层可立即改的四参数（`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url` 换 gstatic、`bootstrap_resolver: '223.5.5.5:53'` + 直连规则前置）与组策略换 `min_avg10`；面板层 7 项优化（默认注入健康参数、分组 policy 可编辑、健康诊断页、DNS 死锁自检、应用后就绪检查、`homenet-panel doctor`、整目录备份恢复）；与 daed（**已归档**，2026-09-24）/NaiLink（三内核切换、`--check-network`、卸载前备份）的定位对照；以及 .224 迁移草案（该机已跑一份不同版本面板，须先核对）。
 53. **§14.50.9 / §14.51（v0.62）**：把 14.50 的配置处方落到 .85（`check_interval:60s` / `check_tolerance:500ms` / `tcp_check_url` 换 gstatic / `bootstrap_resolver:'223.5.5.5:53'` / 组策略 `min_avg10` / 223.5.5.5·119.29.29.29 的 53 直连），实测 bootstrap 解析失败从 414/h 降到 **0**、i/o timeout 与 SERVFAIL 同步归零、重选从 132/h 降到 36/h；并把这套聚合做成面板「健康诊断」页（新增 `internal/diag`、`GET /api/diag/health`、前端 tab），顺带记录前端 `api()` 返回 `{code,data}` 而初版按扁平结构取值的坑（`this.diagReport=r.report` → `r.data.report`）。
+54. **新增 §14.52（v0.63）**：模型往返保真 + 调优默认值——`model.Group.Extra` 收下组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter；`internal/model/defaults.go` 提供 `EnsureGlobalDefaults`（只补缺失键、`bootstrap_resolver` 从 DNS 上游推导）与 `DNSGroupTemplate`/`EnsureDNSGroupRule`，前端加「+ DNS 专用组（dnsnode）」按钮。.85 resync 后 `diverged=false`、渲染结果与线上逐字节一致，「应用」不再抹掉现场调优。

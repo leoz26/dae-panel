@@ -19,6 +19,9 @@ type Group struct {
 	Name    string   `json:"name"`
 	Policy  string   `json:"policy"`
 	Filters []string `json:"filters"`
+	// Extra 保存 policy/filter 之外的其它键行（如 check_interval、check_tolerance）。
+	// 丢了它们，「应用」就会把现场调好的健康检查参数抹掉（v0.62 的 diverged 就源于此）。
+	Extra []string `json:"extra,omitempty"`
 }
 
 // Rule 对应 routing 块中的一条分流规则。
@@ -191,6 +194,8 @@ func parseGroups(body string) []Group {
 					g.Policy = strings.TrimSpace(strings.TrimPrefix(b, "policy:"))
 				} else if strings.HasPrefix(b, "filter:") {
 					g.Filters = append(g.Filters, strings.TrimSpace(strings.TrimPrefix(b, "filter:")))
+				} else {
+					g.Extra = append(g.Extra, b)
 				}
 			}
 			groups = append(groups, g)
@@ -274,8 +279,9 @@ func Render(m *Model) (entry, core string) {
 
 	var c strings.Builder
 	c.WriteString(Header + "\n")
+	global, _ := EnsureGlobalDefaults(m.Global, m.DNS)
 	c.WriteString("global {\n")
-	c.WriteString(ensureNL(m.Global))
+	c.WriteString(ensureNL(global))
 	c.WriteString("}\n\n")
 
 	c.WriteString("group {\n")
@@ -283,6 +289,11 @@ func Render(m *Model) (entry, core string) {
 		fmt.Fprintf(&c, "    %s {\n", g.Name)
 		if g.Policy != "" {
 			fmt.Fprintf(&c, "        policy: %s\n", g.Policy)
+		}
+		// 顺序按 dae 常见写法：policy → 组长参数 → filter（现场文件也是这个序，
+		// 顺序不同会让 modelDrift 误报「线上与模型不一致」）。
+		for _, e := range g.Extra {
+			fmt.Fprintf(&c, "        %s\n", e)
 		}
 		for _, f := range g.Filters {
 			fmt.Fprintf(&c, "        filter: %s\n", f)
@@ -297,6 +308,7 @@ func Render(m *Model) (entry, core string) {
 
 	c.WriteString("routing {\n")
 	rules, _ := EnsureEssentials(m.Rules)
+	rules, _ = EnsureDNSGroupRule(rules, m.Groups)
 	for _, r := range rules {
 		fmt.Fprintf(&c, "    %s -> %s\n", r.Matcher, r.Out)
 	}
