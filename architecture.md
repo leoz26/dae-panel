@@ -3295,6 +3295,29 @@ routing {
 
 **已解决（14:20 二次改动）**：把 `alidns` 上游从 `tls://223.5.5.5:853` 改成 `udp://223.5.5.5:53`（备份 `/root/core.before-uddns-20261028-142042.dae`，`dae validate` rc=0 后 `systemctl restart dae`）。改后 `853` 相关报错 **0**；restart 后约 90 秒内仍不稳（`github.com` 首次解析 13.4s、期间若干 SERVFAIL），进入稳态后 3 分钟内 3 个境外域名各 36/36 解析成功。残留的 `i/o timeout` 已换源：`read udp 192.168.1.85:xxxxx->183.238.84.19:42323: i/o timeout`（把境外域名查询经代理节点转发到 8.8.8.8 的那一跳超时），属机场节点侧问题，不是本机 DNS 配置；处方是换 `dnsnode` 专组或让境外域名也走 alidns 直连兜底。
 
+**DNS 专组（dnsnode，14:35 起）**：按「优先保证境内」的要求，把「经代理转发境外域名查询」这一跳单独立组，境内解析链路一个字没动（仍是 `qname(geosite:cn) -> alidns` → `udp://223.5.5.5:53` → `dip(223.5.5.5) && dport(53) -> direct`）。做法：
+
+```dae
+group {
+    dnsnode {
+        policy: min_avg10
+        check_interval: 30s
+        check_tolerance: 1s
+        filter: subtag(summer) && name(keyword: '专线') && name(keyword: '香港')
+        filter: subtag(summer) && name(keyword: '专线') && name(keyword: '日本')
+        filter: subtag(summer) && name(keyword: '专线') && name(keyword: '新加坡')
+        filter: subtag(summer) && name(keyword: '专线') && name(keyword: '台湾')
+    }
+}
+routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
+```
+
+踩到两次：① 初版只挑「香港/日本/台湾」，第一轮就被 `【隧道】台湾 P1` 这种隧道节点占据并迅速被判死（`ALIVE --udp4-> NOT ALIVE: dialer=【隧道】台湾 P1 group=dnsnode`），`SERVFAIL` 仍偶发；② 加上 `name(keyword: '专线')` 约束（排除隧道节点）并把组内 `check_interval` 收到 30s 后稳定。**组级 `check_interval`/`check_tolerance` 是合法语法**（`dae validate` rc=0，未设时继承 global）。
+
+实测（14:41 重启，预热 120s 后 3 分钟 × 36 次采样，每域名 36 次）：境内 `www.baidu.com` 36/36 平均 2ms、`www.qq.com` 36/36 平均 1ms；境外 `github.com` / `www.google.com` / `claude.ai` / `www.youtube.com` 各 36/36，平均 1–2ms（缓存命中）、最大 34–44ms；journal 里 `SERVFAIL` **0**、`i/o timeout` **0**、`no dialer in this group` **0**；dnsnode 在线节点为「【专线】台湾F3/F4、日本F3、新加坡F2」。
+
+备份：`/root/core.before-dnsnode-20261028-143518.dae`（加组前）、`/root/core.before-dnsnode2-20261028-144127.dae`（收紧 filter 前）。面板模型已用 `POST /api/model/resync` 重新从线上解析（分组名已含 `dnsnode`），但 `diverged` 仍为 true（渲染器把 `pname(homenet-panel, dae, …)` 排最前，与线上顺序不同，属 v0.50 起就存在的已知差异）⇒ **在面板里点「应用」前必须先预览生成结果**。
+
 **原始分析**：`i/o timeout` 的大头其实是 DNS 上游 `tls://223.5.5.5:853`（`WARN DNS forward to upstream failed dialer=direct error=dial tcp <nil>->223.5.5.5:853: i/o timeout`），不是代理拨号。从机器上直测该端口 connect 11ms 能通，属间歇性被掐 ⇒ 处方是把上游改 `udp://223.5.5.5:53`（routing 已加 223.5.5.5/119.29.29.29 的 53 直连）。改 DNS/global 段必须 `systemctl restart dae`，**reload 不生效**，且 restart 后有 45–60 秒预热期（此间 `getaddrinfo` 全 `Temporary failure in name resolution`，不要误判为 DNS 坏了）。
 
 ## 14.51 健康诊断页：把 dae 的 journal 聚合成「谁被误杀、超时在哪」（v0.62）
