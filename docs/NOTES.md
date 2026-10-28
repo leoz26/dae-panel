@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-10-28 .224（飞牛 OS）从 .85 整机接管
+
+- **背景**：.85 与 .11 都是虚拟机，最终部署目标是物理机 192.168.1.224（飞牛 OS）。用户要求「不用备份 .224，直接删掉 dae 和面板重新部署」，并把 .85 的规则一起迁过去。
+- **.224 能力实测（关键）**：内核 `6.18.18.c952-trim`、`CONFIG_NETKIT=y`（dae 起在 **netkit 性能模式**、`bpf_redirect_peer` 已启用）、BTF 完整、memlock 1.99GB、systemd 252、内存 15.9GB、LAN 在 OVS 桥 `enp2s0-ovs`。
+- **清空 + 重装**：删掉旧 dae/面板与 unit，从 .85 迁入 `config.dae`/`config.d/*.dae`/`subs/*`/`model.json`/`subsrc.json`/`auth.json`/`dae` 二进制，面板用仓库构建；证书按 .224 重签。
+- **踩到的两个坑**：①只搬配置不搬 `model.json` 会让面板 `diverged=true`，用户一点「应用」就覆盖现场规则；②`lan_interface`/`--traffic-iface` 是硬编码网卡名，.85 的 `ens2` 在 .224 不存在，必须改 `enp2s0-ovs`。
+- **验收**：`diverged=false`、首页 114,961 字节与仓库一致、`summer` 订阅 81/81 未变、DOM 无 `{{` 泄漏。
+- **.224 登录方式备忘**：root 的 sshd 是 `PermitRootLogin no`，只能用 `sthho` 登录（Administrators 组，sudo 需密码）；已为它装专用密钥 `~/.ssh/hnp_224_ed25519`，root 操作走 `ssh sthho@192.168.1.224 'sudo -S -p "" bash -s'`。面板地址 https://192.168.1.224:8787（账号 admin，密码已由 `setpass` 重设，见会话记录，不入库）。
+- **.85 仍在跑**，待 .224 验收稳定后再停并删除虚拟机。
+
 ## 2026-10-28 · OpenWrt(.11) 卸载 dae + 面板，回到 OpenClash 单跑
 
 ### 背景

@@ -1,6 +1,6 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.64  
+> **文档版本：** v0.65  
 > **修订（v0.64）：** 新增 §14.53 与 `docs/ENGINE-LANDSCAPE.md`：对标社区新引擎 honk（Rust，GPL-3.0，v0.1.0-beta.3，官方自述 early alpha）与前端 doona（必须连 honk 的 native API，不支持 dae）——honk 配置仍是 dae 方言、原生吃 Clash YAML、有 `/api/v1` 与 `validate`/`reload`，但硬门槛 Linux 6.12+、无 `tproxy_port`、已有 VLESS 节点 ID 重推的破坏性先例；结论是不迁移但保留切换缝（成本集中在 tproxy_port、健康检查键落点、进度码语义三处），迁移触发信号为 honk 发 v1.0 或 `test.1`、Review status 全勾、dae 停发版超一季度。
 > **修订（v0.63）：** 新增 §14.52：模型往返保真（`Group.Extra` 保存组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter）与调优默认值（`EnsureGlobalDefaults` 只补缺失键、`DeriveBootstrapResolver` 从 DNS 上游推导、`dnsnode` 一键添加）；.85 resync 后 `diverged=false` 且渲染结果与线上逐字节一致，点「应用」不再抹掉现场调优。  
 > **修订（v0.62）：** 新增 §14.50.9（.85 应用健康参数后的对照数据）与 §14.51「健康诊断页」（`internal/diag` 把 dae journal 按节点/错误聚合，`GET /api/diag/health`，前端「健康诊断」tab），并记录前端 `api()` 返回值解包错误这个坑。  
@@ -55,6 +55,7 @@
 > **修订（v0.45）：** 接入计划的四块面板侧步骤新增**白话说明**（`Step.Note`：门岗比喻、门牌号 vs 收件人姓名、为什么通常不需要 SNAT、为什么不自建 tproxy），前端渲染为提示框（§14.36）。  
 > **修订（v0.44）：** 应用配置时若 dae 没在运行，面板不再把 `dae reload` 的 CLI 用法当错误抛出，而是明确提示「dae 没有在运行」并回滚 + 指路「安装与初始化」页（`ErrDaeNotRunning` / `DaeDownHint` / `explainDaeOut`，见 §14.35）。  
 > **修订（v0.43）：** 在线安装改为 **CDN 优先**：CI 在发布 Release 后把产物推到 `dist`（可变，含 `VERSION`）与 `<tag>-dist`（不可变）两个普通分支供 jsDelivr 转售；`deploy/online-install.sh` 重写为「版本解析（@dist/VERSION → GitHub API）+ 多源顺序回退（jsDelivr/fastly/gcore/raw/releases）+ 带 --http1.1 与重试的下载器 + sha256 校验」。实测补充：jsDelivr **只索引 `dist` 分支**，版本号样式的 `<tag>-dist` 分支名会被当成版本解析而 404，故钉版本走 `raw.githubusercontent.com/<tag>-dist`（见 §14.34.2/14.34.4）。起因是用户在 FNos 上遭遇 `curl (18)/(52)/(28)` 且旧脚本无重试。详见 §14.34。  
+> **修订（v0.65）：** 迁移到 192.168.1.224（飞牛 OS）：实测 netkit 性能模式可用、BTF 完整、memlock 1.99GB、LAN 在 OVS 桥 `enp2s0-ovs`；清空旧装后从 .85 整体迁入并验收 `diverged=false`（§14.54）。  
 > **整理日期：** 2026-10-23  
 > · 「中兴默认假设」改为**厂商画像 preset 表**（OpenWrt/软路由/光猫/家用路由/Mesh/未知，仅预填与导航，不参与选档逻辑）+ **通用默认档 B1** + 与厂商无关的向导三问；
 > · 新增 §4.4.9「开源通用性约束」（不写死网络参数/服务管理器/厂商，探测失败 fail-open 到 observe，无 root 也能只读启动，变更前必出 Plan）。  
@@ -3395,7 +3396,44 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 **现有规则能否完整迁移（逐条比对 .85 的 `panel-core.dae`）**：`global` 8 项、5 个 group、`dns` 两段、`routing` 26 条，**结构上没有搬不过去的**（`dip(...)`、`dport(...)`、`domain(suffix:/geosite:)`、`fallback:`、`-> direct`、`-> block`、`qname(...)`、`qtype(aaaa)`、`policy: min_avg10`、`filter: subtag() && name(keyword:)` 全部同名同义；我们现场 DNS 段早已用 `qname` 而非 `domain`）。但有四处会「静默改行为」或直接报错：① 流量规则里的 `ip(geoip:cn)` / `ip(geoip:telegram)` honk 不认（只有 `dip(...)`），未知谓词会**整份配置报错**，必须改名；② `pname` 截断 dae 16 字节 vs honk **15 字节**，`systemd-resolved`/`systemd-timesyncd` 会失配导致两条直连保护静默失效（且 honk 的 `pname` 是子串匹配、dae 是整名匹配）；③ 组级 `check_interval` 被接受但运行时忽略；④ `geosite:category-ai-!cn` 的 `!` 需用 `honk-core validate` 实测。详见 `docs/ENGINE-LANDSCAPE.md` §8。
 **许可注意**：honk 是 GPL-3.0、dae 是 AGPL-3.0、本项目 MIT。只要不链接（走配置文件 + HTTP API）即不受传染；一旦嵌入/链接即传染。
 
-## 15. 本版（v0.64）变更清单
+## 14.54 迁移落地到 192.168.1.224（飞牛 OS / fnOS，v0.65）
+
+### 14.54.1 平台事实（实测，只读探测）
+
+| 项 | 实测值 | 结论 |
+| --- | --- | --- |
+| 系统 | 飞牛 OS（fnOS），Debian 12 系，systemd 252 | 与 .85（Debian 13）同族，unit 与 apt 用法可直接沿用 |
+| 内核 | `6.18.18.c952-trim`（发行方自编译） | 远高于 dae 门槛（≥5.17） |
+| BTF | `/sys/kernel/btf/vmlinux` 5,516,619 字节；`CONFIG_DEBUG_INFO_BTF=y` | dae 可以起 |
+| eBPF | `CONFIG_BPF_SYSCALL=y`、`CONFIG_CGROUP_BPF=y`、`unprivileged_bpf_disabled=2` | root 运行不受影响 |
+| netkit | `CONFIG_NETKIT=y`，日志 `Successfully created Netkit device pair (performance mode)` + `Safely enabled bpf_redirect_peer() (kernel v6.18.18, netkit+scrub=NONE)` | **性能模式**，优于 .11 的 veth 回退 |
+| memlock | soft=hard=2087190528（约 1.99GB） | .85 那个 8MB memlock 的坑不存在 |
+| 网卡 | LAN 地址在 `enp2s0-ovs`（fnOS 用 OVS 桥），另有 `enp2s0` / `docker0` / `vnet0` | 面板 `--traffic-iface` 与 dae `lan_interface` 都必须写 `enp2s0-ovs` |
+| 资源 | 内存 15.9GB（可用 9.1GB）、/ 63G 用 13G | 比 .11（2GB 无 swap、出过 9 次 OOM）宽裕得多 |
+
+### 14.54.2 执行记录（2026-10-28 18:33–18:36）
+
+1. .224 原装 dae v2.1.1 + 早期面板（8787 上 86,042 字节、引用独立 `/assets/vue.js`）。按用户授权**不备份、整机重装**。
+2. 清空：停并 disable 两个服务 → 删 `/usr/bin/dae`、`/usr/local/bin/homenet-panel`、`/etc/dae`、`/etc/homenet-panel`、`/var/lib/homenet-panel`、`/etc/homenet-panel.auth.json`、两个 unit → `daemon-reload` → 清 `panel_*` nft 表与 `dae0`。
+3. 从 .85 打包迁移（用户要求「.85 的规则也要弄过去」）：`/etc/dae/config.dae`、`config.d/{panel-core,panel-access}.dae`、`subs/*`、`/var/lib/homenet-panel/{model,subsrc}.json`、`/etc/homenet-panel.auth.json`、`/usr/bin/dae`。
+4. 重装面板二进制（13,427,989 字节静态）+ 按新 IP 重签自签证书（SAN `IP:192.168.1.224,IP:127.0.0.1,DNS:localhost`）+ 重写两个 systemd unit（dae 加 `LimitMEMLOCK=infinity` 与 `ExecStartPre=dae validate`）。
+5. 修正硬件差异：`panel-access.dae` 里 `lan_interface: ens2`（.85 网卡名）在 .224 不存在，改为 `enp2s0-ovs` 后重启 dae，面板启动日志不再报「打开转发失败」。
+
+### 14.54.3 验收数据
+
+- `dae validate` rc=0；dae active（pid 712993）、`dae0` 以 netkit 性能模式存在；VmRSS 98MB / VmHWM 264MB；memlock unlimited。
+- 面板 active，`https://192.168.1.224:8787/` 200 / **114,961 字节**（与仓库当前构建一致），登录 200，`/api/status` = `{service:active, progressCode:ReloadDone}`。
+- `/api/model`：`diverged=false`、`drift=null` —— 说明连 `model.json` 一起迁移后，面板模型与线上文件逐字节一致，「应用」不会抹掉现场规则。
+- `/api/subsrc`：订阅 `summer` 已登记（`format=clash`、远端 81 / 本地 81、`changed=false`）。
+- 无痕验证：headless Chrome dump DOM 40,117 字节，`{{` 泄漏 0。
+
+### 14.54.4 教训
+
+- **只搬配置不搬 `model.json` 会导致 `diverged=true`**，用户一点「应用」就会把线上手调覆盖掉；两者必须成对迁移。
+- **网卡名是配置里的硬编码**：`lan_interface`、`--traffic-iface` 换机器必须改，否则 dae 起得来但 LAN 流量永远进不来（面板日志会写「配置声明了 lan_interface [X]，但打开转发失败」）。
+- 迁移包内含 `subsrc.json`（订阅上游 token）与 `auth.json`（密码哈希），**不能进 git**，用完即从两台机器的 `/tmp` 删除。
+
+## 15. 本版（v0.65）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3460,3 +3498,5 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 53. **§14.50.9 / §14.51（v0.62）**：把 14.50 的配置处方落到 .85（`check_interval:60s` / `check_tolerance:500ms` / `tcp_check_url` 换 gstatic / `bootstrap_resolver:'223.5.5.5:53'` / 组策略 `min_avg10` / 223.5.5.5·119.29.29.29 的 53 直连），实测 bootstrap 解析失败从 414/h 降到 **0**、i/o timeout 与 SERVFAIL 同步归零、重选从 132/h 降到 36/h；并把这套聚合做成面板「健康诊断」页（新增 `internal/diag`、`GET /api/diag/health`、前端 tab），顺带记录前端 `api()` 返回 `{code,data}` 而初版按扁平结构取值的坑（`this.diagReport=r.report` → `r.data.report`）。
 54. **新增 §14.52（v0.63）**：模型往返保真 + 调优默认值——`model.Group.Extra` 收下组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter；`internal/model/defaults.go` 提供 `EnsureGlobalDefaults`（只补缺失键、`bootstrap_resolver` 从 DNS 上游推导）与 `DNSGroupTemplate`/`EnsureDNSGroupRule`，前端加「+ DNS 专用组（dnsnode）」按钮。.85 resync 后 `diverged=false`、渲染结果与线上逐字节一致，「应用」不再抹掉现场调优。
 55. **新增 §14.53 与 `docs/ENGINE-LANDSCAPE.md`（v0.64）**：对标 daeuniverse 的新 Rust 引擎 honk（v0.1.0-beta.3，early alpha，GPL-3.0）与其 Web UI doona（GPL-3.0，必须 honk 开 native API）。核实到 honk 配置仍是 dae 方言、订阅原生吃 Clash YAML·JSON、DNS 上游齐全、自带 `/api/v1` 与 `validate`/`reload`；但**硬门槛 Linux 6.12+**、`auto_config_kernel_parameter` 退化为兼容开关（运行时按自己固定的一套 sysctl）、组级 `check_interval` 运行时被忽略、已有 VLESS 节点 ID 重推的破坏性先例、Review status 未全勾。结论：**不迁移，保留切换缝**——成本集中在 tproxy_port 渲染、健康检查键落点、进度码语义三处，迁移触发信号为 honk 发 v1.0/`test.1`、Review 全勾、dae 停发版超一季度。
+
+56. **新增 §14.54（v0.65）**：整机迁移落地到 **192.168.1.224（飞牛 OS / fnOS）**——实测确认 `CONFIG_NETKIT=y`（dae 起在 netkit 性能模式 + `bpf_redirect_peer`）、BTF 完整、memlock 1.99GB 无限制、systemd 252、LAN 在 OVS 桥 `enp2s0-ovs`；按授权清空旧安装后从 .85 整体迁入配置/订阅/模型/凭证，修掉 `lan_interface: ens2` 的网卡名硬编码；验收 `diverged=false`、首页字节数与仓库构建一致。

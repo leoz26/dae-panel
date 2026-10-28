@@ -1,6 +1,6 @@
 # 迁移到 192.168.1.224（从 .85 起）
 
-> 状态：**待执行**。前置条件只差一条——.224 的 SSH 登录方式（22 端口开着，但现有三把密钥都被拒）。本文是执行手册，不是已完成记录。
+> 状态：**已于 2026-10-28 18:33–18:36 执行完毕**（§6 是实执行记录）。原始前置条件记录：前置条件只差一条——.224 的 SSH 登录方式（22 端口开着，但现有三把密钥都被拒）。本文是执行手册，不是已完成记录。
 
 ## 0. 目标机现状（2026-10-28 只读探测）
 
@@ -54,3 +54,30 @@
 - .224 的 SSH 登录方式（root 密码 / 允许贴公钥 / 非 root 账户）。
 - .224 上那份旧面板是否还有用处（没用就整目录备份后覆盖）。
 - 是否顺便把 .224 的 dae 也装成 v2.1.1。
+
+## 6. 实执行记录（2026-10-28 18:33–18:36）
+
+用户授权口径：「不用备份 .224，那个是测试用的，没有价值，直接删除 dae 和面板重新部署」「.85 的规则也要弄过去」。
+
+### 6.1 进入方式
+- 目标机是 **飞牛 OS（fnOS）**，root 的 sshd 配置为 `PermitRootLogin no`（所以 root 公钥即使被 sshd 接受也会被拒），只有普通用户 `sthho`（在 Administrators 组）能登录，且 sudo 需要密码。
+- 做法：用 `sthho` + 密码装好专用密钥（`~/.ssh/hnp_224_ed25519`），root 操作由 `ssh sthho@… 'sudo -S -p "" bash -s'` 走（密码与脚本同走 stdin，不需要 tty）。
+
+### 6.2 清空（无备份，按授权）
+停并 disable `dae`、`homenet-panel` → 删 `/usr/bin/dae`、`/usr/local/bin/homenet-panel`、`/etc/dae`、`/etc/homenet-panel`、`/etc/homenet-panel.auth.json`、`/var/lib/homenet-panel`、两个 unit → `daemon-reload` → 清 `panel_*` nft 表与 `dae0`。
+
+### 6.3 迁入（来自 .85）
+`/etc/dae/config.dae`、`config.d/panel-core.dae`、`config.d/panel-access.dae`、`subs/*`、`/var/lib/homenet-panel/{model,subsrc}.json`、`/etc/homenet-panel.auth.json`、`/usr/bin/dae`（v2.1.1）；面板二进制用仓库 `bin/homenet-panel-linux-amd64`。
+
+### 6.4 与现场不同的三处
+1. 证书按新 IP 重签：SAN `IP:192.168.1.224,IP:127.0.0.1,DNS:localhost`。
+2. `panel-access.dae` 的 `lan_interface: ens2` → **`enp2s0-ovs`**（fnOS 用 OVS 桥，LAN 地址在这个口上）。
+3. 面板 unit 的 `--traffic-iface` 同样是 `enp2s0-ovs`；`dae.service` 补 `LimitMEMLOCK=infinity` 与 `ExecStartPre=dae validate`。
+4. 登录密码用 `homenet-panel setpass` 重设（不沿用 .85 的哈希，因为 .85 密码已由用户自行修改）。
+
+### 6.5 验收结果
+- `dae validate` rc=0；dae active；日志 `Successfully created Netkit device pair (performance mode)` + `Safely enabled bpf_redirect_peer() (kernel v6.18.18, netkit+scrub=NONE)`；VmRSS 98MB；memlock unlimited。
+- `https://192.168.1.224:8787/` 200 / 114,961 字节（与仓库当前构建一致）；登录 200；`/api/status` = `{service:active, progressCode:ReloadDone}`。
+- `/api/model`：`diverged=false`、`drift=null`；`/api/subsrc`：`summer` 已登记、`format=clash`、81/81、`changed=false`。
+- headless Chrome 渲染 40,117 字节 DOM、`{{` 泄漏 0。
+- 收尾：两台机器 `/tmp` 里的迁移包（含订阅 token 与密码哈希）已删除。
