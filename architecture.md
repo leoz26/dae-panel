@@ -3293,7 +3293,9 @@ routing {
 | `Group re-selects` | 132 | 36（6 次/10 分钟） | 下降约 3/4，`check_tolerance` + `min_avg10` 生效 |
 | `NOT ALIVE` | — | 0（冷启动期 438，全部节点的首轮探测） | 稳态无误杀 |
 
-**未解决**：`i/o timeout` 的大头其实是 DNS 上游 `tls://223.5.5.5:853`（`WARN DNS forward to upstream failed dialer=direct error=dial tcp <nil>->223.5.5.5:853: i/o timeout`），不是代理拨号。从机器上直测该端口 connect 11ms 能通，属间歇性被掐 ⇒ 处方是把上游改 `udp://223.5.5.5:53`（routing 已加 223.5.5.5/119.29.29.29 的 53 直连）。改 DNS/global 段必须 `systemctl restart dae`，**reload 不生效**，且 restart 后有 45–60 秒预热期（此间 `getaddrinfo` 全 `Temporary failure in name resolution`，不要误判为 DNS 坏了）。
+**已解决（14:20 二次改动）**：把 `alidns` 上游从 `tls://223.5.5.5:853` 改成 `udp://223.5.5.5:53`（备份 `/root/core.before-uddns-20261028-142042.dae`，`dae validate` rc=0 后 `systemctl restart dae`）。改后 `853` 相关报错 **0**；restart 后约 90 秒内仍不稳（`github.com` 首次解析 13.4s、期间若干 SERVFAIL），进入稳态后 3 分钟内 3 个境外域名各 36/36 解析成功。残留的 `i/o timeout` 已换源：`read udp 192.168.1.85:xxxxx->183.238.84.19:42323: i/o timeout`（把境外域名查询经代理节点转发到 8.8.8.8 的那一跳超时），属机场节点侧问题，不是本机 DNS 配置；处方是换 `dnsnode` 专组或让境外域名也走 alidns 直连兜底。
+
+**原始分析**：`i/o timeout` 的大头其实是 DNS 上游 `tls://223.5.5.5:853`（`WARN DNS forward to upstream failed dialer=direct error=dial tcp <nil>->223.5.5.5:853: i/o timeout`），不是代理拨号。从机器上直测该端口 connect 11ms 能通，属间歇性被掐 ⇒ 处方是把上游改 `udp://223.5.5.5:53`（routing 已加 223.5.5.5/119.29.29.29 的 53 直连）。改 DNS/global 段必须 `systemctl restart dae`，**reload 不生效**，且 restart 后有 45–60 秒预热期（此间 `getaddrinfo` 全 `Temporary failure in name resolution`，不要误判为 DNS 坏了）。
 
 ## 14.51 健康诊断页：把 dae 的 journal 聚合成「谁被误杀、超时在哪」（v0.62）
 
