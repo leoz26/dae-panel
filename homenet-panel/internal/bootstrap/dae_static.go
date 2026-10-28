@@ -70,7 +70,8 @@ STOP=10
 
 start_service() {
 	procd_open_instance
-	procd_set_param command /bin/sh -c "exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
+	# procd 传下来的 fd 上限常是 4096，dae 在多订阅/多节点时会撞 socket: too many open files
+	procd_set_param command /bin/sh -c "ulimit -Hn 65535; ulimit -n 65535; exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
 	procd_set_param respawn 3600 5 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1

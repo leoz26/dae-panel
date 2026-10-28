@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.59  
+> **文档版本：** v0.60  
+> **修订（v0.60）：** 新增 §14.49：OpenWrt（iStoreOS）上「能连但一半站点失败」的四条归因——procd 的 fd 硬上限 4096、OpenClash 残留的 dnsmasq 假 IP、入口配置被 core 覆盖丢订阅、DoT 上游被掐；给出 ulimit 包装（脚本与面板两侧）、DNS 换 UDP 53 + `bootstrap_resolver` 必须 `ip:port`、`reload` 对 DNS/global 不可靠必须 restart、OOM 与 `bpf_conn_state_map_size` 实测，以及「失败主要来自 DNS」的绕过实验数据。
 > **修订（v0.59）：** 新增 §14.48：OpenWrt 的 opkg/apk 只能装扩展件（ss、geo），dae 本体在任何发行版官方源里都没有 → 面板与 install.sh 都加「官方静态包」路径（架构候选包、整棵文件系统布局、GitHub 加速回退、换二进制后重启服务），iStoreOS 实机 3.8s 装完并自启。
 > **修订（v0.58）：** 新增 §14.47：面板移植到 iStoreOS/iStoreOS 系 x86_64 路由器（192.168.1.11）的全部兼容性结论——dae 在 6.6.144 上无 netkit 自动回退 veth、procd 无 systemd、busybox 无 install(1)、/usr/local/bin 不存在、pgrep -x 失效、/api/traffic/bytes 因串行 DNS 解析挂死；四个 bug 已修，全量功能实测通过。
 > **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
@@ -3053,7 +3054,86 @@ install.sh --install-dae  /  面板「安装与初始化 → 安装 dae」
 - 加速前缀是第三方服务，可用性不由本项目保证；企业内网可改成 `--base-url` 指向本地镜像。
 - 面板按钮与脚本都不改 `/etc/config/firewall`、不装 `v2ray-geoip`、不动 opkg 的 feeds 配置。
 
-## 15. 本版（v0.59）变更清单
+### 14.49 OpenWrt 上「能连但一半失败」的四个原因（v0.60）
+
+> 起因：用户在 192.168.1.11（iStoreOS 24.10.8）上跑 dae，OpenClash 能过而 dae 过不去的站点很多，claude 还被判地区不符。同一批订阅在 192.168.1.85（Debian 13 / 内核 6.12）上接近 100% 成功。
+
+#### 14.49.1 三个直接原因（都不是「OpenWrt 不行」）
+
+| # | 症状 | 根因 | 归因 |
+|---|---|---|---|
+| 1 | dae 日志刷 `socket: too many open files`，fd 用满 4076/4096 | procd 传给子进程的 **RLIMIT_NOFILE 硬上限是 4096**（来自 pid 1）；`procd_set_param limits memlock=unlimited nofile=65535` 对**硬上限**无效 | 平台相关（procd）；systemd 的 `LimitNOFILE` 是 root 可设的，Debian 上不会撞 |
+| 2 | dnsmasq 把域名解析成 `198.18.x.x` 假 IP，dae 把假 IP 丢给节点 → `curl: (35) TLS connect error ... unexpected eof` | OpenClash 停用后 `uci show dhcp` 仍留 `noresolv=1` + `server=127.0.0.1#7874`（clash 的 fake-IP DNS） | 装了 OpenClash 的 OpenWrt 特有 |
+| 3 | 所有组 `no dialer in this group`、`WARN No node found.` | 入口配置被整份 core 覆盖，`subscription` 段丢失 | **操作失误**，与平台无关 |
+| 4 | DoT 上游全灭：`DNS forward to upstream failed dialer=direct error=dial tcp <nil>->223.5.5.5:853: i/o timeout` | 本机到 `223.5.5.5:853`/`1.1.1.1:853` 的 DoT 被掐；换成 UDP 53 才稳定 | 网络环境相关，Linux 上一样会中 |
+
+修法（前三条）：
+
+1. **fd 上限**：给 procd 的命令套一层 shell，先抬 ulimit 再 exec（`deploy/install.sh` 与 `homenet-panel/internal/bootstrap/dae_static.go` 的 procd 模板都改了）：
+   ```sh
+   procd_set_param command /bin/sh -c "ulimit -Hn 65535; ulimit -n 65535; exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
+   ```
+   验证：`/proc/<dae>/limits` 变成 65535/65535，fd 用量从 4076 掉到 93。安装脚本对**已存在的旧 init 脚本**也做了升级路径：缺 `ulimit -n 65535` 就备份后重写。
+2. **假 IP**：`/etc/init.d/openclash stop && disable`；`uci set dhcp.@dnsmasq[0].noresolv=0`、`uci del dhcp.@dnsmasq[0].server`、`uci commit dhcp`、`/etc/init.d/dnsmasq restart`。修完 `curl --resolve www.cloudflare.com:443:104.16.132.229` → 200 / 0.56s。
+3. **入口文件**：恢复成 218 字节的「注释头 + `include { config.d/*.dae }` + subscription 块」。**面板 apply 失败回滚后也要检查入口首行**——回滚逻辑会把 core 整份写回入口。
+
+#### 14.49.2 DNS 上游怎么配才稳（实机多轮结论）
+
+- `bootstrap_resolver` 只认 `ip:port`：写 `udp://223.5.5.5:53` 报 `each colon-separated field must have at least one digit`，写 `223.5.5.5` 报 `not an ip:port`，写 `223.5.5.5:53` 才通过（example.dae:148-150 注释原文：For IPv4 DNS servers, use "ipv4:port"）。
+- **改 DNS/global 段不能用 `dae reload`**：reload 返回 `OK`、progress `2|OK`，但 DNS 会全灭；必须 `/etc/init.d/dae restart`（用 `setsid sh -c 'sleep 1; /etc/init.d/dae restart' </dev/null >/tmp/x.log 2>&1 &` 以免掐断 ssh）。routing/group 的改动 reload 是安全的。
+- DoH（`https://1.1.1.1/dns-query`）在这条链路上部分可用，但日志出现 `invalid ivLen:16, actual length:0: EOF`，被节点掐 TLS，不适合做默认。
+- 让 CN 域名指向本机 dnsmasq（`lan: 'udp://127.0.0.1:53'`）会**成环**（dnsmasq 的上游查询又被 dae 截获），baidu 直接 000，不要这么做。
+- 最终可用形态：
+  ```
+  dns {
+      upstream {
+          alidns: 'udp://223.5.5.5:53'
+          googledns: 'udp://8.8.8.8:53'
+      }
+      request {
+          ...
+          fallback: googledns
+      }
+  }
+  routing {
+      dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode   # 必须在 pname(... dae ...) -> direct 之前
+  }
+  group {
+      dnsnode { policy: min_avg10; filter: subtag(summer) && name(keyword: '香港') }
+  }
+  ```
+
+#### 14.49.3 内存与内核（最可能的剩余差异）
+
+- `dmesg` 有 **9 次 OOM kill dae**（`total-vm:1837696kB, anon-rss:523772kB`），这台机器 2GB 无 swap，dae 峰值 VmHWM 579MB。
+- 缓解：`global { bpf_conn_state_map_size: 65536 }` → VmRSS 258MB → 92–158MB（VmHWM 仍 268–378MB）。
+- 内核 6.6.144 **没有 netkit**，dae 日志 `Created veth device pair (kernel v6.6.144 does not support Netkit)`，退化到 veth；192.168.1.85 是 6.12 + netkit。这一条**尚未证实**为失败率差异的主因。
+
+#### 14.49.4 实测数据（2026-10-28，同一时段两台对比）
+
+| 指标 | 192.168.1.11（iStoreOS / 6.6） | 192.168.1.85（Debian / 6.12） |
+|---|---|---|
+| 本地 DNS 解析 | 30/30 成功，github→20.205.243.166、en.wikipedia→103.102.166.224（真实 IP） | 正常 |
+| 绕过 DNS 直连（`curl --resolve`） | 11/12 成功 | 接近 100% |
+| 走本地 DNS 后同一批域名 | 8/12 | — |
+| 代理站点成功率（github/google/youtube/claude） | summer-only 后 6/9 ≈ 67% | cloudflare 3/3、github 3/3（claude 0/3，其节点被 Cloudflare 侧拒） |
+| 广告域名 | doubleclick 返回 0 答案 | 同 |
+| claude 出口 | `ip=185.36.192.137 loc=SG`（正是想要的 SG） | 0/3 |
+
+结论：**失败的主要来源是 DNS（已修），剩下的差距是小部分数据面 + 可能的内核/OOM**；不是「OpenWrt 不能用」。
+
+#### 14.49.5 分组收敛的经验
+
+- 组内 filter 统一加 `subtag(summer)` 后成功率高很多（不限池 7/20 → 限池 14/20）。但**把不用的订阅从入口删掉**会让节点池变窄、一度 0/20，因此保留 dual/summer/CF 三个订阅、只在组内限流。
+- 用 `sed`/`awk` 改 filter 时注意：替换串里的 `&` 会被展开成整个匹配内容（曾把文件写成 `filter: subtag(summer) filter: namefilter: name name(...)`），要写 `\&`。
+
+#### 14.49.6 边界
+
+- 本节全部是在 192.168.1.11 上的现场操作，`/etc/config/*` 未改（只动了 dnsmasq 的 uci 项与 openclash 的启用状态，均可用 `uci revert` 恢复）。
+- 现场备份：`/root/core.good-20261028-1258.dae`、`/root/entry.good-20261028-1258.dae`，回滚 = 拷回 + `/etc/init.d/dae restart`。
+- 面板 `/api/model` 此时是 `diverged=true`（手工改过 live 文件），**不要在面板点「应用」**，否则会覆盖这些改动；先做 `resync` 对齐。
+
+## 15. 本版（v0.60）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3113,3 +3193,4 @@ install.sh --install-dae  /  面板「安装与初始化 → 安装 dae」
 49. **§14.47（v0.58）**：OpenWrt / iStoreOS 兼容性——面板与 dae 移植到 x86_64 路由器 192.168.1.11（iStoreOS 24.10.8 / 内核 6.6.144 / procd）。dae 因内核不支持 netkit 自动回退 veth 仍可用；修掉 4 个平台 bug：busybox 无 `install(1)`、OpenWrt 无 `/usr/local/bin`、`systemctl is-active` 与 `pgrep -x` 在 procd/busybox 下双双失效（改四级判定 + pid 文件兜底）、`/api/traffic/bytes` 因对 111 个节点串行 DNS 解析挂死 >150s（改异步索引 + 3s 超时 + 16 并发）。全量功能实测：状态/字节统计/接入向导（推荐 gateway、自检 5 通过）/Geo/订阅三源 Clash 转换/审计 CSV/11 个 tab 浏览器无泄漏，数据面 google 200 与 DNS 广告拦截对 LAN 生效。
 
 50. **§14.48（v0.59）**：无 APT 环境的依赖安装——OpenWrt/iStoreOS 的 opkg（25.x 起 apk）里没有 dae（`opkg list | grep ^dae` 为空），只有 `ss` 与 `v2ray-geoip/geosite`。新增 `internal/bootstrap/dae_static.go`（`DaeAssetCandidates` 按 arch+avx2 选包、`installDaeStatic` 下载→解包→装 `/usr/bin/dae`→写 procd→重启服务）与 `deploy/install.sh` 的 `install_dae_static()`；修四个坑（静态包是 usr/bin 布局、fetch 4MB/30s 上限、直连 GitHub EOF 需加速回退、换二进制后 procd 不会自启）。实机 3.8s 装完，`/api/status` active。
+51. **§14.49（v0.60）**：OpenWrt 上「能连但一半失败」的归因与修法——procd 传给 dae 的 `RLIMIT_NOFILE` 硬上限 4096（`socket: too many open files`，改 init 脚本 ulimit 包装，`deploy/install.sh` 与 `internal/bootstrap/dae_static.go` 同步，并对已有脚本做缺则重写的升级路径）；OpenClash 停用后 dnsmasq 残留 `noresolv=1`/`server=127.0.0.1#7874` 返回 `198.18.x` 假 IP（清 uci 项）；入口配置被 core 覆盖导致订阅段丢失；DoT 上游被掐改 UDP 53 且 `bootstrap_resolver` 必须 `ip:port`；`dae reload` 对 DNS/global 不可靠必须 restart；发现 9 次 OOM kill 并用 `bpf_conn_state_map_size: 65536` 把 RSS 降到 92–158MB；同时间段两台对比数据与「失败主要来自 DNS」的绕过实验。

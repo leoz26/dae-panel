@@ -107,6 +107,12 @@ install_dae_static() { # 无 APT（OpenWrt / iStoreOS / Alpine 等）：dae 不�
   if [ ! -f /etc/dae/example.dae ] && [ -f "$PKG_EX" ]; then cp "$PKG_EX" /etc/dae/example.dae; fi
   DAE_BIN=$(command -v dae 2>/dev/null || true)
   [ -n "$DAE_BIN" ] && ok "dae 已安装：$("$DAE_BIN" --version 2>/dev/null | head -1)"
+  # 已有 init 脚本时只在缺 ulimit 包装时才重写（老版本装的脚本没有这行，fd 会卡在 4096）
+  if [ -f /etc/init.d/dae ] && ! grep -q "ulimit -n 65535" /etc/init.d/dae 2>/dev/null; then
+    cp -f /etc/init.d/dae "/etc/init.d/dae.bak-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
+    info "已有 /etc/init.d/dae 缺少 fd 上限提升，将备份后重写"
+    rm -f /etc/init.d/dae
+  fi
   if [ -f /etc/openwrt_release ] && [ ! -f /etc/init.d/dae ]; then
     cat > /etc/init.d/dae <<'EOS'
 #!/bin/sh /etc/rc.common
@@ -117,7 +123,8 @@ STOP=10
 
 start_service() {
 	procd_open_instance
-	procd_set_param command /bin/sh -c "exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
+	# procd 给 dae 的 fd 硬上限常是 4096，多订阅/多节点时会报 socket: too many open files
+	procd_set_param command /bin/sh -c "ulimit -Hn 65535; ulimit -n 65535; exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
 	procd_set_param respawn 3600 5 0
 	procd_set_param stdout 1
 	procd_set_param stderr 1

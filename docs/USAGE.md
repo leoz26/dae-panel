@@ -542,6 +542,46 @@ nslookup doubleclick.net 192.168.1.11               # 应该 No answer（DNS 广
 
 实测（iStoreOS 24.10.8 / x86_64 / 内核 6.6.144）：接入向导推荐档 `gateway`、自检 5 项通过 0 待确认、三条 Clash 订阅（29/81/1 节点）全部转换成功、11 个标签页浏览器渲染无异常。
 
+### 2.13.5 能连上但一半站点失败怎么查（现场清单）
+
+在路由器上按顺序看这五项，前两项命中率最高：
+
+```sh
+# 1) fd 上限（procd 默认给 4096，dae 多节点时会撞）
+grep -E "Max open files" /proc/$(pgrep -f "/usr/bin/dae run"|head -1)/limits
+# 期望 65535/65535；若是 4095/4096，init 脚本里的 command 需要套 ulimit：
+#   procd_set_param command /bin/sh -c "ulimit -Hn 65535; ulimit -n 65535; exec /usr/bin/dae run ..."
+logread | grep -c "too many open files"
+
+# 2) dnsmasq 是否还在返回假 IP（OpenClash 停用后常见的残留）
+uci show dhcp | grep -E "noresolv|server"
+nslookup www.baidu.com 127.0.0.1
+# 若出现 noresolv=1 / server=127.0.0.1#7874 或 198.18.x.x 的答案：
+uci set dhcp.@dnsmasq[0].noresolv=0; uci del dhcp.@dnsmasq[0].server; uci commit dhcp
+/etc/init.d/dnsmasq restart
+
+# 3) 入口配置是否还带 subscription 段（被整份 core 覆盖过就会 0 节点）
+head -3 /etc/dae/config.dae; grep -c subscription /etc/dae/config.dae
+logread | grep -c "No node found"
+
+# 4) DNS 上游是否在超时（DoT 在很多网络里被掐）
+logread | grep "DNS forward to upstream failed" | tail -3
+# 换成 UDP 53：upstream { alidns: 'udp://223.5.5.5:53' }，bootstrap_resolver 必须写 ip:port
+
+# 5) 内存（2GB 设备上 dae 峰值可到 500MB+，会被 OOM kill）
+dmesg | grep -c "Out of memory.*dae"
+# 缓解：global { bpf_conn_state_map_size: 65536 }
+```
+
+两个容易踩的规则：
+
+- **改 DNS 段或 global 段不要用 `dae reload`**：它会返回 OK，但 DNS 会全灭。用 `/etc/init.d/dae restart`（或 `systemctl restart dae`）。routing/group 的改动 reload 是安全的。
+- **判断「是 DNS 还是数据面」**，用 `curl --resolve` 绕过本地解析：
+  ```sh
+  curl -sS -o /dev/null -w "%{http_code}\n" --resolve github.com:443:20.205.243.166 https://github.com
+  ```
+  绕过 DNS 成功率高、走本地 DNS 失败多 ⇒ 问题在解析，不在代理。
+
 ## 3. 界面速览
 
 | 页签 | 干什么 |

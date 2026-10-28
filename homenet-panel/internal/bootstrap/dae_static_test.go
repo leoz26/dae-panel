@@ -79,3 +79,17 @@ func TestInstallDaeStaticUnknownArch(t *testing.T) {
 }
 
 func errNotFound() error { return errors.New("not found") }
+
+func TestProcdInitRaisesNoFileLimit(t *testing.T) {
+	// procd 传给 dae 的 RLIMIT_NOFILE 硬上限常是 4096，多订阅时会 socket: too many open files。
+	init := string(procdInit())
+	if !strings.Contains(init, "ulimit -Hn 65535") || !strings.Contains(init, "ulimit -n 65535") {
+		t.Fatalf("procd init 缺少 ulimit 包装：\n%s", init)
+	}
+	if !strings.Contains(init, "exec /usr/bin/dae run") {
+		t.Fatalf("procd init 应以 exec 启动 dae（否则 ulimit 只作用于 shell）：\n%s", init)
+	}
+	if strings.Index(init, "ulimit -n 65535") > strings.Index(init, "exec /usr/bin/dae run") {
+		t.Fatal("ulimit 必须写在 exec 之前")
+	}
+}
