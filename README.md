@@ -128,6 +128,7 @@ go vet ./... && go test ./... -count=1
 - `docs/access-test-b2.md`：B2（主路由 DHCP 指向旁路由）端到端测试手册——前置条件、改前记录、逐项自检、三级回滚
 - `docs/NOTES.md`：运维笔记（按时间倒序）——每台机上装/卸 dae 与面板的实际步骤、东西挪到哪、怎么撤、顺带确认的事实
 - **`docs/CORRECTIONS.md`：修正记录（勘误）**——被实机推翻的旧结论、修过的 bug 与根因、容易误判的默认值、仍待验证项，每条附证据位置
+- `docs/ENGINE-LANDSCAPE.md`：引擎版图观察（dae / honk / doona）——honk 的硬门槛与风险、doona 与我们的定位差异、将来接 honk 的落点与迁移触发信号
 - `dae-cli-capability-checklist.md`：dae CLI 命令/信号/配置模型/坑点核对表
 
 ## 许可证

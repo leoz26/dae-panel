@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.63  
+> **文档版本：** v0.64  
+> **修订（v0.64）：** 新增 §14.53 与 `docs/ENGINE-LANDSCAPE.md`：对标社区新引擎 honk（Rust，GPL-3.0，v0.1.0-beta.3，官方自述 early alpha）与前端 doona（必须连 honk 的 native API，不支持 dae）——honk 配置仍是 dae 方言、原生吃 Clash YAML、有 `/api/v1` 与 `validate`/`reload`，但硬门槛 Linux 6.12+、无 `tproxy_port`、已有 VLESS 节点 ID 重推的破坏性先例；结论是不迁移但保留切换缝（成本集中在 tproxy_port、健康检查键落点、进度码语义三处），迁移触发信号为 honk 发 v1.0 或 `test.1`、Review status 全勾、dae 停发版超一季度。
 > **修订（v0.63）：** 新增 §14.52：模型往返保真（`Group.Extra` 保存组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter）与调优默认值（`EnsureGlobalDefaults` 只补缺失键、`DeriveBootstrapResolver` 从 DNS 上游推导、`dnsnode` 一键添加）；.85 resync 后 `diverged=false` 且渲染结果与线上逐字节一致，点「应用」不再抹掉现场调优。  
 > **修订（v0.62）：** 新增 §14.50.9（.85 应用健康参数后的对照数据）与 §14.51「健康诊断页」（`internal/diag` 把 dae journal 按节点/错误聚合，`GET /api/diag/health`，前端「健康诊断」tab），并记录前端 `api()` 返回值解包错误这个坑。  
 > **修订（v0.61）：** 新增 §14.50：dae 节点健康检查与选路的源码事实（单次探测失败即判死、`check_tolerance` 默认 0、全组判死无兜底、拨号重试不换节点、探测目标走代理通道）、与 mihomo/OpenClash 的逐项对照、.85 现场 24h 数据（1774 次节点域名解析失败 / 5184 次 i/o timeout / 6646 次重选）、配置层可立即改的参数、面板层 7 项优化、与 daed（**已归档**）/NaiLink 的定位对照，以及 .224 迁移草案。  
@@ -3375,7 +3376,25 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 - 面板不会主动改写线上已有的值；调优默认值只在「缺这个键」时补。
 - 「应用」仍会整段重写 core（模型即真源的必然结果），但现在重写的内容包含现场调优，效果是幂等的。
 - 组内键顺序仍以 policy → extra → filter 为准；如果线上是别的顺序，第一次「应用」会把顺序规范化，之后不再报 drift。
-## 15. 本版（v0.63）变更清单
+## 14.53 honk / doona 对照（v0.64）
+
+完整版见仓库 `docs/ENGINE-LANDSCAPE.md`（72 行），此处只留结论与影响。核对时间 2026-10-28，数据来自 GitHub REST API 与 honk 自带文档（`doc/en/*.md`）。
+
+**三方定位**：`daeuniverse/dae` 仍是我们的目标引擎（6349★，稳定版 v2.1.1 / 2026-09-18，最后 push 2026-09-30）；`daeuniverse/honk` 是同组织的新 Rust 引擎（GPL-3.0，360★，最新 **v0.1.0-beta.3** / 2026-10-27，标签全是 prerelease）；`Zakkaus/doona` 是 honk 的 Web UI（GPL-3.0，128★，**必须 honk 开 native API，不支持 dae**）。
+
+**honk 与本项目相关的四处利好**：① 配置仍是 dae 方言（`include`/`global`/`group`/`routing`/`dns`/`subscription`/`assets`/`experimental` 八段，匹配器含 `domain`/`dip`/`sip`/`dport`/`pname`/`mac`/`ipversion`），渲染器可复用；② 订阅原生识别 Clash YAML·JSON（`sub_type: simple|clash`，每条可设 `ua`/`interval`/`cache`）⇒ **`internal/clashconv` 的差异化只对 dae 成立**；③ DNS 上游齐全（UDP/TCP/DoT/DoH/DoQ/DoH3，可走节点/组）；④ 自带 `/api/v1`、Clash 兼容 REST/WS、`validate`/`reload`/`status`/`check` 子命令。
+
+**现在不能迁的三条硬理由**：① 官方定性 early alpha，README「Review status」里 `Configuration parser (dae extensions)` 与 `Trojan-GFW` 未勾，且写明全审完之前不发 `test.1`；② 已有破坏性先例——VLESS 升级移除 `vless_mode`、**所有 VLESS 节点 ID 重新推导**；③ **硬门槛 Linux 6.12+**（低于 6.12 在 attach 前拒绝），iStoreOS 24.10 的 6.6.144 直接跑不了，而 dae 在 6.6 上只是回退 veth。另有 `global` 无 `tproxy_port`（改用 NFQUEUE 320）、无 FakeIP、无 Windows/macOS datapath。
+
+**doona 不构成替代**：它覆盖「节点/分组/规则/配置的可视化编辑」——正是 honk native API 已能做的那一半；本项目独占的是「接入层（探测→推荐→计划→应用→回滚→自检）+ 事务化文件真源 + 审计 + 能力探测降级 + 小 flash 适配 + MIT」。结论：doona 削弱了「纯配置编辑器」的价值，不削弱接入层与事务的价值。
+
+**将来接 honk 的落点（三处，均已定位）**：`global.tproxy_port` 需按引擎分支渲染（honk 无此键，改 NFQUEUE 320）；健康检查参数（`check_interval`/`check_tolerance`/`tcp_check_url`）在 honk 的组定义里命名与默认值需重新核对；`dae validate`/`dae reload` 与 `/var/run/dae.progress` 进度码这套二进制耦合需抽象成 `Engine` 接口（honk 有 `validate`/`reload`，无进度码语义）。
+
+**迁移触发信号**（三条同时或前两条满足）：honk 发 `v1.0` 或正式 `test.1` 标签；README Review status 全勾；dae 停止发版超过一个季度。
+
+**许可注意**：honk 是 GPL-3.0、dae 是 AGPL-3.0、本项目 MIT。只要不链接（走配置文件 + HTTP API）即不受传染；一旦嵌入/链接即传染。
+
+## 15. 本版（v0.64）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3439,3 +3458,4 @@ routing { dip(8.8.8.8, 8.8.4.4) && dport(53) -> dnsnode }
 52. **§14.50（v0.61）**：dae 节点健康检查与选路——读 dae v2.1.1 源码定出五个吃亏点（TCP 探测**单次失败即判死**、`check_tolerance` 代码默认 **0** 无迟滞、组内全死直接 `ErrNoAliveDialer` 仅单节点组兜底、拨号重试**不换节点**、探测目标 `cp.cloudflare.com/1.1.1.1/dns.google` 穿节点探测会误杀），与 mihomo（interval 300s + lazy、真实失败只计数不写 alive）逐项对照；给出 .85 现场 24h 数据（节点域名 bootstrap 解析失败 1774 次、i/o timeout 5184、SERVFAIL 1593、重选 6646、VmHWM 635MB）与峰值时段；配置层可立即改的四参数（`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url` 换 gstatic、`bootstrap_resolver: '223.5.5.5:53'` + 直连规则前置）与组策略换 `min_avg10`；面板层 7 项优化（默认注入健康参数、分组 policy 可编辑、健康诊断页、DNS 死锁自检、应用后就绪检查、`homenet-panel doctor`、整目录备份恢复）；与 daed（**已归档**，2026-09-24）/NaiLink（三内核切换、`--check-network`、卸载前备份）的定位对照；以及 .224 迁移草案（该机已跑一份不同版本面板，须先核对）。
 53. **§14.50.9 / §14.51（v0.62）**：把 14.50 的配置处方落到 .85（`check_interval:60s` / `check_tolerance:500ms` / `tcp_check_url` 换 gstatic / `bootstrap_resolver:'223.5.5.5:53'` / 组策略 `min_avg10` / 223.5.5.5·119.29.29.29 的 53 直连），实测 bootstrap 解析失败从 414/h 降到 **0**、i/o timeout 与 SERVFAIL 同步归零、重选从 132/h 降到 36/h；并把这套聚合做成面板「健康诊断」页（新增 `internal/diag`、`GET /api/diag/health`、前端 tab），顺带记录前端 `api()` 返回 `{code,data}` 而初版按扁平结构取值的坑（`this.diagReport=r.report` → `r.data.report`）。
 54. **新增 §14.52（v0.63）**：模型往返保真 + 调优默认值——`model.Group.Extra` 收下组级 `check_interval`/`check_tolerance`，渲染顺序改为 policy → 组长参数 → filter；`internal/model/defaults.go` 提供 `EnsureGlobalDefaults`（只补缺失键、`bootstrap_resolver` 从 DNS 上游推导）与 `DNSGroupTemplate`/`EnsureDNSGroupRule`，前端加「+ DNS 专用组（dnsnode）」按钮。.85 resync 后 `diverged=false`、渲染结果与线上逐字节一致，「应用」不再抹掉现场调优。
+55. **新增 §14.53 与 `docs/ENGINE-LANDSCAPE.md`（v0.64）**：对标 daeuniverse 的新 Rust 引擎 honk（v0.1.0-beta.3，early alpha，GPL-3.0）与其 Web UI doona（GPL-3.0，必须 honk 开 native API）。核实到 honk 配置仍是 dae 方言、订阅原生吃 Clash YAML·JSON、DNS 上游齐全、自带 `/api/v1` 与 `validate`/`reload`；但**硬门槛 Linux 6.12+**、`global` 无 `tproxy_port`（改 NFQUEUE 320）、已有 VLESS 节点 ID 重推的破坏性先例、Review status 未全勾。结论：**不迁移，保留切换缝**——成本集中在 tproxy_port 渲染、健康检查键落点、进度码语义三处，迁移触发信号为 honk 发 v1.0/`test.1`、Review 全勾、dae 停发版超一季度。
