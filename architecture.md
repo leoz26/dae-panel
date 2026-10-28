@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.58  
+> **文档版本：** v0.59  
+> **修订（v0.59）：** 新增 §14.48：OpenWrt 的 opkg/apk 只能装扩展件（ss、geo），dae 本体在任何发行版官方源里都没有 → 面板与 install.sh 都加「官方静态包」路径（架构候选包、整棵文件系统布局、GitHub 加速回退、换二进制后重启服务），iStoreOS 实机 3.8s 装完并自启。
 > **修订（v0.58）：** 新增 §14.47：面板移植到 iStoreOS/iStoreOS 系 x86_64 路由器（192.168.1.11）的全部兼容性结论——dae 在 6.6.144 上无 netkit 自动回退 veth、procd 无 systemd、busybox 无 install(1)、/usr/local/bin 不存在、pgrep -x 失效、/api/traffic/bytes 因串行 DNS 解析挂死；四个 bug 已修，全量功能实测通过。
 > **修订（v0.54）：** 新增 §14.43：把 n6 的 15 条规则与 DoT/AAAA 拒绝的 DNS 段按事务迁到 .85（保留 .85 的 global 与订阅），并新增「一键停用 / 重启 dae」按钮（`StopDae`/`RestartDae` 加 `/api/setup/stop-dae`、`/api/setup/restart-dae`），四项动作实机已验证。
 > **修订（v0.51）：** 新增 §14.41：`EssentialRules` 补两条 Tailscale 保命直连规则（`dip(100.64.0.0/10)`、`pname(tailscaled, tailscale)`），避免 tailnet 地址与 tailscaled 控制面/DERP/打洞流量被 fallback 代理组吃掉；.85 与 n6 已实机 apply 验证（规则行、validate、dae 状态）。
@@ -3000,7 +3001,59 @@ table ip hnp_mesh {
 - `sockets 3419` 偏多：OpenWrt 上 `ss -tunip` 会把 conntrack 也列出来（.85 只有 60 左右），后续按进程名过滤。
 - 未在该机安装 EasyTier，组网页按设计优雅降级（显示未安装）。
 
-## 15. 本版（v0.58）变更清单
+### 14.48 没有 APT 的系统怎么装依赖（opkg / apk，v0.59）
+
+> 起因：用户在 iStoreOS 上问「apt 不可用，那它本身的管理工具呢」。
+
+#### 14.48.1 事实先摆清
+
+| 系统 | 包管理器 | dae 在官方源里？ | geo 数据在官方源里？ | ss 在官方源里？ |
+|---|---|---|---|---|
+| Debian/Ubuntu/Armbian | `apt` | ❌（daeuniverse 自建 APT 源） | ✅ `v2ray-rules-dat` | ✅ `iproute2` |
+| OpenWrt 24.10 / iStoreOS | `opkg` | **❌ 没有**（`opkg list | grep ^dae` 为空） | ✅ `v2ray-geoip` / `v2ray-geosite`（装到 `/usr/share/v2ray`） | ✅ `ss`（6.11.0-r1） |
+| OpenWrt 25.x / SNAPSHOT | `apk`（Alpine 血统） | ❌ | 同上 | 同上 |
+| Alpine | `apk` | ❌ | ⚠️ 只有社区包 | ✅ |
+
+结论：**包管理器只能解决「扩展件」**（ss、geo 数据）；dae 本体在任何发行版官方源里都没有，只能拿官方 release 的静态包。
+
+#### 14.48.2 实现：三条路径
+
+```
+install.sh --install-dae  /  面板「安装与初始化 → 安装 dae」
+        │
+        ├─ apt-get 存在 ──→ 加 daeuniverse APT 源 + GPG key + apt-get install dae（原有逻辑）
+        └─ 没有 apt-get ──→ install_dae_static()
+                 ├─ uname -m + /proc/cpuinfo 的 avx2 → 候选包名（v3_avx2 → v2 → 通用）
+                 ├─ 官方 github.com 直链，失败回退 https://ghfast.top/、https://gh-proxy.com/
+                 ├─ 解包（tar -xJf，退回 xz + tar）
+                 ├─ 拷 usr/bin/dae → /usr/bin/dae（包里是整棵文件系统布局，不是平铺）
+                 ├─ 有 /etc/openwrt_release 且无 /etc/init.d/dae → 写 procd 脚本 + enable
+                 └─ 已有配置时重启 dae（换二进制后 procd 不会自动换）
+```
+
+代码位置：`homenet-panel/internal/bootstrap/dae_static.go`（`DaeAssetCandidates`、`installDaeStatic`、`procdInit`）+ `deploy/install.sh` 的 `install_dae_static()`。两者逻辑一致，前者给面板按钮用、后者给一条命令安装用。
+
+#### 14.48.3 四个踩到的坑（都修了）
+
+1. **静态包不是平铺的**：v2.1.1 的 tar.xz 解出 `usr/bin/dae`、`etc/dae/example.dae`、`usr/lib/systemd/...`；第一次按 `/tmp/dae-pkg/dae` 取文件直接报「静态包里没有 dae 可执行文件」→ 改成两个路径都认。
+2. **下载大小上限/超时**：`fetchURL` 原来限 4MB、超时 30s，下 12MB 包必失败 → 上限 64MB、单次 60s（按「一次尝试」计，失败就换下一个镜像）。
+3. **直连 GitHub 会 EOF**：把 dae 停掉后（这台路由器出 GitHub 本来靠它自己代理）下载立刻 `EOF` → 加两个加速前缀作为回退。
+4. **换二进制后服务不会自己回来**：`mv /usr/bin/dae` 后 procd 重试耗尽停在 inactive，新装完也没被拉起 → 安装流程加「有配置就 restart dae」一步（失败只记录不判安装失败）。
+
+#### 14.48.4 实机验证（192.168.1.11，2026-10-28）
+
+- 隐藏 `/usr/bin/dae` 后走面板按钮：`ok=true`，步骤 = 下载（`dae-linux-x86_64_v3_avx2.tar.xz`，11,825,180 字节）→ 解包 → 安装（35,459,234 字节）→ 重启服务 → 校验（`dae version v2.1.1`），耗时 **3.8s**。
+- 装完 `/api/status` = `service: active, pid 32358`；`/etc/init.d/dae status` = running；`/etc/dae/config.dae` 与 `panel-core.dae` 的 md5 未变（安装不碰配置）。
+- `install.sh --install-dae --dry-run`（临时把 dae 移走）：打印候选包名、`/usr/bin/dae`、`/etc/init.d/dae` 三步。
+- geo 数据仍走面板 Geo 页（写入 `/usr/share/dae`，带备份与版本检测），**不**用 opkg 装 `v2ray-geoip`，避免两套口径混在一起（opkg 那套落在 `/usr/share/v2ray`，dae 不会去读）。
+
+#### 14.48.5 边界
+
+- 不支持 MIPS/MIPSEL（dae 官方没有对应静态包，且需要 eBPF 支持），`DaeAssetCandidates` 会直接报「不认识的 CPU 架构」。
+- 加速前缀是第三方服务，可用性不由本项目保证；企业内网可改成 `--base-url` 指向本地镜像。
+- 面板按钮与脚本都不改 `/etc/config/firewall`、不装 `v2ray-geoip`、不动 opkg 的 feeds 配置。
+
+## 15. 本版（v0.59）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3058,3 +3111,5 @@ table ip hnp_mesh {
 48. **§14.46（v0.57）**：局域网互通面板化——`.85` 作网关后，背后设备访问对端 `192.168.5.0/24` 只有 ICMP 通、TCP 卡在 `SYN_SENT [UNREPLIED]`（对端无回程路由）。新增 `internal/mesh/lan.go`（`DetectLan`/`ApplyLan`/`RemoveLan`/`RenderNatScript`/`RenderNatUnit`，只维护自有 `hnp_mesh` 表 + `hnp-mesh-nat.sh` + `hnp-mesh-nat.service`）+ `GET /api/mesh/lan`、`POST /api/mesh/lan/apply` + 「组网」页「局域网互通」卡片（状态表 + dry-run / 启用 / 停用）；修掉 3 个真 bug（dash 不吃无引号花括号、grep 守卫字段顺序错导致规则叠加、Vue 模板里真实换行导致整页空白）。实机连 apply 两次仍只有 1 条 masquerade 规则，Mac 侧 `http://192.168.5.1/` 200。
 
 49. **§14.47（v0.58）**：OpenWrt / iStoreOS 兼容性——面板与 dae 移植到 x86_64 路由器 192.168.1.11（iStoreOS 24.10.8 / 内核 6.6.144 / procd）。dae 因内核不支持 netkit 自动回退 veth 仍可用；修掉 4 个平台 bug：busybox 无 `install(1)`、OpenWrt 无 `/usr/local/bin`、`systemctl is-active` 与 `pgrep -x` 在 procd/busybox 下双双失效（改四级判定 + pid 文件兜底）、`/api/traffic/bytes` 因对 111 个节点串行 DNS 解析挂死 >150s（改异步索引 + 3s 超时 + 16 并发）。全量功能实测：状态/字节统计/接入向导（推荐 gateway、自检 5 通过）/Geo/订阅三源 Clash 转换/审计 CSV/11 个 tab 浏览器无泄漏，数据面 google 200 与 DNS 广告拦截对 LAN 生效。
+
+50. **§14.48（v0.59）**：无 APT 环境的依赖安装——OpenWrt/iStoreOS 的 opkg（25.x 起 apk）里没有 dae（`opkg list | grep ^dae` 为空），只有 `ss` 与 `v2ray-geoip/geosite`。新增 `internal/bootstrap/dae_static.go`（`DaeAssetCandidates` 按 arch+avx2 选包、`installDaeStatic` 下载→解包→装 `/usr/bin/dae`→写 procd→重启服务）与 `deploy/install.sh` 的 `install_dae_static()`；修四个坑（静态包是 usr/bin 布局、fetch 4MB/30s 上限、直连 GitHub EOF 需加速回退、换二进制后 procd 不会自启）。实机 3.8s 装完，`/api/status` active。

@@ -64,6 +64,84 @@ fetch_to() { # fetch_to URL DEST —— curl → wget → python3 三级回退
   return 1
 }
 
+install_dae_static() { # 无 APT（OpenWrt / iStoreOS / Alpine 等）：dae 不在任何官方源里，拉官方静态包
+  MACHINE=$(uname -m)
+  AVX2=0; grep -qm1 -E '(^| )avx2( |$)' /proc/cpuinfo 2>/dev/null && AVX2=1
+  case "$MACHINE" in
+    x86_64|amd64) if [ "$AVX2" = 1 ]; then CANDS="dae-linux-x86_64_v3_avx2.tar.xz dae-linux-x86_64_v2.tar.xz dae-linux-x86_64.tar.xz"; else CANDS="dae-linux-x86_64_v2.tar.xz dae-linux-x86_64.tar.xz"; fi;;
+    aarch64|arm64) CANDS="dae-linux-arm64.tar.xz";;
+    armv7l|armv7|armhf) CANDS="dae-linux-armv7.tar.xz";;
+    armv6l|armv6) CANDS="dae-linux-armv6.tar.xz";;
+    i?86) CANDS="dae-linux-386.tar.xz";;
+    *) die "不认识的 CPU 架构 $MACHINE：请按 https://github.com/daeuniverse/dae 手动安装";;
+  esac
+  BASE=https://github.com/daeuniverse/dae/releases/download/v2.1.1
+  if [ "$DRY" = 1 ]; then
+    info "将执行: 下载官方静态包（候选: $CANDS）→ /tmp/dae.tar.xz"
+    info "将执行: 解出 dae → /usr/bin/dae（chmod 755）"
+    if [ -f /etc/openwrt_release ]; then info "将执行: 写 /etc/init.d/dae（procd）并开机自启"; fi
+    return 0
+  fi
+  mkdir -p /etc/dae
+  PICK=""
+  # 官方优先，其次两个常见 GitHub 加速前缀（国内直连 github 经常 EOF）
+  for n in $CANDS; do
+    [ -n "$PICK" ] && break
+    for pfx in "" "https://ghfast.top/" "https://gh-proxy.com/"; do
+      if fetch_to "$pfx$BASE/$n" /tmp/dae.tar.xz; then PICK="$n"; break; fi
+    done
+  done
+  [ -n "$PICK" ] || die "下载 dae 静态包失败（网络受限？可用 --base-url 镜像或手动安装）"
+  ok "下载 $PICK（$(wc -c < /tmp/dae.tar.xz) 字节）"
+  rm -rf /tmp/dae-pkg && mkdir -p /tmp/dae-pkg
+  if tar -xJf /tmp/dae.tar.xz -C /tmp/dae-pkg 2>/dev/null; then
+    :
+  else
+    command -v xz >/dev/null 2>&1 || die "缺少 xz：opkg install xz / apk add xz"
+    xz -dc /tmp/dae.tar.xz > /tmp/dae.tar && tar -xf /tmp/dae.tar -C /tmp/dae-pkg || die "解包失败"
+  fi
+  PKG_DAE=/tmp/dae-pkg/dae; [ -f "$PKG_DAE" ] || PKG_DAE=/tmp/dae-pkg/usr/bin/dae
+  [ -f "$PKG_DAE" ] || die "静态包里没有 dae 可执行文件"
+  cp "$PKG_DAE" /usr/bin/dae && chmod 755 /usr/bin/dae || die "安装 /usr/bin/dae 失败"
+  PKG_EX=/tmp/dae-pkg/example.dae; [ -f "$PKG_EX" ] || PKG_EX=/tmp/dae-pkg/etc/dae/example.dae
+  if [ ! -f /etc/dae/example.dae ] && [ -f "$PKG_EX" ]; then cp "$PKG_EX" /etc/dae/example.dae; fi
+  DAE_BIN=$(command -v dae 2>/dev/null || true)
+  [ -n "$DAE_BIN" ] && ok "dae 已安装：$("$DAE_BIN" --version 2>/dev/null | head -1)"
+  if [ -f /etc/openwrt_release ] && [ ! -f /etc/init.d/dae ]; then
+    cat > /etc/init.d/dae <<'EOS'
+#!/bin/sh /etc/rc.common
+# 由 HomeNet Panel 安装脚本生成
+USE_PROCD=1
+START=90
+STOP=10
+
+start_service() {
+	procd_open_instance
+	procd_set_param command /bin/sh -c "exec /usr/bin/dae run --disable-timestamp -c /etc/dae/config.dae"
+	procd_set_param respawn 3600 5 0
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_set_param limits memlock=unlimited
+	procd_close_instance
+}
+
+reload_service() {
+	/usr/bin/dae reload 2>/dev/null && return 0
+	stop
+	start
+}
+EOS
+    chmod 755 /etc/init.d/dae
+    /etc/init.d/dae enable >/dev/null 2>&1 || true
+    ok "已写 /etc/init.d/dae（procd）并设为开机自启"
+  fi
+  if [ -f /etc/init.d/dae ] && [ -f /etc/dae/config.dae ]; then
+    /etc/init.d/dae restart >/dev/null 2>&1 && ok "已重启 dae（换二进制后 procd 不会自己换）" || warn "dae 重启失败：查看 /etc/init.d/dae status"
+  fi
+  warn "dae 还没配置：装完面板后打开页面的「安装与初始化」可一键生成，或自行放 /etc/dae/config.dae"
+  return 0
+}
+
 step "0/8 依赖预检（dae / goose）"
 
 # --- dae ---
@@ -76,7 +154,9 @@ else
   warn "未安装 dae：面板将以 degraded 模式运行（只读，不能应用配置）"
   APT=0; command -v apt-get >/dev/null 2>&1 && APT=1
   if [ "$INSTALL_DAE" = 1 ]; then
-    [ "$APT" = 1 ] || die "--install-dae 目前只支持 APT 系（Debian/Ubuntu/Armbian）；其它发行版请按 https://github.com/daeuniverse/dae 安装"
+    if [ "$APT" != 1 ]; then
+    install_dae_static
+    else
     APTMAJ=$(apt-get --version 2>/dev/null | head -1 | sed -n 's/.*apt \([0-9][0-9]*\).*/\1/p')
     if [ "${APTMAJ:-2}" -ge 3 ]; then SRCFILE=daeuniverse.sources; else SRCFILE=daeuniverse.list; fi
     info "添加 daeuniverse APT 仓库（$SRCFILE，APT 主版本 ${APTMAJ:-2}）"
@@ -94,8 +174,9 @@ else
       if [ -n "$DAE_BIN" ]; then ok "dae 已安装：$("$DAE_BIN" --version 2>/dev/null | head -1)"; else die "安装后仍找不到 dae"; fi
       warn "dae 还没配置：装完面板后打开页面的「安装与初始化」可一键生成，或自行放 /etc/dae/config.dae"
     fi
+    fi
   else
-    info "要和面板一起装：加 --install-dae（APT 系自动添加官方仓库并安装）"
+    info "要和面板一起装：加 --install-dae（Debian 系走官方 APT 源；OpenWrt/iStoreOS 等无 APT 的系统自动改为下载官方静态包 + 写 procd 服务）"
   fi
 fi
 
@@ -181,6 +262,13 @@ TRAFFIC_IFACE_AUTO=$(ip route show default 2>/dev/null | awk '/default/ {print $
 if [ "$TRAFFIC_IFACE" = auto ]; then TRAFFIC_IFACE="$TRAFFIC_IFACE_AUTO"; fi
 [ -n "$TRAFFIC_IFACE" ] || die "无法自动识别对外网卡，请用 --traffic-iface 指定"
 info "对外网卡: $TRAFFIC_IFACE（用于字节统计）"
+if ! command -v ss >/dev/null 2>&1; then
+  if command -v opkg >/dev/null 2>&1; then
+    warn "缺少 ss（字节统计依赖）：opkg update && opkg install ss"
+  else
+    warn "缺少 ss（字节统计依赖）：请用本机包管理器安装 iproute2/ss"
+  fi
+fi
 
 "$BIN_SRC" >/dev/null 2>&1; RCBIN=$?
 if [ "$RCBIN" = 126 ] || [ "$RCBIN" = 127 ]; then

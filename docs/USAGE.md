@@ -525,6 +525,13 @@ bash deploy/deploy.sh root@192.168.1.11 -i ~/.ssh/your_key -- --traffic-iface br
 /etc/init.d/openclash enable && /etc/init.d/openclash start   # 回滚（配置不会被动）
 ```
 
+### 2.13.3b 包管理器只有 opkg / apk 时怎么装依赖
+
+- **dae 本体：任何发行版官方源都没有**（Debian 靠 daeuniverse 自建 APT 源，OpenWrt 的 opkg 源里没有 dae）。所以 `--install-dae` 在非 APT 系统上会**自动改为下载官方静态包**并写 procd 服务，不需要你做别的。
+- **能装到的东西**：`opkg update && opkg install ss`（字节统计用）、`v2ray-geoip`/`v2ray-geosite`（geo 数据，落到 `/usr/share/v2ray`）。
+- **geo 数据建议还是用面板的「Geo 数据」页**：它写 `/usr/share/dae`（dae 真正会读的目录）、带备份和版本检测；opkg 那套装在 `/usr/share/v2ray`，dae 不会读，除非你手动软链。
+- 下载 dae 时若直连 GitHub 报 `EOF`，安装器会自动回退到 `ghfast.top` / `gh-proxy.com` 两个加速前缀。
+
 ### 2.13.4 路由器上验证清单
 
 ```sh

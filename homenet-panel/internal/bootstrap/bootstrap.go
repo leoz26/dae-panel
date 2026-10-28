@@ -75,7 +75,9 @@ func (o Options) normalized() Options {
 }
 
 func fetchURL(url string) ([]byte, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
+	// 不只用来看 APT 源文件：还要下 dae 官方静态包（~12MB），上限要放宽；
+	// 超时按「单次尝试」计（多镜像回退，卡住一个就换下一个）。
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
@@ -84,7 +86,7 @@ func fetchURL(url string) ([]byte, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	return io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 }
 
 // Status 是「安装与初始化」页要展示的现场状态。
@@ -258,9 +260,8 @@ func InstallDae(o Options) Result {
 		return res
 	}
 	if _, err := o.Runner.Run("apt-get", "--version"); err != nil {
-		res.OK = false
-		res.Error = "当前系统没有 apt-get：请按 https://github.com/daeuniverse/dae 手动安装"
-		return res
+		// 没有 APT（OpenWrt/iStoreOS/Alpine 等）：走官方静态包，见 dae_static.go
+		return installDaeStatic(o, res)
 	}
 	srcURL, srcPath := sourcesURL, "/etc/apt/sources.list.d/daeuniverse.sources"
 	if out, err := o.Runner.Run("apt-get", "--version"); err == nil {
