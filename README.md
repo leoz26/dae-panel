@@ -125,6 +125,7 @@ go vet ./... && go test ./... -count=1
 - `architecture.md`：总体架构、配置事务、订阅与聚合、接入档位设计、实测结论与变更清单
 - `docs/RULES.md`：分流规则写法详解（匹配器全表、面板注入的 4 条安全规则逐条拆解、常见坑、验证方法）
 - `docs/access-test-b2.md`：B2（主路由 DHCP 指向旁路由）端到端测试手册——前置条件、改前记录、逐项自检、三级回滚
+- `docs/NOTES.md`：运维笔记（按时间倒序）——每台机上装/卸 dae 与面板的实际步骤、东西挪到哪、怎么撤、顺带确认的事实
 - `dae-cli-capability-checklist.md`：dae CLI 命令/信号/配置模型/坑点核对表
 
 ## 许可证
