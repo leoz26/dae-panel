@@ -566,7 +566,10 @@ logread | grep -c "No node found"
 
 # 4) DNS 上游是否在超时（DoT 在很多网络里被掐）
 logread | grep "DNS forward to upstream failed" | tail -3
-# 换成 UDP 53：upstream { alidns: 'udp://223.5.5.5:53' }，bootstrap_resolver 必须写 ip:port
+# 换 UDP 53：upstream { alidns: 'udp://223.5.5.5:53' }，bootstrap_resolver 必须写 ip:port
+# 若 UDP 53 整条被掐（连网关都只回国内域名、境外域名 SERVFAIL），改 DoH over 443：
+#   echo '223.5.5.5 dns.alidns.com' >> /etc/hosts
+#   upstream { alidns: 'https://dns.alidns.com/dns-query' } + fallback: alidns
 
 # 5) 内存（2GB 设备上 dae 峰值可到 500MB+，会被 OOM kill）
 dmesg | grep -c "Out of memory.*dae"

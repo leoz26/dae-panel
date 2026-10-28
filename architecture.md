@@ -3103,6 +3103,37 @@ install.sh --install-dae  /  面板「安装与初始化 → 安装 dae」
   }
   ```
 
+#### 14.49.2b 出网 UDP 53 被掐时改用 DoH（2026-10-28 13:15 现场结论）
+
+同一份配置在 12:53 还是好的（`nslookup` 30/30），到 12:59 突然全挂：`dialer=direct error=read udp [::]:58965: i/o timeout target=223.5.5.5:53`，连直接问网关 `192.168.1.1` 也只剩国内域名能回、境外域名一律 SERVFAIL。**不是配置变了，是这条线路的 UDP 53 出网被掐**（同时刻 192.168.1.85 上同样问 192.168.1.1 正常，说明和这台机器的路由/上游无关）。
+
+改用 **DoH over 443** 后立刻恢复：
+
+```
+# /etc/hosts（先钉住解析，避免「用 DNS 解析 DoH 域名」的鸡生蛋）
+223.5.5.5 dns.alidns.com
+
+dns {
+    upstream {
+        alidns: 'https://dns.alidns.com/dns-query'
+    }
+    routing {
+        request {
+            qname(geosite:category-ads-all) -> reject
+            qname(geosite:cn) -> alidns
+            qname(suffix:apple.com.cn,suffix:icloud.com.cn,suffix:mzstatic.com) -> alidns
+            qtype(aaaa) -> reject
+            fallback: alidns
+        }
+        response { fallback: accept }
+    }
+}
+```
+
+- 验证：`curl -sS --resolve dns.alidns.com:443:223.5.5.5 -H 'accept: application/dns-json' 'https://dns.alidns.com/resolve?name=github.com&type=A'` → `20.205.243.166`；改完 `nslookup github.com 192.168.1.11` 立刻返回真实 IP。
+- 这一版实测：两轮 5 域名共 10 次，`ok=7 fail=3`；claude trace `ip=185.36.192.137 loc=SG`；dae VmRSS 111MB。
+- 取舍：`qtype(aaaa) -> reject` 是为了避开「AAAA 通但数据面不通」的假连通，代价是国内也不再有 IPv6 解析；需要国内优先 v6 时应改成只对非 cn 域名拒绝 AAAA（dae 的 request 段支持组合条件）。
+- 现场副本：` /root/core.good-20261028-1315.dae `（md5 `d6c63589d966183b3f6567d5becc32e6`）、` /root/entry.good-20261028-1315.dae `（md5 `d9d3e74ab502814bc770822973e73fd5`）；回滚 = 拷回 + `/etc/init.d/dae restart`。
 #### 14.49.3 内存与内核（最可能的剩余差异）
 
 - `dmesg` 有 **9 次 OOM kill dae**（`total-vm:1837696kB, anon-rss:523772kB`），这台机器 2GB 无 swap，dae 峰值 VmHWM 579MB。
