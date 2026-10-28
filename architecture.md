@@ -1,6 +1,7 @@
 # HomeNet Panel：总体架构与开发结构设计
 
-> **文档版本：** v0.60  
+> **文档版本：** v0.61  
+> **修订（v0.61）：** 新增 §14.50：dae 节点健康检查与选路的源码事实（单次探测失败即判死、`check_tolerance` 默认 0、全组判死无兜底、拨号重试不换节点、探测目标走代理通道）、与 mihomo/OpenClash 的逐项对照、.85 现场 24h 数据（1774 次节点域名解析失败 / 5184 次 i/o timeout / 6646 次重选）、配置层可立即改的参数、面板层 7 项优化、与 daed（**已归档**）/NaiLink 的定位对照，以及 .224 迁移草案。  
 > **修订（v0.60）：** 新增 §14.49：OpenWrt（iStoreOS）上「能连但一半站点失败」的四条归因——procd 的 fd 硬上限 4096、OpenClash 残留的 dnsmasq 假 IP、入口配置被 core 覆盖丢订阅、DoT 上游被掐；给出 ulimit 包装（脚本与面板两侧）、DNS 换 UDP 53 + `bootstrap_resolver` 必须 `ip:port`、`reload` 对 DNS/global 不可靠必须 restart、OOM 与 `bpf_conn_state_map_size` 实测，以及「失败主要来自 DNS」的绕过实验数据。
 > **修订（v0.59）：** 新增 §14.48：OpenWrt 的 opkg/apk 只能装扩展件（ss、geo），dae 本体在任何发行版官方源里都没有 → 面板与 install.sh 都加「官方静态包」路径（架构候选包、整棵文件系统布局、GitHub 加速回退、换二进制后重启服务），iStoreOS 实机 3.8s 装完并自启。
 > **修订（v0.58）：** 新增 §14.47：面板移植到 iStoreOS/iStoreOS 系 x86_64 路由器（192.168.1.11）的全部兼容性结论——dae 在 6.6.144 上无 netkit 自动回退 veth、procd 无 systemd、busybox 无 install(1)、/usr/local/bin 不存在、pgrep -x 失效、/api/traffic/bytes 因串行 DNS 解析挂死；四个 bug 已修，全量功能实测通过。
@@ -3164,7 +3165,122 @@ dns {
 - 现场备份：`/root/core.good-20261028-1258.dae`、`/root/entry.good-20261028-1258.dae`，回滚 = 拷回 + `/etc/init.d/dae restart`。
 - 面板 `/api/model` 此时是 `diverged=true`（手工改过 live 文件），**不要在面板点「应用」**，否则会覆盖这些改动；先做 `resync` 对齐。
 
-## 15. 本版（v0.60）变更清单
+## 14.50 dae 的节点健康检查与选路：与 mihomo 对照、现场数据、优化清单（v0.61）
+
+### 14.50.1 结论先行
+
+1. **dae 不是「不会挑节点」，而是判得太激进**：TCP 探测**单次失败**即 `Alive=false` 并立刻退出候选集；`check_tolerance` 的**代码默认值是 0**（不是 example.dae 里写的 50ms，那是示例显式设置的）；组内节点全死时直接抛 `ErrNoAliveDialer` 硬失败，兜底只对「组内仅 1 个 dialer」生效。用户「有段时间外网完全打不开、OpenClash 只是慢」的体感与这三条一一对得上。
+2. **dae 与 mihomo 都没有 per-request failover**：一次拨号失败就把错误抛回客户端，不会换个节点重拨。「能不能打开」因此取决于判死阈值、重试是否换节点、探测目标会不会误杀、组切换抖不抖——而不是谁更聪明。
+3. **现场最大的一类失败不是节点慢，是节点域名解析不出来**：24 小时 `bootstrap resolver returned no usable address for "so260520-cn-XX.sonlodd365.com"` 出现 **1774 次**。该问题上游 2026-09-29 才修（#1130 `fix(daedns): dial the bootstrap resolver family-agnostically`），**v2.1.1 没有这个修复**。
+
+### 14.50.2 机制对照（dae v2.1.1 源码 vs mihomo Alpha 源码）
+
+| 维度 | dae v2.1.1 | mihomo（OpenClash 内核） |
+|---|---|---|
+| 探测周期默认 | `check_interval: 30s`（config/config.go:30） | `interval: 300s`，`lazy=true` 还会跳过（adapter/outboundgroup/parser.go:171-173、provider/healthcheck.go:52-56） |
+| 探测目标默认 | `http://cp.cloudflare.com,1.1.1.1,2606:4700:4700::1111`（config/config.go:27），**穿节点探测** | 组内可配 `url`，订阅 provider 自带 health-check 优先 |
+| 探测超时 | 硬编码 10s，每次最多 2 attempt（connectivity_check.go:38,1351） | `timeout: 5000ms`（groupbase.go:94-96） |
+| 判死阈值 | **TCP 探测 1 次失败**；DNS-UDP 3 次；TCP 真实流量 10 次；数据 UDP 50 次（connectivity_check.go:1159-1176） | 探测写 `alive`；真实失败只计数，`connection refused` 立即重测，其它要 5 次/5s（groupbase.go:265-300） |
+| 判死后 | **立刻移出 aliveEntries**（alive_dialer_set.go:333-355） | 该组下次选点时跳过（urltest.go:127-129） |
+| 恢复 | ticker 仍 30s 探测，成功即复活；指数退避 10s×2^level，上限 20s；惩罚只加到排序键 `backoff/20` ≤1s（recovery_state.go:110,312） | 下一轮探测成功即复活 |
+| 抖动抑制 | `check_tolerance` 默认 **0** ⇒ `sortingLatency <= 当前` 就切，相等也切（alive_dialer_set.go:398-399,529），**无 sticky** | `tolerance` 默认 0 但通常按组配 50-150ms |
+| 真实拨号失败反馈 | i/o timeout、TLS 失败**不直接判死**，只触发 2s 冷却的定向紧急探测（control/dial.go:60-72）；网络不可达则立即判死 | 同上，计数满 5 次/5s 触发全量重测 |
+| 拨号重试是否换节点 | **不换**：`routeDial` 两次都走 `chooseProxyDialer`，`Excluded` 只在 UDP 设置（control/dial.go:242,266）⇒ 同一黑节点连拨两次 × 8s | 不换，一次 `DialContext` 失败即返回 |
+| 组内全不可用 | `ErrNoAliveDialer` 直接失败（dialer_group.go:380/405），兜底仅单节点组（:352） | 返回错误 |
+| per-request failover | 无 | 无 |
+
+### 14.50.3 现场数据（.85，近 24 小时 journal 统计）
+
+| 指标 | 24h 计数 | 说明 |
+|---|---|---|
+| `bootstrap resolver returned no usable address` | 1774 | 节点域名（`so260520-cn-XX.sonlodd365.com`）解析失败 ⇒ 首连必败 |
+| `i/o timeout` | 5184 | 拨号/握手超时 |
+| DNS `SERVFAIL` | 1593 | 上游 DNS 转发失败（上游走代理通道） |
+| `Group re-selects dialer ... reason=best latency` | 6646 | 约 4.6 次/分钟，`min_moving_avg` 无粘滞 |
+| `no dialer in this group` | 0 | 组没被彻底打空（但单次拨号仍可能落在已死的节点上） |
+| dae 内存 | VmRSS 376MB / **VmHWM 635MB**（机器 1.97GB） | 2GB 设备上峰值吃掉 1/3 |
+| 一小时峰值窗口 | 27 日 16:49 十分钟内 129 次 i/o timeout；28 日 13:0x 十分钟内 239 次 bootstrap 失败 | 与用户「有段时间完全打不开」的时段高度吻合 |
+
+### 14.50.4 五个吃亏点（都能追到代码）
+
+1. **单次探测失败即判死**（connectivity_check.go:1188-1198）——节点只是对 `cp.cloudflare.com` 抖了一下，就被摘出候选集；随后同组其它节点若也不健康，直接 `ErrNoAliveDialer`。
+2. **全组判死无兜底**（dialer_group.go:380/405）——即使用户的「慢但能用」的节点还在线，只要探测认为全死就硬失败。OpenClash 的语义是「继续用最慢但活着的」。
+3. **拨号重试不换节点**（control/dial.go:242,266）——挑中一个半死节点会连拨两次、每次 8s，最坏 16s 才把错误交还客户端。
+4. **`check_tolerance` 默认为 0**——`min_moving_avg` 的 EMA 只采样成功样本（connectivity_check.go:1234），抖动时几乎每次探测都触发重选；换节点会重建 UDP 端点、清 DNS 缓存，体感就是「突然全断」。
+5. **探测目标走代理通道**（cloudflare / 1.1.1.1 / dns.google）——机场节点若对这些地址不友好（被墙、被限速），会被持续误杀；反之对它们特别快、对真实站点烂的节点会被长期优先选中。
+
+### 14.50.5 配置层能立刻改的（不改代码，`dae validate` 后可 reload）
+
+```dae
+global {
+    # ... 现有项保持不变 ...
+    check_interval: 60s                                 # 30s -> 60s，减少抖动（默认 30s）
+    check_tolerance: 500ms                              # 关键：默认 0，设了才有迟滞
+    tcp_check_url: 'http://cp.cloudflare.com,http://www.gstatic.com/generate_204'
+    bootstrap_resolver: '223.5.5.5:53'                   # 必须 ip:port；显式指定，别用默认的两个
+}
+
+group {
+    hk {
+        policy: min_avg10                                # 比 min_moving_avg 更平滑（EMA 的 alpha=0.5 太灵敏）
+        filter: subtag(summer) && name(keyword: '香港')
+        tcp_check_url: 'http://www.gstatic.com/generate_204'   # 按组指定，别用 cloudflare
+    }
+}
+
+routing {
+    # bootstrap_resolver 与 DNS 直连必须排在代理规则之前，否则解析被自己代理掉
+    dip(223.5.5.5, 119.29.29.29) && dport(53) -> direct
+    dip(192.168.0.0/16) -> direct
+}
+```
+
+三条注意事项：
+
+- `bootstrap_resolver` 的 IPv4 必须写成 `ip:port`（例：`223.5.5.5:53`），写成 `udp://...` 会报 `each colon-separated field must have at least one digit`。
+- 探测目标要「穿过节点也能通」：`cp.cloudflare.com` 在国内网络 + 部分机场会被拦，建议换 `gstatic.com/generate_204` 或机场自己的测速地址；dae 支持逗号分隔多目标，任一可用即算成功。
+- `reload` 对 `global` 段不可靠（v0.60 已记），改完这些参数建议 `systemctl restart dae`。
+
+### 14.50.6 面板层该补的（按性价比排序）
+
+| # | 优化 | 现状 | 预期效果 |
+|---|---|---|---|
+| 1 | core 渲染默认注入 `check_interval` / `check_tolerance` / `tcp_check_url` / `bootstrap_resolver` | 现在只写 `dial_mode`/`tproxy_port`/`wan_interface`/`lan_interface` 等，健康参数全吃默认值 | 一份「出厂就不抖」的配置，用户不用懂参数 |
+| 2 | 分组编辑器暴露 `policy`（`min_avg10`/`min_moving_avg`/`min`/`random`/`fixed(n)`）与 per-group `tcp_check_url`/`check_interval` | 固定 `min_moving_avg` | 按地区/用途给不同探测目标，减少误杀 |
+| 3 | 「健康诊断」页：把 journal 里 `dialer=` 的行按 **节点 × 错误类型 × 时间窗口** 聚合 | 无（只能 `journalctl \| grep`） | 直接回答「谁在被误杀」「哪个域名解析在挂」，本次 1774/5184/1593 的数据就是手工做出来的 |
+| 4 | DNS 死锁自检 | 无 | `dns.upstream` 指向代理组 + `bootstrap_resolver` 为默认值 ⇒ 告警「DNS 与代理互为前提」 |
+| 5 | 应用后就绪检查（学 NaiLink） | 只有 `dae reload` 退出码 | 四步：dae 运行 / 组内有 alive / 一次真实出网 curl 通过 / LAN DNS 命中，否则提示回滚 |
+| 6 | 只读诊断子命令 `homenet-panel doctor`（等价 NaiLink 的 `--check-network`） | 无 | 远程排障不用记一堆命令 |
+| 7 | 备份/恢复 | 有 config 备份 | 补齐「整目录快照 + 一键还原」 |
+
+### 14.50.7 与 daed / NaiLink 的对照
+
+| 维度 | 本项目（HomeNet Panel） | daed | NaiLink |
+|---|---|---|---|
+| 定位 | dae 的**管理层**（不捆内核） | 全栈面板，**单二进制捆 dae 内核 + dae-wing** | daed 的**硬分叉**，OpenWrt 插件 |
+| 内核 | 只依赖系统的 dae | 捆绑 | 默认 dae，可选 sing-box / mihomo（三内核切换） |
+| 配置真源 | 文件即真源（`/etc/dae/config.d/panel-*.dae`） | SQLite（`/etc/daed`） | 同 daed |
+| 订阅与 YAML | 有：Clash/Mihomo YAML → 节点链接转换（自有 `internal/clashconv`） | 上游 README 未提 | 有：YAML/JSON、SIP008、Base64 |
+| 事务化应用 + 自动回滚 | 有（校验→备份→原子写→reload→失败回滚） | 未提 | 部分（更新/切换失败回退） |
+| 审计日志 | 有（JSONL / CSV 导出 / 轮转） | 无 | 无 |
+| 健康诊断 | **无**（本次靠手工 journal） | 未提 | 有 `nailink --check-network` |
+| 备份/恢复 | 配置备份 | 未提 | 有（卸载前备份到 `/root/daed-backups`） |
+| 接入向导（网关/旁路由/观测） | **有**（独有） | 无（自述不管 DHCP/转发/SNAT/DNS 劫持） | 无 |
+| 许可 | MIT | 前端 MIT / 后端 AGPL-3.0 | MIT |
+| 维护状态 | 活跃 | **已归档**（2026-09-24 最后提交，`dae-wing` 也归档） | 活跃（v0.6.47） |
+
+三条结论：
+
+1. **daed 已归档** ⇒ 不能把它当上游依赖；「不捆内核」反而是我们的长期优势（内核可换、面板不背 eBPF 兼容包袱）。
+2. **NaiLink 证明运维层是刚需**：备份/恢复、就绪检查、`--check-network`、内核切换——我们目前只有配置备份与接入向导自检，14.50.6 的 3/5/6/7 项正是补这个。
+3. **我们的独有价值**是 daed/NaiLink 都不做的两个方向：事务化配置（失败整体回滚）+ 接入层（把流量送到 dae 面前：档位推荐、计划生成、自检）。这两条不能丢。
+
+### 14.50.8 迁移到 .224（待办，用户口径：不急）
+
+- 现场探测（只读）：`192.168.1.224` ping 通 2.5ms，**22 / 443 / 8787 均监听**；`https://192.168.1.224:8787/` 返回 200、86KB，标题「HomeNet Panel 控制台」，但引用 `/assets/vue.js`（当前构建是内嵌 `vue.global.prod.js`）⇒ **那台上已经跑着一份面板，版本与当前分支不同**。
+- 迁移前必须先核对：现有面板版本、dae 是否在跑、`/etc/dae` 布局、`/var/lib/homenet-panel` 里有没有需要保留的 `subsrc.json`/`audit.log`。
+- 迁移清单（草案）：核对 .224 现状 → 在 .224 走一次 `deploy/deploy.sh`（幂等）→ 导入 model/subsrc/audit → 四步就绪检查 → 停 .85 面板与 dae → 观察 24h → 删 .11/.85 虚拟机（用户口径：两台都是虚拟机）。
+## 15. 本版（v0.61）变更清单
 
 1. **修复文档截断**：v0.12 文件尾部丢失（§13 的 D8–D12、§14 全节、变更清单），本版按实机实测记录与现有代码重建。
 2. 补全 §13 的 D8–D12（trace/completion 存在、validate 不需 root 但拒绝 0644、退出码语义、报错含行列号、outbound 名预检）。
@@ -3225,3 +3341,4 @@ dns {
 
 50. **§14.48（v0.59）**：无 APT 环境的依赖安装——OpenWrt/iStoreOS 的 opkg（25.x 起 apk）里没有 dae（`opkg list | grep ^dae` 为空），只有 `ss` 与 `v2ray-geoip/geosite`。新增 `internal/bootstrap/dae_static.go`（`DaeAssetCandidates` 按 arch+avx2 选包、`installDaeStatic` 下载→解包→装 `/usr/bin/dae`→写 procd→重启服务）与 `deploy/install.sh` 的 `install_dae_static()`；修四个坑（静态包是 usr/bin 布局、fetch 4MB/30s 上限、直连 GitHub EOF 需加速回退、换二进制后 procd 不会自启）。实机 3.8s 装完，`/api/status` active。
 51. **§14.49（v0.60）**：OpenWrt 上「能连但一半失败」的归因与修法——procd 传给 dae 的 `RLIMIT_NOFILE` 硬上限 4096（`socket: too many open files`，改 init 脚本 ulimit 包装，`deploy/install.sh` 与 `internal/bootstrap/dae_static.go` 同步，并对已有脚本做缺则重写的升级路径）；OpenClash 停用后 dnsmasq 残留 `noresolv=1`/`server=127.0.0.1#7874` 返回 `198.18.x` 假 IP（清 uci 项）；入口配置被 core 覆盖导致订阅段丢失；DoT 上游被掐改 UDP 53 且 `bootstrap_resolver` 必须 `ip:port`；`dae reload` 对 DNS/global 不可靠必须 restart；发现 9 次 OOM kill 并用 `bpf_conn_state_map_size: 65536` 把 RSS 降到 92–158MB；同时间段两台对比数据与「失败主要来自 DNS」的绕过实验。
+52. **§14.50（v0.61）**：dae 节点健康检查与选路——读 dae v2.1.1 源码定出五个吃亏点（TCP 探测**单次失败即判死**、`check_tolerance` 代码默认 **0** 无迟滞、组内全死直接 `ErrNoAliveDialer` 仅单节点组兜底、拨号重试**不换节点**、探测目标 `cp.cloudflare.com/1.1.1.1/dns.google` 穿节点探测会误杀），与 mihomo（interval 300s + lazy、真实失败只计数不写 alive）逐项对照；给出 .85 现场 24h 数据（节点域名 bootstrap 解析失败 1774 次、i/o timeout 5184、SERVFAIL 1593、重选 6646、VmHWM 635MB）与峰值时段；配置层可立即改的四参数（`check_interval: 60s`、`check_tolerance: 500ms`、`tcp_check_url` 换 gstatic、`bootstrap_resolver: '223.5.5.5:53'` + 直连规则前置）与组策略换 `min_avg10`；面板层 7 项优化（默认注入健康参数、分组 policy 可编辑、健康诊断页、DNS 死锁自检、应用后就绪检查、`homenet-panel doctor`、整目录备份恢复）；与 daed（**已归档**，2026-09-24）/NaiLink（三内核切换、`--check-network`、卸载前备份）的定位对照；以及 .224 迁移草案（该机已跑一份不同版本面板，须先核对）。
